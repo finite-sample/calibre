@@ -157,6 +157,18 @@ Counts unique values in predictions to assess granularity preservation.
 
 - **relax_pava**: When you want a simple, efficient approach that ignores "small" violations while correcting larger ones.
 
+## References
+
+1. Nearly-Isotonic Regression
+Tibshirani, R. J., Hoefling, H., & Tibshirani, R. (2011).
+Technometrics, 53(1), 54–61.
+DOI:10.1198/TECH.2010.09281
+
+2. A path algorithm for the fused lasso signal approximator.
+Hoefling, H. (2010).
+Journal of Computational and Graphical Statistics, 19(4), 984–1006.
+DOI:10.1198/jcgs.2010.09208
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
