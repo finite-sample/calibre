@@ -15,6 +15,9 @@ Calibre addresses these issues by providing a suite of advanced calibration tech
 - **Nearly-isotonic regression**: Allows controlled violations of monotonicity to better preserve data granularity
 - **I-spline calibration**: Uses monotonic splines for smooth calibration functions
 - **Relaxed PAVA**: Ignores "small" violations based on percentile thresholds in the data
+- **Regularized isotonic regression:** Adds L2 regularization to standard isotonic regression for smoother calibration curves while maintaining monotonicity.
+- **Locally smoothed isotonic:** Applies Savitzky-Golay filtering to isotonic regression results to reduce the "staircase effect" while preserving monotonicity.
+- **Adaptive smoothed isotonic:** Uses variable-sized smoothing windows based on data density to provide better detail in dense regions and smoother curves in sparse regions.
 
 ### Benchmark
 
@@ -132,6 +135,37 @@ Implements relaxed PAVA that ignores violations below a threshold.
   - `percentile`: Percentile of absolute differences to use as threshold
 - **Returns**:
   - Calibrated values with relaxed monotonicity
+
+#### `regularized_isotonic(x, y, alpha=0.1)`
+Implements regularized isotonic regression using convex optimization with CVXPY.
+- **Parameters**:
+  - `x`: Input features (for sorting)
+  - `y`: Target values to calibrate
+  - `alpha`: Regularization strength parameter. Higher values result in smoother curves.
+- **Returns**:
+  - Calibrated values with regularized isotonic property
+
+#### `locally_smoothed_isotonic(x, y, window_length=None, polyorder=3, interp_method='linear')`
+Implements locally smoothed isotonic regression using Savitzky-Golay filtering.
+- **Parameters**:
+  - `x`: Input features (predictions to calibrate)
+  - `y`: Target values
+  - `window_length`: Window length for Savitzky-Golay filter. Should be odd. If None, automatically determined.
+  - `polyorder`: Polynomial order for the Savitzky-Golay filter.
+  - `interp_method`: Interpolation method to use ('linear', 'cubic', etc.)
+- **Returns**:
+  - Calibrated values with smoothed isotonic property
+
+#### `adaptive_smoothed_isotonic(x, y, min_window=5, max_window=None, polyorder=3)`
+Implements adaptive locally smoothed isotonic regression with variable window sizes.
+- **Parameters**:
+  - `x`: Input features (predictions to calibrate)
+  - `y`: Target values
+  - `min_window`: Minimum window length for smoothing
+  - `max_window`: Maximum window length for smoothing. If None, automatically determined.
+  - `polyorder`: Polynomial order for the filter
+- **Returns**:
+  - Calibrated values with adaptively smoothed isotonic property
 
 ### Evaluation Metrics
 
