@@ -142,56 +142,6 @@ def ensure_binary(y: np.ndarray, threshold: float = 0.5) -> np.ndarray:
         return (y == positive_class).astype(int)
 
 
-def validate_probability(y_pred: np.ndarray, fix: bool = True) -> np.ndarray:
-    """
-    Validate and/or fix predicted probabilities to be within [0, 1] range.
-    
-    Parameters
-    ----------
-    y_pred : array-like of shape (n_samples,)
-        Predicted probabilities.
-    fix : bool, default=True
-        If True, clip values to [0, 1] range.
-        If False, raise ValueError for out-of-range values.
-        
-    Returns
-    -------
-    y_pred : ndarray of shape (n_samples,)
-        Validated (and possibly clipped) probabilities.
-        
-    Raises
-    ------
-    ValueError
-        If probabilities are outside [0, 1] range and fix=False.
-        
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_pred = np.array([-0.1, 0.5, 1.2])
-    >>> validate_probability(y_pred)
-    array([0. , 0.5, 1. ])
-    """
-    y_pred = np.asarray(y_pred)
-    
-    # Check if values are outside [0, 1] range
-    if np.any(y_pred < 0) or np.any(y_pred > 1):
-        if fix:
-            # Clip values to [0, 1] range
-            original_y_pred = y_pred.copy()
-            y_pred = np.clip(y_pred, 0, 1)
-            warnings.warn(
-                "Some predicted probabilities were outside [0, 1] range "
-                "and have been clipped.",
-                UserWarning
-            )
-        else:
-            raise ValueError(
-                "Predicted probabilities must be in [0, 1] range."
-            )
-    
-    return y_pred
-
-
 def create_bins(X: np.ndarray, n_bins: int = 10, 
                 strategy: str = 'uniform') -> np.ndarray:
     """
