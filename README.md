@@ -10,7 +10,7 @@ Calibration is a critical step in deploying machine learning models. While techn
 
 2. **Rigid monotonicity**: Perfect monotonicity might not always be necessary or beneficial; small violations might be acceptable if they better preserve the information content of the original predictions.
 
-Calibre addresses these issues by providing a suite of advanced calibration techniques that allow for more nuanced control over the calibration process, including:
+Calibre addresses these limitations by implementing a suite of advanced calibration techniques that provide more nuanced control over model probability calibration. Its methods are designed to preserve granularity while still favoring a generally monotonic trend.
 
 - **Nearly-isotonic regression**: Allows controlled violations of monotonicity to better preserve data granularity
 - **I-spline calibration**: Uses monotonic splines for smooth calibration functions
@@ -35,7 +35,7 @@ pip install calibre
 
 ```python
 import numpy as np
-from calibre import nearly_isotonic_opt
+from calibre import NearlyIsotonicRegression
 
 # Example data
 np.random.seed(42)
@@ -43,25 +43,64 @@ x = np.sort(np.random.uniform(0, 1, 1000))
 y_true = np.sin(2 * np.pi * x)
 y = y_true + np.random.normal(0, 0.1, size=1000)
 
-# Apply calibration with control over monotonicity strength
-# Higher lambda = stronger monotonicity enforcement
-y_calibrated_strict = nearly_isotonic_opt(x, y, lam=10.0)
-y_calibrated_relaxed = nearly_isotonic_opt(x, y, lam=0.1)
+# Calibrate with different lambda values
+cal_strict = NearlyIsotonicRegression(lam=10.0, method='cvx')
+cal_strict.fit(x, y)
+y_calibrated_strict = cal_strict.transform(x)
+
+cal_relaxed = NearlyIsotonicRegression(lam=0.1, method='cvx')
+cal_relaxed.fit(x, y)
+y_calibrated_relaxed = cal_relaxed.transform(x)
 
 # Now y_calibrated_relaxed will preserve more unique values
 # while y_calibrated_strict will be more strictly monotonic
 ```
 
-### Relaxed PAVA with Dynamic Threshold
+### I-Spline Calibration
 
 ```python
-from calibre import relax_pava
+from calibre import ISplineCalibrator
 
-# Allow violations below the 10th percentile of absolute differences
-y_calibrated = relax_pava(x, y, percentile=10)
+# Smooth calibration using I-splines with cross-validation
+cal_ispline = ISplineCalibrator(n_splines=10, degree=3, cv=5)
+cal_ispline.fit(x, y)
+y_ispline = cal_ispline.transform(x)
+```
+
+### Relaxed PAVA
+
+```python
+from calibre import RelaxedPAVA
+
+# Calibrate allowing small violations (threshold at 10th percentile)
+cal_relaxed_pava = RelaxedPAVA(percentile=10, adaptive=True)
+cal_relaxed_pava.fit(x, y)
+y_relaxed = cal_relaxed_pava.transform(x)
 
 # This preserves more structure than standard isotonic regression
 # while still correcting larger violations of monotonicity
+```
+
+### Regularized Isotonic
+
+```python
+from calibre import RegularizedIsotonicRegression
+
+# Calibrate with L2 regularization
+cal_reg_iso = RegularizedIsotonicRegression(alpha=0.1)
+cal_reg_iso.fit(x, y)
+y_reg_iso = cal_reg_iso.transform(x)
+```
+
+### Locally Smoothed Isotonic
+
+```python
+from calibre import SmoothedIsotonicRegression
+
+# Apply local smoothing to reduce the “staircase” effect
+cal_smoothed = SmoothedIsotonicRegression(window_length=7, poly_order=3, interp_method='linear')
+cal_smoothed.fit(x, y)
+y_smoothed = cal_smoothed.transform(x)
 ```
 
 ### Evaluating Calibration Quality
