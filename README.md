@@ -1,6 +1,6 @@
 ## Calibre: Advanced Calibration Models
 
-[![PyPI version](https://badge.fury.io/py/calibre.svg)](https://badge.fury.io/py/calibre)
+[![PyPI version](https://img.shields.io/pypi/v/calibre.svg)](https://pypi.org/project/calibre/)
 [![PyPI Downloads](https://static.pepy.tech/badge/calibre)](https://pepy.tech/projects/calibre)
 [![Python Versions](https://img.shields.io/pypi/pyversions/calibre.svg)](https://pypi.org/project/calibre/)
 
