@@ -7,9 +7,7 @@ from .calibration import (
     ISplineCalibrator,
     RelaxedPAVA,
     RegularizedIsotonicRegression,
-    SmoothedIsotonicRegression,
-    check_arrays,
-    sort_by_x
+    SmoothedIsotonicRegression
 )
 from .metrics import (
     mean_calibration_error,
@@ -21,6 +19,14 @@ from .metrics import (
     correlation_metrics,
     unique_value_counts
 )
+from .utils import (
+    check_arrays,
+    sort_by_x,
+    ensure_binary,
+    validate_probability,
+    create_bins,
+    bin_data
+)
 
 __all__ = [
     # Calibrators
@@ -31,10 +37,6 @@ __all__ = [
     'RegularizedIsotonicRegression',
     'SmoothedIsotonicRegression',
     
-    # Utility functions
-    'check_arrays',
-    'sort_by_x',
-    
     # Metrics
     'mean_calibration_error',
     'binned_calibration_error',
@@ -43,7 +45,15 @@ __all__ = [
     'brier_score',
     'calibration_curve',
     'correlation_metrics',
-    'unique_value_counts'
+    'unique_value_counts',
+    
+    # Utility functions
+    'check_arrays',
+    'sort_by_x',
+    'ensure_binary',
+    'validate_probability',
+    'create_bins',
+    'bin_data'
 ]
 
 __version__ = '0.2.0'
