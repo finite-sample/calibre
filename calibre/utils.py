@@ -92,56 +92,6 @@ def sort_by_x(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.
     
     return sort_idx, X_sorted, y_sorted
 
-
-def ensure_binary(y: np.ndarray, threshold: float = 0.5) -> np.ndarray:
-    """
-    Ensure array contains binary values (0 and 1).
-    
-    Parameters
-    ----------
-    y : array-like of shape (n_samples,)
-        Input array.
-    threshold : float, default=0.5
-        Threshold for binarizing continuous values.
-        
-    Returns
-    -------
-    binary_y : ndarray of shape (n_samples,)
-        Array with values converted to 0 and 1.
-        
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y = np.array([0.1, 0.6, 0.4, 0.9])
-    >>> ensure_binary(y)
-    array([0, 1, 0, 1])
-    
-    >>> y = np.array(['positive', 'negative', 'positive'])
-    >>> ensure_binary(y)
-    array([1, 0, 1])
-    """
-    y = np.asarray(y)
-    
-    # Check if already binary
-    unique_vals = np.unique(y)
-    if len(unique_vals) <= 2 and set(unique_vals).issubset({0, 1}):
-        return y.astype(int)
-    
-    # Handle continuous values
-    if np.issubdtype(y.dtype, np.number):
-        return (y >= threshold).astype(int)
-    
-    # Handle categorical values (e.g., 'positive'/'negative')
-    try:
-        # Try to convert to numeric values first
-        y_numeric = y.astype(float)
-        return (y_numeric >= threshold).astype(int)
-    except (ValueError, TypeError):
-        # If conversion fails, use the first unique value as the positive class
-        positive_class = unique_vals[0]
-        return (y == positive_class).astype(int)
-
-
 def create_bins(X: np.ndarray, n_bins: int = 10, 
                 strategy: str = 'uniform') -> np.ndarray:
     """
