@@ -2,13 +2,14 @@
 Calibre: Advanced probability calibration methods for machine learning
 """
 from .calibration import (
-    nearly_isotonic_opt,
-    nearly_isotonic_path,
-    ispline_calib,
-    relax_pava,
-    regularized_isotonic,
-    locally_smoothed_isotonic,
-    adaptive_smoothed_isotonic
+    BaseCalibrator,
+    NearlyIsotonicRegression,
+    ISplineCalibrator,
+    RelaxedPAVA,
+    RegularizedIsotonicRegression,
+    SmoothedIsotonicRegression,
+    check_arrays,
+    sort_by_x
 )
 from .metrics import (
     mean_calibration_error,
@@ -18,17 +19,23 @@ from .metrics import (
 )
 
 __all__ = [
-    'nearly_isotonic_opt',
-    'nearly_isotonic_path',
-    'ispline_calib',
-    'relax_pava',
-    'regularized_isotonic',
-    'locally_smoothed_isotonic',
-    'adaptive_smoothed_isotonic',
+    # Calibrators
+    'BaseCalibrator',
+    'NearlyIsotonicRegression',
+    'ISplineCalibrator',
+    'RelaxedPAVA',
+    'RegularizedIsotonicRegression',
+    'SmoothedIsotonicRegression',
+    
+    # Utility functions
+    'check_arrays',
+    'sort_by_x',
+    
+    # Metrics
     'mean_calibration_error',
     'binned_calibration_error',
     'correlation_metrics',
     'unique_value_counts'
 ]
 
-__version__ = '0.1.2'
+__version__ = '0.2.0' 
