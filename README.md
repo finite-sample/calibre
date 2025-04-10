@@ -1,7 +1,7 @@
 ## Calibre: Advanced Calibration Models
 
 [![PyPI version](https://badge.fury.io/py/calibre.svg)](https://badge.fury.io/py/calibre)
-[![PyPI downloads](https://img.shields.io/pypi/dm/calibre.svg)](https://pypi.org/project/calibre/)
+[![PyPI Downloads](https://static.pepy.tech/badge/calibre)](https://pepy.tech/projects/calibre)
 [![Python Versions](https://img.shields.io/pypi/pyversions/calibre.svg)](https://pypi.org/project/calibre/)
 
 Calibration is a critical step in deploying machine learning models. While techniques like isotonic regression have been standard for this task, they come with significant limitations:
