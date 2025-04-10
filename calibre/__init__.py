@@ -22,8 +22,6 @@ from .metrics import (
 from .utils import (
     check_arrays,
     sort_by_x,
-    ensure_binary,
-    validate_probability,
     create_bins,
     bin_data
 )
@@ -41,7 +39,7 @@ __all__ = [
     'mean_calibration_error',
     'binned_calibration_error',
     'expected_calibration_error',
-    'maximum_calibration_error',
+    'maximum_calibration_error', 
     'brier_score',
     'calibration_curve',
     'correlation_metrics',
@@ -50,8 +48,6 @@ __all__ = [
     # Utility functions
     'check_arrays',
     'sort_by_x',
-    'ensure_binary',
-    'validate_probability',
     'create_bins',
     'bin_data'
 ]
