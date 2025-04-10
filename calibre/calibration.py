@@ -6,6 +6,9 @@ with a focus on monotonic and nearly-monotonic calibration methods.
 """
 import numpy as np
 import cvxpy as cp
+import logging
+from typing import Optional, Tuple, List, Union, Any, Dict
+
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.isotonic import IsotonicRegression
 from sklearn.model_selection import KFold
@@ -14,6 +17,13 @@ from sklearn.linear_model import LinearRegression
 from scipy.signal import savgol_filter
 from scipy.interpolate import interp1d
 
+# Import utility functions from utils module
+from .utils import check_arrays, sort_by_x
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
+
 class BaseCalibrator(BaseEstimator, TransformerMixin):
     """Base class for all calibrators.
     
@@ -21,7 +31,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
     consistent API and functionality.
     """
     
-    def fit(self, X, y=None):
+    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> 'BaseCalibrator':
         """Fit the calibrator.
         
         Parameters
@@ -33,12 +43,12 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             
         Returns
         -------
-        self : object
+        self : BaseCalibrator
             Returns self.
         """
         raise NotImplementedError
         
-    def transform(self, X):
+    def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply calibration to new data.
         
         Parameters
@@ -53,7 +63,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         """
         raise NotImplementedError
         
-    def fit_transform(self, X, y=None):
+    def fit_transform(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> np.ndarray:
         """Fit and then transform.
         
         Parameters
@@ -69,58 +79,6 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             Calibrated values.
         """
         return self.fit(X, y).transform(X)
-
-
-def check_arrays(X, y):
-    """Ensure inputs are numpy arrays of the correct shape.
-    
-    Parameters
-    ----------
-    X : array-like
-        Input features.
-    y : array-like
-        Target values.
-        
-    Returns
-    -------
-    X : numpy.ndarray
-        Input features as a 1D numpy array.
-    y : numpy.ndarray
-        Target values as a 1D numpy array.
-    """
-    X = np.asarray(X).ravel()
-    y = np.asarray(y).ravel()
-    
-    if len(X) != len(y):
-        raise ValueError(f"X and y must have the same length. Got X: {len(X)}, y: {len(y)}")
-    
-    return X, y
-
-
-def sort_by_x(X, y):
-    """Sort X and y by X values and return sorting information.
-    
-    Parameters
-    ----------
-    X : array-like
-        Input features.
-    y : array-like
-        Target values.
-        
-    Returns
-    -------
-    sort_idx : numpy.ndarray
-        Indices that would sort X.
-    X_sorted : numpy.ndarray
-        Sorted X values.
-    y_sorted : numpy.ndarray
-        Y values sorted by X.
-    """
-    sort_idx = np.argsort(X)
-    X_sorted = X[sort_idx]
-    y_sorted = y[sort_idx]
-    
-    return sort_idx, X_sorted, y_sorted
 
 
 class NearlyIsotonicRegression(BaseCalibrator):
@@ -156,13 +114,23 @@ class NearlyIsotonicRegression(BaseCalibrator):
         
     This formulation penalizes violations of monotonicity proportionally to their magnitude,
     allowing small violations when they significantly improve the fit.
+    
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from calibre import NearlyIsotonicRegression
+    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+    >>> cal = NearlyIsotonicRegression(lam=0.5)
+    >>> cal.fit(X, y)
+    >>> cal.transform(np.array([0.15, 0.35, 0.55]))
     """
     
-    def __init__(self, lam=1.0, method='cvx'):
+    def __init__(self, lam: float = 1.0, method: str = 'cvx'):
         self.lam = lam
         self.method = method
     
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray) -> 'NearlyIsotonicRegression':
         """Fit the nearly-isotonic regression model.
         
         Parameters
@@ -174,7 +142,7 @@ class NearlyIsotonicRegression(BaseCalibrator):
             
         Returns
         -------
-        self : object
+        self : NearlyIsotonicRegression
             Returns self.
         """
         X, y = check_arrays(X, y)
@@ -183,7 +151,7 @@ class NearlyIsotonicRegression(BaseCalibrator):
         
         return self
     
-    def transform(self, X):
+    def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply nearly-isotonic calibration to new data.
         
         Parameters
@@ -205,7 +173,7 @@ class NearlyIsotonicRegression(BaseCalibrator):
         else:
             raise ValueError(f"Unknown method: {self.method}. Use 'cvx' or 'path'.")
     
-    def _transform_cvx(self, X):
+    def _transform_cvx(self, X: np.ndarray) -> np.ndarray:
         """Implement nearly-isotonic regression using convex optimization."""
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
         
@@ -239,15 +207,15 @@ class NearlyIsotonicRegression(BaseCalibrator):
                 return cal_func(X)
             
         except Exception as e:
-            print(f"Optimization failed: {e}")
+            logger.warning(f"Optimization failed: {e}")
         
         # Fallback to standard isotonic regression if optimization fails
-        print("Falling back to standard isotonic regression")
+        logger.warning("Falling back to standard isotonic regression")
         ir = IsotonicRegression(out_of_bounds='clip')
         ir.fit(self.X_, self.y_)
         return ir.transform(X)
     
-    def _transform_path(self, X):
+    def _transform_path(self, X: np.ndarray) -> np.ndarray:
         """Implement nearly-isotonic regression using a path algorithm."""
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
         n = len(y_sorted)
@@ -346,14 +314,24 @@ class ISplineCalibrator(BaseCalibrator):
         Fitted spline transformer.
     model_ : LinearRegression
         Fitted linear model with non-negative coefficients.
+        
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from calibre import ISplineCalibrator
+    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+    >>> cal = ISplineCalibrator(n_splines=5)
+    >>> cal.fit(X, y)
+    >>> cal.transform(np.array([0.15, 0.35, 0.55]))
     """
     
-    def __init__(self, n_splines=10, degree=3, cv=5):
+    def __init__(self, n_splines: int = 10, degree: int = 3, cv: int = 5):
         self.n_splines = n_splines
         self.degree = degree
         self.cv = cv
     
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray) -> 'ISplineCalibrator':
         """Fit the I-Spline calibration model.
         
         Parameters
@@ -365,10 +343,19 @@ class ISplineCalibrator(BaseCalibrator):
             
         Returns
         -------
-        self : object
+        self : ISplineCalibrator
             Returns self.
         """
         X, y = check_arrays(X, y)
+        
+        # Validate parameters
+        if self.n_splines < 3:
+            logger.warning("n_splines should be at least 3. Setting to 3.")
+            self.n_splines = 3
+            
+        if self.degree < 1:
+            logger.warning("degree should be at least 1. Setting to 1.")
+            self.degree = 1
         
         # Reshape X to 2D if needed
         X_2d = np.array(X).reshape(-1, 1)
@@ -407,6 +394,7 @@ class ISplineCalibrator(BaseCalibrator):
         
         # If no best model was found, use simple isotonic regression
         if best_model is None:
+            logger.warning("Cross-validation failed to find a good model. Using fallback isotonic regression.")
             self.fallback_ = IsotonicRegression(out_of_bounds='clip')
             self.fallback_.fit(X, y)
             self.spline_ = None
@@ -417,7 +405,7 @@ class ISplineCalibrator(BaseCalibrator):
         
         return self
     
-    def transform(self, X):
+    def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply I-Spline calibration to new data.
         
         Parameters
@@ -462,13 +450,23 @@ class RelaxedPAVA(BaseCalibrator):
         The training input samples.
     y_ : ndarray of shape (n_samples,)
         The target values.
+        
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from calibre import RelaxedPAVA
+    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+    >>> cal = RelaxedPAVA(percentile=20)
+    >>> cal.fit(X, y)
+    >>> cal.transform(np.array([0.15, 0.35, 0.55]))
     """
     
-    def __init__(self, percentile=10, adaptive=True):
+    def __init__(self, percentile: float = 10, adaptive: bool = True):
         self.percentile = percentile
         self.adaptive = adaptive
     
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray) -> 'RelaxedPAVA':
         """Fit the relaxed PAVA model.
         
         Parameters
@@ -480,16 +478,22 @@ class RelaxedPAVA(BaseCalibrator):
             
         Returns
         -------
-        self : object
+        self : RelaxedPAVA
             Returns self.
         """
         X, y = check_arrays(X, y)
+        
+        # Validate percentile parameter
+        if not 0 <= self.percentile <= 100:
+            logger.warning(f"percentile should be between 0 and 100. Got {self.percentile}. Clipping to range.")
+            self.percentile = np.clip(self.percentile, 0, 100)
+            
         self.X_ = X
         self.y_ = y
         
         return self
     
-    def transform(self, X):
+    def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply relaxed PAVA calibration to new data.
         
         Parameters
@@ -522,7 +526,7 @@ class RelaxedPAVA(BaseCalibrator):
         # Apply interpolation to get values at X points
         return cal_func(X)
     
-    def _relaxed_pava_adaptive(self):
+    def _relaxed_pava_adaptive(self) -> np.ndarray:
         """Implement relaxed PAVA with adaptive threshold."""
         X, y = self.X_, self.y_
         
@@ -566,7 +570,7 @@ class RelaxedPAVA(BaseCalibrator):
         
         return y_result
     
-    def _relaxed_pava_block(self):
+    def _relaxed_pava_block(self) -> np.ndarray:
         """Implement relaxed PAVA with block merging approach."""
         X, y = self.X_, self.y_
         
@@ -642,12 +646,22 @@ class RegularizedIsotonicRegression(BaseCalibrator):
         The training input samples.
     y_ : ndarray of shape (n_samples,)
         The target values.
+        
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from calibre import RegularizedIsotonicRegression
+    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+    >>> cal = RegularizedIsotonicRegression(alpha=0.2)
+    >>> cal.fit(X, y)
+    >>> cal.transform(np.array([0.15, 0.35, 0.55]))
     """
     
-    def __init__(self, alpha=0.1):
+    def __init__(self, alpha: float = 0.1):
         self.alpha = alpha
     
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray) -> 'RegularizedIsotonicRegression':
         """Fit the regularized isotonic regression model.
         
         Parameters
@@ -659,16 +673,22 @@ class RegularizedIsotonicRegression(BaseCalibrator):
             
         Returns
         -------
-        self : object
+        self : RegularizedIsotonicRegression
             Returns self.
         """
         X, y = check_arrays(X, y)
+        
+        # Validate alpha parameter
+        if self.alpha < 0:
+            logger.warning(f"alpha should be non-negative. Got {self.alpha}. Setting to 0.")
+            self.alpha = 0
+            
         self.X_ = X
         self.y_ = y
         
         return self
     
-    def transform(self, X):
+    def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply regularized isotonic calibration to new data.
         
         Parameters
@@ -717,10 +737,10 @@ class RegularizedIsotonicRegression(BaseCalibrator):
                 return cal_func(X)
             
         except Exception as e:
-            print(f"Regularized isotonic optimization failed: {e}")
+            logger.warning(f"Regularized isotonic optimization failed: {e}")
         
         # Fallback to standard isotonic regression
-        print("Falling back to standard isotonic regression")
+        logger.warning("Falling back to standard isotonic regression")
         ir = IsotonicRegression(out_of_bounds='clip')
         ir.fit(self.X_, self.y_)
         return ir.transform(X)
@@ -757,10 +777,21 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         The training input samples.
     y_ : ndarray of shape (n_samples,)
         The target values.
+        
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from calibre import SmoothedIsotonicRegression
+    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+    >>> cal = SmoothedIsotonicRegression(window_length=3)
+    >>> cal.fit(X, y)
+    >>> cal.transform(np.array([0.15, 0.35, 0.55]))
     """
     
-    def __init__(self, window_length=None, poly_order=3, interp_method='linear', 
-                 adaptive=False, min_window=5, max_window=None):
+    def __init__(self, window_length: Optional[int] = None, poly_order: int = 3, 
+                 interp_method: str = 'linear', adaptive: bool = False, 
+                 min_window: int = 5, max_window: Optional[int] = None):
         self.window_length = window_length
         self.poly_order = poly_order
         self.interp_method = interp_method
@@ -768,7 +799,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         self.min_window = min_window
         self.max_window = max_window
     
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray) -> 'SmoothedIsotonicRegression':
         """Fit the smoothed isotonic regression model.
         
         Parameters
@@ -780,16 +811,26 @@ class SmoothedIsotonicRegression(BaseCalibrator):
             
         Returns
         -------
-        self : object
+        self : SmoothedIsotonicRegression
             Returns self.
         """
         X, y = check_arrays(X, y)
+        
+        # Validate parameters
+        if self.poly_order < 1:
+            logger.warning(f"poly_order should be at least 1. Got {self.poly_order}. Setting to 1.")
+            self.poly_order = 1
+            
+        if self.min_window < 3:
+            logger.warning(f"min_window should be at least 3. Got {self.min_window}. Setting to 3.")
+            self.min_window = 3
+            
         self.X_ = X
         self.y_ = y
         
         return self
     
-    def transform(self, X):
+    def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply smoothed isotonic calibration to new data.
         
         Parameters
@@ -804,6 +845,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         """
         X = np.asarray(X).ravel()
         
+        # Calculate smoothed calibration values
         # Calculate smoothed calibration values
         if self.adaptive:
             y_smoothed = self._transform_adaptive()
@@ -822,7 +864,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         # Apply interpolation to get values at X points
         return cal_func(X)
     
-    def _transform_fixed(self):
+    def _transform_fixed(self) -> np.ndarray:
         """Implement smoothed isotonic regression with fixed window size."""
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
         
@@ -857,10 +899,11 @@ class SmoothedIsotonicRegression(BaseCalibrator):
                         y_smoothed[i] = y_smoothed[i-1]
                         
             except Exception as e:
-                print(f"Savitzky-Golay smoothing failed: {e}")
+                logger.warning(f"Savitzky-Golay smoothing failed: {e}")
                 y_smoothed = y_iso
         else:
             # Not enough points for smoothing
+            logger.info(f"Not enough points for smoothing (need {window_length}, have {n}). Using isotonic regression without smoothing.")
             y_smoothed = y_iso
         
         # Restore original order
@@ -869,7 +912,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         
         return y_result
     
-    def _transform_adaptive(self):
+    def _transform_adaptive(self) -> np.ndarray:
         """Implement smoothed isotonic regression with adaptive window size."""
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
         
@@ -928,8 +971,26 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         
         return y_result
     
-    def _find_optimal_window_size(self, distances, min_window, max_window, n):
-        """Find the optimal window size based on local point density."""
+    def _find_optimal_window_size(self, distances: np.ndarray, min_window: int, 
+                                 max_window: int, n: int) -> int:
+        """Find the optimal window size based on local point density.
+        
+        Parameters
+        ----------
+        distances : array-like of shape (n_samples,)
+            Distances from the current point to all other points.
+        min_window : int
+            Minimum window size to consider.
+        max_window : int
+            Maximum window size to consider.
+        n : int
+            Total number of points.
+            
+        Returns
+        -------
+        window_size : int
+            Optimal window size based on local density.
+        """
         window_size = min_window
         
         for w in range(min_window, max_window + 2, 2):
@@ -947,8 +1008,28 @@ class SmoothedIsotonicRegression(BaseCalibrator):
                 
         return window_size
     
-    def _apply_local_smoothing(self, i, window_size, X_sorted, y_iso, n):
-        """Apply local smoothing around point i with specified window size."""
+    def _apply_local_smoothing(self, i: int, window_size: int, X_sorted: np.ndarray, 
+                              y_iso: np.ndarray, n: int) -> float:
+        """Apply local smoothing around point i with specified window size.
+        
+        Parameters
+        ----------
+        i : int
+            Index of the point to smooth.
+        window_size : int
+            Window size to use for smoothing.
+        X_sorted : array-like of shape (n_samples,)
+            Sorted X values.
+        y_iso : array-like of shape (n_samples,)
+            Isotonic regression values.
+        n : int
+            Total number of points.
+            
+        Returns
+        -------
+        smoothed_value : float
+            Smoothed value for point i.
+        """
         # Create a local window around point i
         half_window = window_size // 2
         start_idx = max(0, i - half_window)
@@ -979,8 +1060,8 @@ class SmoothedIsotonicRegression(BaseCalibrator):
             local_idx = i - start_idx
             if 0 <= local_idx < len(y_local_smooth):
                 return y_local_smooth[local_idx]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Local smoothing failed for point {i}: {e}")
             
         # Fall back to original value if smoothing fails
         return y_iso[i]
