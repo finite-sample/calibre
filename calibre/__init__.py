@@ -14,6 +14,10 @@ from .calibration import (
 from .metrics import (
     mean_calibration_error,
     binned_calibration_error,
+    expected_calibration_error,
+    maximum_calibration_error,
+    brier_score,
+    calibration_curve,
     correlation_metrics,
     unique_value_counts
 )
@@ -34,8 +38,12 @@ __all__ = [
     # Metrics
     'mean_calibration_error',
     'binned_calibration_error',
+    'expected_calibration_error',
+    'maximum_calibration_error',
+    'brier_score',
+    'calibration_curve',
     'correlation_metrics',
     'unique_value_counts'
 ]
 
-__version__ = '0.2.0' 
+__version__ = '0.2.0'
