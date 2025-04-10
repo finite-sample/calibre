@@ -36,16 +36,17 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     >>> y = [0, 0, 1, 1, 1]
     >>> X_valid, y_valid = check_arrays(X, y)
     """
+    # Convert inputs to numpy arrays and validate dimensions.
     X = check_array(X, ensure_2d=False)
     y = check_array(y, ensure_2d=False)
     
-    # Ensure X and y are 1D arrays
+    # Flatten to 1D arrays.
     X = X.ravel()
     y = y.ravel()
     
+    # Verify that the arrays have the same length.
     if len(X) != len(y):
-        raise ValueError(f"Input arrays X and y must have the same length. "
-                         f"Got X: {len(X)}, y: {len(y)}")
+        raise ValueError(f"Input arrays X and y must have the same length. Got len(X)={len(X)} and len(y)={len(y)}")
     
     return X, y
 

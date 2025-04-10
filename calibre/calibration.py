@@ -710,7 +710,7 @@ class RegularizedIsotonicRegression(BaseCalibrator):
         beta = cp.Variable(len(y_sorted))
         
         # Monotonicity constraints: each value should be greater than or equal to the previous
-        constraints = [beta[i] <= beta[i+1] for i in range(len(beta)-1)]
+        constraints = [beta[:-1] <= beta[1:]]
         
         # Objective: minimize squared error + alpha * L2 regularization
         obj = cp.Minimize(cp.sum_squares(beta - y_sorted) + self.alpha * cp.sum_squares(beta))
@@ -777,16 +777,6 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         The training input samples.
     y_ : ndarray of shape (n_samples,)
         The target values.
-        
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import SmoothedIsotonicRegression
-    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
-    >>> cal = SmoothedIsotonicRegression(window_length=3)
-    >>> cal.fit(X, y)
-    >>> cal.transform(np.array([0.15, 0.35, 0.55]))
     """
     
     def __init__(self, window_length: Optional[int] = None, poly_order: int = 3, 
@@ -816,7 +806,6 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         """
         X, y = check_arrays(X, y)
         
-        # Validate parameters
         if self.poly_order < 1:
             logger.warning(f"poly_order should be at least 1. Got {self.poly_order}. Setting to 1.")
             self.poly_order = 1
@@ -844,15 +833,11 @@ class SmoothedIsotonicRegression(BaseCalibrator):
             Calibrated values.
         """
         X = np.asarray(X).ravel()
-        
-        # Calculate smoothed calibration values
-        # Calculate smoothed calibration values
         if self.adaptive:
             y_smoothed = self._transform_adaptive()
         else:
             y_smoothed = self._transform_fixed()
         
-        # Create interpolation function
         cal_func = interp1d(
             self.X_, 
             y_smoothed, 
@@ -861,207 +846,110 @@ class SmoothedIsotonicRegression(BaseCalibrator):
             fill_value=(np.min(y_smoothed), np.max(y_smoothed))
         )
         
-        # Apply interpolation to get values at X points
         return cal_func(X)
     
     def _transform_fixed(self) -> np.ndarray:
         """Implement smoothed isotonic regression with fixed window size."""
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
-        
-        # Apply standard isotonic regression
         ir = IsotonicRegression(out_of_bounds='clip')
         y_iso = ir.fit_transform(X_sorted, y_sorted)
         
-        # Determine window length if not provided
         n = len(X_sorted)
-        window_length = self.window_length
-        if window_length is None:
-            window_length = max(5, n // 10)
-        
-        # Ensure window_length is odd
+        window_length = self.window_length if self.window_length is not None else max(5, n // 10)
         if window_length % 2 == 0:
             window_length += 1
-        
-        # Ensure window_length is not too large
         window_length = min(window_length, n - (n % 2 == 0))
-        
-        # Ensure poly_order is valid
         poly_order = min(self.poly_order, window_length - 1)
         
-        # Apply Savitzky-Golay filter for smoothing if we have enough points
         if n >= window_length:
             try:
                 y_smoothed = savgol_filter(y_iso, window_length, poly_order)
-                
-                # The smoothing might violate monotonicity, so we need to correct it
-                for i in range(1, len(y_smoothed)):
-                    if y_smoothed[i] < y_smoothed[i-1]:
-                        y_smoothed[i] = y_smoothed[i-1]
-                        
+                # Check for low variance in the smoothed output
+                if np.var(y_smoothed) < 1e-6:
+                    logger.warning("Smoothed output has low variance; falling back to isotonic regression result.")
+                    y_smoothed = y_iso
+                else:
+                    # Enforce monotonicity post-smoothing
+                    for i in range(1, len(y_smoothed)):
+                        if y_smoothed[i] < y_smoothed[i-1]:
+                            y_smoothed[i] = y_smoothed[i-1]
             except Exception as e:
                 logger.warning(f"Savitzky-Golay smoothing failed: {e}")
                 y_smoothed = y_iso
         else:
-            # Not enough points for smoothing
             logger.info(f"Not enough points for smoothing (need {window_length}, have {n}). Using isotonic regression without smoothing.")
             y_smoothed = y_iso
         
-        # Restore original order
         y_result = np.empty_like(y_smoothed)
         y_result[order] = y_smoothed
-        
         return y_result
     
     def _transform_adaptive(self) -> np.ndarray:
         """Implement smoothed isotonic regression with adaptive window size."""
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
-        
-        # Apply standard isotonic regression
         ir = IsotonicRegression(out_of_bounds='clip')
         y_iso = ir.fit_transform(X_sorted, y_sorted)
         
         n = len(X_sorted)
+        max_window = self.max_window if self.max_window is not None else max(self.min_window, n // 5)
+        if max_window % 2 == 0:
+            max_window += 1
         
-        # Set default max_window if not provided
-        max_window = self.max_window
-        if max_window is None:
-            max_window = max(self.min_window, n // 5)
-            # Ensure it's odd
-            if max_window % 2 == 0:
-                max_window += 1
-        
-        # Initialize result array
         y_smoothed = np.array(y_iso)
-        
-        # Not enough points for smoothing
         if n <= 1:
             return y_iso
-            
-        # Normalize x to [0,1] range for density calculation
+        
         x_range = X_sorted[-1] - X_sorted[0]
         if x_range <= 0:
             return y_iso
-            
         x_norm = (X_sorted - X_sorted[0]) / x_range
         
-        # For each point, apply adaptive smoothing
         for i in range(n):
-            # Calculate distances to all other points
             distances = np.abs(x_norm[i] - x_norm)
-            
-            # Determine optimal window size based on local density
-            window_size = self._find_optimal_window_size(
-                distances, self.min_window, max_window, n
-            )
-            
-            # Apply smoothing if window is large enough
-            if window_size >= 5:  # Minimum required for savgol_filter
-                y_smoothed[i] = self._apply_local_smoothing(
-                    i, window_size, X_sorted, y_iso, n
-                )
+            window_size = self._find_optimal_window_size(distances, self.min_window, max_window, n)
+            if window_size >= 5:
+                y_smoothed[i] = self._apply_local_smoothing(i, window_size, X_sorted, y_iso, n)
         
-        # Ensure monotonicity is preserved
         for i in range(1, len(y_smoothed)):
             if y_smoothed[i] < y_smoothed[i-1]:
                 y_smoothed[i] = y_smoothed[i-1]
         
-        # Restore original order
         y_result = np.empty_like(y_smoothed)
         y_result[order] = y_smoothed
-        
         return y_result
     
-    def _find_optimal_window_size(self, distances: np.ndarray, min_window: int, 
-                                 max_window: int, n: int) -> int:
-        """Find the optimal window size based on local point density.
-        
-        Parameters
-        ----------
-        distances : array-like of shape (n_samples,)
-            Distances from the current point to all other points.
-        min_window : int
-            Minimum window size to consider.
-        max_window : int
-            Maximum window size to consider.
-        n : int
-            Total number of points.
-            
-        Returns
-        -------
-        window_size : int
-            Optimal window size based on local density.
-        """
+    def _find_optimal_window_size(self, distances: np.ndarray, min_window: int, max_window: int, n: int) -> int:
         window_size = min_window
-        
         for w in range(min_window, max_window + 2, 2):
-            # Calculate normalized window width
             width = w / n
-            
-            # Count points within this width
             count = np.sum(distances <= width)
-            
-            # If we have enough points, use this window size
             if count >= w:
                 window_size = w
             else:
                 break
-                
         return window_size
     
-    def _apply_local_smoothing(self, i: int, window_size: int, X_sorted: np.ndarray, 
-                              y_iso: np.ndarray, n: int) -> float:
-        """Apply local smoothing around point i with specified window size.
-        
-        Parameters
-        ----------
-        i : int
-            Index of the point to smooth.
-        window_size : int
-            Window size to use for smoothing.
-        X_sorted : array-like of shape (n_samples,)
-            Sorted X values.
-        y_iso : array-like of shape (n_samples,)
-            Isotonic regression values.
-        n : int
-            Total number of points.
-            
-        Returns
-        -------
-        smoothed_value : float
-            Smoothed value for point i.
-        """
-        # Create a local window around point i
+    def _apply_local_smoothing(self, i: int, window_size: int, X_sorted: np.ndarray, y_iso: np.ndarray, n: int) -> float:
         half_window = window_size // 2
         start_idx = max(0, i - half_window)
         end_idx = min(n, i + half_window + 1)
-        
-        # If we don't have enough points in the window
         if end_idx - start_idx < 5:
             return y_iso[i]
-            
-        # Create temp arrays for local smoothing
+        
         x_local = X_sorted[start_idx:end_idx]
         y_local = y_iso[start_idx:end_idx]
-        
-        # Ensure window length is odd
         window_len = len(x_local)
         if window_len % 2 == 0:
             window_len -= 1
-        
         if window_len < 5:
             return y_iso[i]
-            
-        # Apply Savitzky-Golay filter
+        
         poly_ord = min(self.poly_order, window_len - 1)
         try:
             y_local_smooth = savgol_filter(y_local, window_len, poly_ord)
-            
-            # Get the smoothed value for the center point
             local_idx = i - start_idx
             if 0 <= local_idx < len(y_local_smooth):
                 return y_local_smooth[local_idx]
         except Exception as e:
             logger.debug(f"Local smoothing failed for point {i}: {e}")
-            
-        # Fall back to original value if smoothing fails
         return y_iso[i]
