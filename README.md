@@ -172,3 +172,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## License
 
 MIT
+
+## 🔗 Adjacent Repositories
+
+- [gojiplus/rmcp](https://github.com/gojiplus/rmcp) — R MCP Server
+- [gojiplus/pyppur](https://github.com/gojiplus/pyppur) — pyppur: Python Projection Pursuit Unsupervised (Dimension) Reduction To Min. Reconstruction Loss or DIstance DIstortion
+- [gojiplus/bloomjoin](https://github.com/gojiplus/bloomjoin) — bloomjoin: An R package implementing Bloom filter-based joins for improved performance with large datasets.
+- [gojiplus/incline](https://github.com/gojiplus/incline) — Estimate Trend at a Point in a Noisy Time Series
+- [gojiplus/recognize](https://github.com/gojiplus/recognize) — Assess OCR quality: Compare OCR to human transcription
