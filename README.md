@@ -145,13 +145,17 @@ Counts unique values in predictions to assess granularity preservation.
 
 ## When to Use Which Method
 
-- **nearly_isotonic_opt**: When you want precise control over the monotonicity/granularity trade-off and can afford the computational cost of convex optimization.
+- **NearlyIsotonicRegression (method='cvx')**: When you want precise control over the monotonicity/granularity trade-off and can afford the computational cost of convex optimization.
 
-- **nearly_isotonic_path**: When you need an efficient algorithm for larger datasets that still provides control over monotonicity.
+- **NearlyIsotonicRegression (method='path')**: When you need an efficient algorithm for larger datasets that still provides control over monotonicity.
 
-- **ispline_calib**: When you want a smooth calibration function rather than a step function, particularly for visualization and interpretation.
+- **ISplineCalibrator**: When you want a smooth calibration function rather than a step function, particularly for visualization and interpretation.
 
-- **relax_pava**: When you want a simple, efficient approach that ignores "small" violations while correcting larger ones.
+- **RelaxedPAVA**: When you want a simple, efficient approach that ignores "small" violations while correcting larger ones.
+
+- **RegularizedIsotonicRegression**: When you need smoother calibration curves with L2 regularization to prevent overfitting.
+
+- **SmoothedIsotonicRegression**: When you want to reduce the "staircase effect" of standard isotonic regression while preserving monotonicity.
 
 ## References
 

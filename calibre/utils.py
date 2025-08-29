@@ -27,7 +27,7 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     Raises
     ------
     ValueError
-        If X and y have different lengths.
+        If X and y have different lengths or are empty.
         
     Examples
     --------
@@ -43,6 +43,10 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     # Flatten to 1D arrays.
     X = X.ravel()
     y = y.ravel()
+    
+    # Check for empty arrays
+    if len(X) == 0:
+        raise ValueError("Input arrays cannot be empty")
     
     # Verify that the arrays have the same length.
     if len(X) != len(y):

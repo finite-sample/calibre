@@ -13,5 +13,5 @@ keywords:
   - model deployment
 repository-code: "https://github.com/gojiplus/calibre"  # Replace with actual repository URL
 license: MIT  # Replace with actual license
-version: 0.1.0  # Replace with actual version
+version: 0.2.1
 date-released: "2025-04-05"  # Replace with actual release date

@@ -13,7 +13,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.isotonic import IsotonicRegression
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import SplineTransformer
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge
 from scipy.signal import savgol_filter
 from scipy.interpolate import interp1d
 
@@ -264,8 +264,8 @@ class NearlyIsotonicRegression(BaseCalibrator):
             # Compute new lambda value (critical point)
             lambda_star = lambda_curr + t_min
             
-            # Check if we've exceeded lambda
-            if lambda_star > self.lam:
+            # Check if we've exceeded lambda or reached max iterations
+            if lambda_star > self.lam or len(groups) <= 1:
                 break
                 
             # Update current lambda
@@ -381,7 +381,7 @@ class ISplineCalibrator(BaseCalibrator):
             X_train_spline = spline.fit_transform(X_train)
             
             # Fit linear model with non-negative coefficients (monotonicity constraint)
-            model = LinearRegression(positive=True, fit_intercept=True)
+            model = Ridge(alpha=0.01, positive=True, fit_intercept=True)
             model.fit(X_train_spline, y_train)
             
             # Evaluate on validation set
@@ -538,8 +538,12 @@ class RelaxedPAVA(BaseCalibrator):
         # Calculate absolute differences between adjacent points
         diffs = np.abs(np.diff(y_sorted))
         
-        # Handle edge case: if only one data point or all points have same value
-        if len(diffs) == 0 or np.all(diffs == 0):
+        # Handle edge cases
+        if len(diffs) == 0:
+            return y.copy()
+            
+        # Handle case where all differences are zero
+        if np.all(diffs == 0):
             return y.copy()
         
         # Find relaxation threshold based on percentile of differences
@@ -549,7 +553,8 @@ class RelaxedPAVA(BaseCalibrator):
         y_smoothed = y_sorted.copy()
         
         # Iteratively pool adjacent violators that exceed the relaxation threshold
-        for iteration in range(n):  # At most n iterations needed
+        max_iterations = min(n, 100)  # Prevent infinite loops
+        for iteration in range(max_iterations):
             changed = False
             for i in range(n-1):
                 # Check if monotonicity is violated by more than the threshold
@@ -590,37 +595,40 @@ class RelaxedPAVA(BaseCalibrator):
         # Apply modified PAVA with epsilon threshold
         y_fit = y_sorted.copy()
         
-        # Track indices of blocks that have been averaged
-        blocks = [[i] for i in range(n)]
+        # Use a more efficient approach with block tracking via indices
+        block_starts = np.arange(n)
+        block_ends = np.arange(n) + 1
+        block_values = y_sorted.copy()
         
-        i = 0
-        while i < n - 1:
-            if y_fit[i] > y_fit[i + 1] + epsilon:
-                # Violation detected, merge blocks
-                block1 = next(b for b in blocks if i in b)
-                block2 = next(b for b in blocks if (i + 1) in b)
-                
-                # If blocks are different, merge them
-                if block1 != block2:
-                    # Calculate weighted average
-                    merged_block = block1 + block2
-                    merged_avg = sum(y_sorted[j] for j in merged_block) / len(merged_block)
+        changed = True
+        max_iterations = min(n, 50)  # Prevent excessive iterations
+        iteration = 0
+        
+        while changed and iteration < max_iterations:
+            changed = False
+            iteration += 1
+            
+            i = 0
+            while i < len(block_starts) - 1:
+                if block_values[i] > block_values[i + 1] + epsilon:
+                    # Merge blocks i and i+1
+                    start = block_starts[i]
+                    end = block_ends[i + 1]
+                    merged_avg = np.mean(y_sorted[start:end])
                     
-                    # Update values
-                    for j in merged_block:
+                    # Update arrays
+                    block_starts = np.concatenate([block_starts[:i], [start], block_starts[i+2:]])
+                    block_ends = np.concatenate([block_ends[:i], [end], block_ends[i+2:]])
+                    block_values = np.concatenate([block_values[:i], [merged_avg], block_values[i+2:]])
+                    
+                    # Update y_fit for all merged indices
+                    for j in range(start, end):
                         y_fit[j] = merged_avg
                     
-                    # Update block structure
-                    blocks.remove(block1)
-                    blocks.remove(block2)
-                    blocks.append(merged_block)
-                    
-                    # Move back to check if new violations occur
-                    i = min(merged_block)
+                    changed = True
+                    # Don't increment i, check this position again
                 else:
                     i += 1
-            else:
-                i += 1
         
         # Restore original order
         y_result = np.empty_like(y_fit)
@@ -897,7 +905,9 @@ class SmoothedIsotonicRegression(BaseCalibrator):
         
         y_smoothed = np.array(y_iso)
         if n <= 1:
-            return y_iso
+            y_result = np.empty_like(y_smoothed)
+            y_result[order] = y_smoothed
+            return y_result
         
         x_range = X_sorted[-1] - X_sorted[0]
         if x_range <= 0:
