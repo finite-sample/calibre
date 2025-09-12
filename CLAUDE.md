@@ -59,11 +59,15 @@ pip install -e ".[dev]"
 - `ISplineCalibrator`: Smooth calibration using I-splines with cross-validation
 - `RelaxedPAVA`: Ignores small violations based on percentile thresholds
 - `RegularizedIsotonicRegression`: L2 regularized isotonic regression
-- `SmoothedIsotonicRegression`: Applies Savitzky-Golay filtering to reduce staircase effects
+- `SmoothedIsotonicRegression`: Applies Savitzky-Golay filtering to reduce staircase effects (supports both fixed and adaptive window sizing)
 
 **calibre/metrics.py**: Evaluation metrics for calibration quality:
 - `mean_calibration_error()`: Basic calibration error
-- `binned_calibration_error()`: Binned approach
+- `binned_calibration_error()`: Binned approach with uniform/quantile strategies
+- `expected_calibration_error()`: Expected calibration error (ECE)
+- `maximum_calibration_error()`: Maximum calibration error (MCE)
+- `brier_score()`: Brier score computation
+- `calibration_curve()`: Calibration curve generation
 - `correlation_metrics()`: Spearman correlations
 - `unique_value_counts()`: Granularity preservation metrics
 
@@ -96,3 +100,7 @@ pip install -e ".[dev]"
 - Tool configurations for Black, isort, mypy included in pyproject.toml
 - Python 3.10+ required
 - Development dependencies defined in `[project.optional-dependencies.dev]`
+
+## Benchmarking
+- **benchmark.ipynb**: Jupyter notebook with performance benchmarks comparing different calibration methods
+- Contains visual comparisons and quantitative metrics for each calibrator
