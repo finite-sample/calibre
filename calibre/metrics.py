@@ -339,6 +339,7 @@ def correlation_metrics(y_true, y_pred, x=None, y_orig=None):
     if y_orig is not None:
         y_orig = check_array(y_orig, ensure_2d=False)
         results["spearman_corr_to_y_orig"] = spearmanr(y_orig, y_pred).correlation
+        results["spearman_corr_orig_to_calib"] = spearmanr(y_orig, y_pred).correlation  # Alias for backward compatibility
 
     if x is not None:
         x = check_array(x, ensure_2d=False)
