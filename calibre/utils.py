@@ -40,8 +40,8 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     >>> X_valid, y_valid = check_arrays(X, y)
     """
     # Convert inputs to numpy arrays and validate dimensions.
-    X = check_array(X, ensure_2d=False)
-    y = check_array(y, ensure_2d=False)
+    X = check_array(X, ensure_2d=False, ensure_all_finite='allow-nan')
+    y = check_array(y, ensure_2d=False, ensure_all_finite='allow-nan')
 
     # Flatten to 1D arrays.
     X = X.ravel()
@@ -106,7 +106,7 @@ def sort_by_x(
 
 
 def create_bins(
-    X: np.ndarray, n_bins: int = 10, strategy: str = "uniform"
+    X: np.ndarray, n_bins: int = 10, strategy: str = "uniform", x_min: Optional[float] = None, x_max: Optional[float] = None
 ) -> np.ndarray:
     """
     Create bin edges for discretizing continuous values.
@@ -121,6 +121,10 @@ def create_bins(
         Strategy for binning:
         - 'uniform': Bins with uniform widths.
         - 'quantile': Bins with approximately equal counts.
+    x_min : float, optional
+        Minimum value for bin range. If None, uses min(X).
+    x_max : float, optional
+        Maximum value for bin range. If None, uses max(X).
 
     Returns
     -------
@@ -136,9 +140,15 @@ def create_bins(
     """
     X = np.asarray(X)
 
+    # Validate n_bins
+    if n_bins <= 0:
+        raise ValueError("n_bins must be positive")
+
     if strategy == "uniform":
         # Create bins with uniform widths
-        bins = np.linspace(np.min(X), np.max(X), n_bins + 1)
+        min_val = x_min if x_min is not None else np.min(X)
+        max_val = x_max if x_max is not None else np.max(X)
+        bins = np.linspace(min_val, max_val, n_bins + 1)
     elif strategy == "quantile":
         # Create bins with approximately equal counts
         bins = np.percentile(X, np.linspace(0, 100, n_bins + 1))
@@ -152,7 +162,7 @@ def create_bins(
 
 def bin_data(X: np.ndarray, bins: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Assign data points to bins and compute bin centers.
+    Assign data points to bins and compute bin counts.
 
     Parameters
     ----------
@@ -165,19 +175,19 @@ def bin_data(X: np.ndarray, bins: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     -------
     bin_indices : ndarray of shape (n_samples,)
         Bin indices for each data point.
-    bin_centers : ndarray of shape (n_bins,)
-        Centers of each bin.
+    bin_counts : ndarray of shape (n_bins,)
+        Number of data points in each bin.
 
     Examples
     --------
     >>> import numpy as np
     >>> X = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
     >>> bins = np.array([0.0, 0.33, 0.67, 1.0])
-    >>> bin_indices, bin_centers = bin_data(X, bins)
+    >>> bin_indices, bin_counts = bin_data(X, bins)
     >>> print(bin_indices)
     [0 0 1 2 2]
-    >>> print(bin_centers)
-    [0.165 0.5   0.835]
+    >>> print(bin_counts)
+    [2 1 2]
     """
     X = np.asarray(X)
     bins = np.asarray(bins)
@@ -188,7 +198,7 @@ def bin_data(X: np.ndarray, bins: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     # Clip bin indices to valid range
     bin_indices = np.clip(bin_indices, 0, len(bins) - 2)
 
-    # Compute bin centers
-    bin_centers = (bins[:-1] + bins[1:]) / 2
+    # Compute bin counts
+    bin_counts = np.bincount(bin_indices, minlength=len(bins) - 1)
 
-    return bin_indices, bin_centers
+    return bin_indices, bin_counts

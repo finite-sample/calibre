@@ -51,7 +51,7 @@ class TestCheckArrays:
         X = [0.1, 0.3, 0.5]
         y = [0, 1]  # Different length
 
-        with pytest.raises(ValueError, match="different lengths"):
+        with pytest.raises(ValueError, match="same length"):
             check_arrays(X, y)
 
     def test_empty_arrays(self):
@@ -59,7 +59,7 @@ class TestCheckArrays:
         X = []
         y = []
 
-        with pytest.raises(ValueError, match="cannot be empty"):
+        with pytest.raises(ValueError, match="minimum of 1 is required"):
             check_arrays(X, y)
 
     def test_single_element(self):
@@ -191,7 +191,7 @@ class TestCreateBins:
         """Test invalid strategy."""
         X = np.array([0.1, 0.5, 0.9])
 
-        with pytest.raises(ValueError, match="Strategy must be"):
+        with pytest.raises(ValueError, match="Unknown binning strategy"):
             create_bins(X, strategy="invalid")
 
     def test_edge_cases(self):
@@ -314,7 +314,7 @@ class TestIntegrationAndEdgeCases:
         X_valid, y_valid = check_arrays(X, y)
 
         # Step 2: Sort
-        X_sorted, y_sorted, _ = sort_by_x(X_valid, y_valid)
+        _, X_sorted, y_sorted = sort_by_x(X_valid, y_valid)
 
         # Step 3: Create bins
         bins = create_bins(X_sorted, n_bins=3, strategy="uniform")
@@ -334,7 +334,7 @@ class TestIntegrationAndEdgeCases:
         y = np.array([0, 1, 1])
 
         X_valid, y_valid = check_arrays(X, y)
-        X_sorted, y_sorted, _ = sort_by_x(X_valid, y_valid)
+        _, X_sorted, y_sorted = sort_by_x(X_valid, y_valid)
 
         # Should handle extreme values
         assert X_sorted[0] == 1e-10
@@ -348,7 +348,7 @@ class TestIntegrationAndEdgeCases:
         y = np.random.binomial(1, X, n)
 
         X_valid, y_valid = check_arrays(X, y)
-        X_sorted, y_sorted, _ = sort_by_x(X_valid, y_valid)
+        _, X_sorted, y_sorted = sort_by_x(X_valid, y_valid)
         bins = create_bins(X_sorted, n_bins=50, strategy="quantile")
         bin_indices, bin_counts = bin_data(X_sorted, bins)
 

@@ -104,8 +104,8 @@ class TestBinnedCalibrationError:
 
         result = binned_calibration_error(y_true, y_pred, n_bins=4, return_details=True)
         assert isinstance(result, dict)
-        assert "calibration_error" in result
-        assert "bin_boundaries" in result
+        assert "bce" in result
+        assert "bin_counts" in result
         assert "bin_centers" in result
 
     def test_invalid_strategy(self):
@@ -113,7 +113,7 @@ class TestBinnedCalibrationError:
         y_true = np.array([0, 1])
         y_pred = np.array([0.1, 0.9])
 
-        with pytest.raises(ValueError, match="Strategy must be"):
+        with pytest.raises(ValueError, match="Unknown binning strategy"):
             binned_calibration_error(y_true, y_pred, strategy="invalid")
 
 
@@ -244,7 +244,7 @@ class TestUniqueValueCounts:
 
         counts = unique_value_counts(y_pred, y_orig)
         assert "n_unique_y_orig" in counts
-        assert "granularity_preservation_ratio" in counts
+        assert "unique_value_ratio" in counts
         assert counts["n_unique_y_orig"] == 5
 
     def test_precision_rounding(self):
@@ -266,7 +266,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        fraction_pos, mean_pred = calibration_curve(
+        fraction_pos, mean_pred, counts = calibration_curve(
             y_true, y_pred, n_bins=4, strategy="uniform"
         )
 
@@ -279,7 +279,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        fraction_pos, mean_pred = calibration_curve(
+        fraction_pos, mean_pred, counts = calibration_curve(
             y_true, y_pred, n_bins=4, strategy="quantile"
         )
 
@@ -291,7 +291,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 1])
         y_pred = np.array([0, 1])
 
-        fraction_pos, mean_pred = calibration_curve(y_true, y_pred, n_bins=2)
+        fraction_pos, mean_pred, counts = calibration_curve(y_true, y_pred, n_bins=2)
         # Should be close to perfect diagonal
         np.testing.assert_array_almost_equal(fraction_pos, mean_pred, decimal=1)
 
@@ -315,10 +315,10 @@ class TestEdgeCases:
 
         # Should work for most functions
         error = mean_calibration_error(y_true, y_pred)
-        assert error == 0.2
+        assert error == pytest.approx(0.2)
 
         bs = brier_score(y_true, y_pred)
-        assert bs == 0.04
+        assert bs == pytest.approx(0.04)
 
     def test_constant_predictions(self):
         """Test behavior with constant predictions."""

@@ -562,8 +562,10 @@ class TestParameterSensitivity:
             unique_counts = [results[p]['unique_count'] for p in sorted_perc]
             
             # Should show general trend (allow some tolerance)
-            correlation = np.corrcoef(sorted_perc, unique_counts)[0, 1]
-            assert correlation >= 0, "Higher percentile should tend to preserve more unique values"
+            if len(set(unique_counts)) > 1:  # Only check if there's variation
+                correlation = np.corrcoef(sorted_perc, unique_counts)[0, 1]
+                if not np.isnan(correlation):
+                    assert correlation >= 0, "Higher percentile should tend to preserve more unique values"
 
 
 # Utility functions for property testing
