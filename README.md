@@ -23,7 +23,7 @@ Calibre addresses these limitations by implementing a suite of advanced calibrat
 
 ### Benchmark
 
-The notebook has [benchmark results](benchmark.ipynb).
+The notebook has [benchmark results](examples/benchmark.ipynb).
 
 ## Installation
 
@@ -39,20 +39,19 @@ pip install calibre
 import numpy as np
 from calibre import NearlyIsotonicRegression
 
-# Example data
+# Example data: model predictions and true binary outcomes
 np.random.seed(42)
-x = np.sort(np.random.uniform(0, 1, 1000))
-y_true = np.sin(2 * np.pi * x)
-y = y_true + np.random.normal(0, 0.1, size=1000)
+y_pred = np.sort(np.random.uniform(0, 1, 1000))  # Model probability predictions
+y_true = np.random.binomial(1, y_pred, 1000)     # True binary outcomes
 
 # Calibrate with different lambda values
 cal_strict = NearlyIsotonicRegression(lam=10.0, method='cvx')
-cal_strict.fit(x, y)
-y_calibrated_strict = cal_strict.transform(x)
+cal_strict.fit(y_pred, y_true)
+y_calibrated_strict = cal_strict.transform(y_pred)
 
 cal_relaxed = NearlyIsotonicRegression(lam=0.1, method='cvx')
-cal_relaxed.fit(x, y)
-y_calibrated_relaxed = cal_relaxed.transform(x)
+cal_relaxed.fit(y_pred, y_true)
+y_calibrated_relaxed = cal_relaxed.transform(y_pred)
 
 # Now y_calibrated_relaxed will preserve more unique values
 # while y_calibrated_strict will be more strictly monotonic
@@ -65,8 +64,8 @@ from calibre import ISplineCalibrator
 
 # Smooth calibration using I-splines with cross-validation
 cal_ispline = ISplineCalibrator(n_splines=10, degree=3, cv=5)
-cal_ispline.fit(x, y)
-y_ispline = cal_ispline.transform(x)
+cal_ispline.fit(y_pred, y_true)
+y_calibrated_ispline = cal_ispline.transform(y_pred)
 ```
 
 ### Relaxed PAVA
@@ -76,8 +75,8 @@ from calibre import RelaxedPAVA
 
 # Calibrate allowing small violations (threshold at 10th percentile)
 cal_relaxed_pava = RelaxedPAVA(percentile=10, adaptive=True)
-cal_relaxed_pava.fit(x, y)
-y_relaxed = cal_relaxed_pava.transform(x)
+cal_relaxed_pava.fit(y_pred, y_true)
+y_calibrated_relaxed = cal_relaxed_pava.transform(y_pred)
 
 # This preserves more structure than standard isotonic regression
 # while still correcting larger violations of monotonicity
@@ -90,8 +89,8 @@ from calibre import RegularizedIsotonicRegression
 
 # Calibrate with L2 regularization
 cal_reg_iso = RegularizedIsotonicRegression(alpha=0.1)
-cal_reg_iso.fit(x, y)
-y_reg_iso = cal_reg_iso.transform(x)
+cal_reg_iso.fit(y_pred, y_true)
+y_calibrated_reg = cal_reg_iso.transform(y_pred)
 ```
 
 ### Locally Smoothed Isotonic
@@ -99,10 +98,10 @@ y_reg_iso = cal_reg_iso.transform(x)
 ```python
 from calibre import SmoothedIsotonicRegression
 
-# Apply local smoothing to reduce the “staircase” effect
+# Apply local smoothing to reduce the "staircase" effect
 cal_smoothed = SmoothedIsotonicRegression(window_length=7, poly_order=3, interp_method='linear')
-cal_smoothed.fit(x, y)
-y_smoothed = cal_smoothed.transform(x)
+cal_smoothed.fit(y_pred, y_true)
+y_calibrated_smooth = cal_smoothed.transform(y_pred)
 ```
 
 ### Evaluating Calibration Quality
@@ -116,16 +115,16 @@ from calibre import (
 )
 
 # Calculate error metrics
-mce = mean_calibration_error(y_true, y_calibrated)
-bce = binned_calibration_error(y_true, y_calibrated, n_bins=10)
+mce = mean_calibration_error(y_true, y_calibrated_strict)
+bce = binned_calibration_error(y_true, y_calibrated_strict, n_bins=10)
 
 # Check correlations
-corr = correlation_metrics(y_true, y_calibrated, x=x, y_orig=y)
+corr = correlation_metrics(y_true, y_calibrated_strict, y_orig=y_pred)
 print(f"Correlation with true values: {corr['spearman_corr_to_y_true']:.4f}")
-print(f"Correlation with original predictions: {corr['spearman_corr_to_y_orig']:.4f}")
+print(f"Correlation with original predictions: {corr['spearman_corr_orig_to_calib']:.4f}")
 
 # Check granularity preservation
-counts = unique_value_counts(y_calibrated, y_orig=y)
+counts = unique_value_counts(y_calibrated_strict, y_orig=y_pred)
 print(f"Original unique values: {counts['n_unique_y_orig']}")
 print(f"Calibrated unique values: {counts['n_unique_y_pred']}")
 print(f"Preservation ratio: {counts['unique_value_ratio']:.2f}")
@@ -136,8 +135,17 @@ print(f"Preservation ratio: {counts['unique_value_ratio']:.2f}")
 #### `mean_calibration_error(y_true, y_pred)`
 Calculates the mean calibration error.
 
-#### `binned_calibration_error(y_true, y_pred, x=None, n_bins=10)`
-Calculates binned calibration error.
+#### `binned_calibration_error(y_true, y_pred, x=None, n_bins=10, strategy='uniform', return_details=False)`
+Calculates binned calibration error using uniform or quantile binning strategies.
+
+#### `expected_calibration_error(y_true, y_pred, n_bins=10)`
+Calculates the Expected Calibration Error (ECE), a weighted average of calibration errors across bins.
+
+#### `maximum_calibration_error(y_true, y_pred, n_bins=10)`
+Calculates the Maximum Calibration Error (MCE), the worst-case calibration error across all bins.
+
+#### `calibration_curve(y_true, y_pred, n_bins=10, strategy='uniform')`
+Generates calibration curve data points for plotting reliability diagrams.
 
 #### `correlation_metrics(y_true, y_pred, x=None, y_orig=None)`
 Calculates Spearman's correlation metrics.
@@ -205,6 +213,8 @@ pytest tests/test_calibration.py
 pytest -xvs tests/
 ```
 
+**Note**: Some tests may be skipped when calibrators reach their mathematical limits (e.g., strict monotonicity requirements, granularity preservation thresholds). This is expected behavior and indicates where each algorithm has inherent limitations rather than test failures. Typically 6-8 tests are skipped out of ~140 total tests.
+
 ### Code Quality
 
 ```bash
@@ -229,7 +239,7 @@ jupyter nbconvert --to notebook --execute benchmark.ipynb
 
 This project uses GitHub Actions for CI/CD:
 
-- **Tests**: Run on Python 3.10, 3.11, 3.12 across Ubuntu, macOS, and Windows
+- **Tests**: Run on Python 3.10, 3.11, 3.12 on Ubuntu (primary), with Python 3.11 on macOS and Windows
 - **Code Quality**: Black, isort, and flake8 checks (informational)
 - **Coverage**: Automated coverage reporting via Codecov
 - **Package Building**: Validates package can be built and installed
