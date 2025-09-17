@@ -34,8 +34,10 @@ dev = [
     "pytest>=6.0.0",
     "pytest-cov>=2.12.0",
     "black>=21.5b2",
-    "mypy>=0.812",
     "isort>=5.9.0",
+    "flake8>=3.8.0",
+    "scikit-learn>=1.0.0",  # Needed for integration tests
+    "build>=0.7.0",  # For package building
 ]
 
 [project.urls]

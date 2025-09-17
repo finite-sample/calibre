@@ -1,8 +1,11 @@
 ## Calibre: Advanced Calibration Models
 
+[![CI](https://github.com/gojiplus/calibre/workflows/CI/badge.svg)](https://github.com/gojiplus/calibre/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/gojiplus/calibre/branch/main/graph/badge.svg)](https://codecov.io/gh/gojiplus/calibre)
 [![PyPI version](https://img.shields.io/pypi/v/calibre.svg)](https://pypi.org/project/calibre/)
 [![PyPI Downloads](https://static.pepy.tech/badge/calibre)](https://pepy.tech/projects/calibre)
 [![Python Versions](https://img.shields.io/pypi/pyversions/calibre.svg)](https://pypi.org/project/calibre/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Calibration is a critical step in deploying machine learning models. While techniques like isotonic regression have been standard for this task, they come with significant limitations:
 
@@ -169,9 +172,83 @@ Hoefling, H. (2010).
 Journal of Computational and Graphical Statistics, 19(4), 984–1006.
 DOI:10.1198/jcgs.2010.09208
 
+## Development
+
+### Prerequisites
+
+- Python 3.10+
+- pip
+
+### Setup Development Environment
+
+```bash
+# Clone the repository
+git clone https://github.com/gojiplus/calibre.git
+cd calibre
+
+# Install in development mode with all dependencies
+pip install -e ".[dev]"
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run tests with coverage
+pytest --cov=calibre --cov-report=html
+
+# Run specific test file
+pytest tests/test_calibration.py
+
+# Run tests in verbose mode
+pytest -xvs tests/
+```
+
+### Code Quality
+
+```bash
+# Format code with Black
+black calibre/ tests/
+
+# Sort imports
+isort calibre/ tests/
+
+# Lint code  
+flake8 calibre/ tests/
+```
+
+### Building Documentation
+
+```bash
+# Run the benchmark notebook to generate results
+jupyter nbconvert --to notebook --execute benchmark.ipynb
+```
+
+### Continuous Integration
+
+This project uses GitHub Actions for CI/CD:
+
+- **Tests**: Run on Python 3.10, 3.11, 3.12 across Ubuntu, macOS, and Windows
+- **Code Quality**: Black, isort, and flake8 checks (informational)
+- **Coverage**: Automated coverage reporting via Codecov
+- **Package Building**: Validates package can be built and installed
+
+The main requirement is that tests pass. Code quality checks are informational to help maintain consistency.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
+
+### Guidelines
+
+1. Fork the repository and create a feature branch
+2. Add tests for any new functionality  
+3. Ensure tests pass: `pytest tests/`
+4. Run code formatting: `black calibre/ tests/` and `isort calibre/ tests/`
+5. Update documentation as needed
+6. Submit a pull request with a clear description of changes
 
 ## License
 
