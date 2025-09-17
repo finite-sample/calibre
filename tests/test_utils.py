@@ -93,7 +93,7 @@ class TestSortByX:
         X = np.array([0.5, 0.1, 0.9, 0.3])
         y = np.array([1, 0, 1, 0])
 
-        X_sorted, y_sorted, sort_indices = sort_by_x(X, y)
+        sort_indices, X_sorted, y_sorted = sort_by_x(X, y)
 
         # Check X is sorted
         assert np.all(X_sorted[:-1] <= X_sorted[1:])
@@ -109,7 +109,7 @@ class TestSortByX:
         X = np.array([0.1, 0.3, 0.5, 0.7])
         y = np.array([0, 0, 1, 1])
 
-        X_sorted, y_sorted, sort_indices = sort_by_x(X, y)
+        sort_indices, X_sorted, y_sorted = sort_by_x(X, y)
 
         np.testing.assert_array_equal(X_sorted, X)
         np.testing.assert_array_equal(y_sorted, y)
@@ -120,7 +120,7 @@ class TestSortByX:
         X = np.array([0.9, 0.7, 0.5, 0.3])
         y = np.array([1, 1, 0, 0])
 
-        X_sorted, y_sorted, sort_indices = sort_by_x(X, y)
+        sort_indices, X_sorted, y_sorted = sort_by_x(X, y)
 
         # Should be sorted in ascending order
         assert np.all(X_sorted[:-1] <= X_sorted[1:])
@@ -132,7 +132,7 @@ class TestSortByX:
         X = np.array([0.5, 0.1, 0.5, 0.1])
         y = np.array([1, 0, 0, 1])
 
-        X_sorted, y_sorted, sort_indices = sort_by_x(X, y)
+        sort_indices, X_sorted, y_sorted = sort_by_x(X, y)
 
         # Should still be sorted, with stable sort preserving relative order
         assert np.all(X_sorted[:-1] <= X_sorted[1:])
@@ -143,7 +143,7 @@ class TestSortByX:
         X = np.array([0.5])
         y = np.array([1])
 
-        X_sorted, y_sorted, sort_indices = sort_by_x(X, y)
+        sort_indices, X_sorted, y_sorted = sort_by_x(X, y)
 
         np.testing.assert_array_equal(X_sorted, X)
         np.testing.assert_array_equal(y_sorted, y)
@@ -154,7 +154,7 @@ class TestSortByX:
         X = np.array([0.5, np.nan, 0.1])
         y = np.array([1, 0, 0])
 
-        X_sorted, y_sorted, sort_indices = sort_by_x(X, y)
+        sort_indices, X_sorted, y_sorted = sort_by_x(X, y)
 
         # NaN should be sorted to the end
         assert np.isnan(X_sorted[-1])

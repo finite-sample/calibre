@@ -69,7 +69,7 @@ class TestMeanCalibrationError:
         """Test edge cases."""
         # Single point
         error = mean_calibration_error([1], [0.8])
-        assert error == 0.2
+        assert error == pytest.approx(0.2)
 
         # All zeros
         error = mean_calibration_error([0, 0, 0], [0, 0, 0])

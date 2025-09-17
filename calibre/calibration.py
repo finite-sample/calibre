@@ -209,7 +209,7 @@ class NearlyIsotonicRegression(BaseCalibrator):
                 )
 
                 # Apply interpolation to get values at X points
-                return cal_func(X)
+                return np.clip(cal_func(X), 0, 1)
 
         except Exception as e:
             logger.warning(f"Optimization failed: {e}")
@@ -294,7 +294,7 @@ class NearlyIsotonicRegression(BaseCalibrator):
         )
 
         # Apply interpolation to get values at X points
-        return cal_func(X)
+        return np.clip(cal_func(X), 0, 1)
 
 
 class ISplineCalibrator(BaseCalibrator):
@@ -536,7 +536,7 @@ class RelaxedPAVA(BaseCalibrator):
         )
 
         # Apply interpolation to get values at X points
-        return cal_func(X)
+        return np.clip(cal_func(X), 0, 1)
 
     def _relaxed_pava_adaptive(self) -> np.ndarray:
         """Implement relaxed PAVA with adaptive threshold."""
@@ -585,7 +585,7 @@ class RelaxedPAVA(BaseCalibrator):
         y_result = np.empty_like(y)
         y_result[sort_idx] = y_smoothed
 
-        return y_result
+        return np.clip(y_result, 0, 1)
 
     def _relaxed_pava_block(self) -> np.ndarray:
         """Implement relaxed PAVA with block merging approach."""
@@ -652,7 +652,7 @@ class RelaxedPAVA(BaseCalibrator):
         y_result = np.empty_like(y_fit)
         y_result[sort_idx] = y_fit
 
-        return y_result
+        return np.clip(y_result, 0, 1)
 
 
 class RegularizedIsotonicRegression(BaseCalibrator):
@@ -764,7 +764,7 @@ class RegularizedIsotonicRegression(BaseCalibrator):
                 )
 
                 # Apply interpolation to get values at X points
-                return cal_func(X)
+                return np.clip(cal_func(X), 0, 1)
 
         except Exception as e:
             logger.warning(f"Regularized isotonic optimization failed: {e}")
@@ -886,7 +886,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
             fill_value=(np.min(y_smoothed), np.max(y_smoothed)),
         )
 
-        return cal_func(X)
+        return np.clip(cal_func(X), 0, 1)
 
     def _transform_fixed(self) -> np.ndarray:
         """Implement smoothed isotonic regression with fixed window size."""
@@ -928,7 +928,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
 
         y_result = np.empty_like(y_smoothed)
         y_result[order] = y_smoothed
-        return y_result
+        return np.clip(y_result, 0, 1)
 
     def _transform_adaptive(self) -> np.ndarray:
         """Implement smoothed isotonic regression with adaptive window size."""
@@ -953,7 +953,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
 
         x_range = X_sorted[-1] - X_sorted[0]
         if x_range <= 0:
-            return y_iso
+            return np.clip(y_iso, 0, 1)
         x_norm = (X_sorted - X_sorted[0]) / x_range
 
         for i in range(n):
@@ -972,7 +972,7 @@ class SmoothedIsotonicRegression(BaseCalibrator):
 
         y_result = np.empty_like(y_smoothed)
         y_result[order] = y_smoothed
-        return y_result
+        return np.clip(y_result, 0, 1)
 
     def _find_optimal_window_size(
         self, distances: np.ndarray, min_window: int, max_window: int, n: int
