@@ -24,7 +24,7 @@ from calibre.metrics import (
     correlation_metrics,
     unique_value_counts,
 )
-from .data_generators import CalibrationDataGenerator, quick_test_data
+from tests.data_generators import CalibrationDataGenerator, quick_test_data
 
 
 @pytest.fixture
