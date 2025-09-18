@@ -39,11 +39,19 @@ dev = [
     "scikit-learn>=1.0.0",  # Needed for integration tests
     "build>=0.7.0",  # For package building
 ]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",  # ReadTheDocs theme
+    "sphinx-autodoc-typehints>=1.24.0",  # Type hints support
+    "nbsphinx>=0.9.0",  # Jupyter notebook support
+    "myst-parser>=2.0.0",  # Markdown support
+]
 
 [project.urls]
-"Homepage" = "https://github.com/gojiplus/calibre"
-"Bug Tracker" = "https://github.com/gojiplus/calibre/issues"
-"Documentation" = "https://github.com/gojiplus/calibre#readme"
+"Homepage" = "https://github.com/finite-sample/calibre"
+"Bug Tracker" = "https://github.com/finite-sample/calibre/issues"
+"Documentation" = "https://finite-sample.github.io/calibre/"
+"Repository" = "https://github.com/finite-sample/calibre"
 
 [tool.setuptools]
 packages = ["calibre"]
