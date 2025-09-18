@@ -1,17 +1,20 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "Calibre: Advanced Calibration Models"
-abstract: "A suite of advanced calibration techniques for machine learning models that address limitations in traditional methods like isotonic regression by preserving probability granularity and allowing for controlled flexibility in monotonicity constraints."
+type: software
+title: "Calibre: Advanced Probability Calibration Techniques for Machine Learning"
+version: 0.3.0
+date-released: 2024-01-01
+url: "https://github.com/finite-sample/calibre"
+repository-code: "https://github.com/finite-sample/calibre"
 authors:
   - family-names: "Sood"
     given-names: "Gaurav"
+    email: "gsood07@gmail.com"
+license: MIT
+abstract: "A Python package for advanced probability calibration techniques in machine learning. Provides alternative calibration methods to traditional isotonic regression that better preserve probability granularity while maintaining monotonicity constraints."
 keywords:
-  - machine learning
-  - calibration
-  - probability calibration
-  - isotonic regression
-  - model deployment
-repository-code: "https://github.com/gojiplus/calibre"  # Replace with actual repository URL
-license: MIT  # Replace with actual license
-version: 0.2.1
-date-released: "2025-04-05"  # Replace with actual release date
+  - "probability calibration"
+  - "machine learning"
+  - "isotonic regression"
+  - "uncertainty quantification"
+  - "classification"
