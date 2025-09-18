@@ -2,12 +2,10 @@
 Utility functions for the calibre package.
 """
 
-import warnings
-from typing import Any, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import numpy as np
 from scipy import stats
-from sklearn.isotonic import IsotonicRegression
 from sklearn.utils import check_array
 
 

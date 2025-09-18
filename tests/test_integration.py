@@ -151,7 +151,9 @@ class TestFullCalibrationWorkflow:
         y_calib_sorted = y_calib[sorted_idx]
         violations = np.sum(np.diff(y_calib_sorted) < 0)
         violation_rate = violations / len(np.diff(y_calib_sorted))
-        assert violation_rate <= 0.2, f"Too many monotonicity violations: {violation_rate:.1%}"
+        assert (
+            violation_rate <= 0.2
+        ), f"Too many monotonicity violations: {violation_rate:.1%}"
 
     def test_smoothed_isotonic_workflow(self, realistic_dataset):
         """Test complete workflow with SmoothedIsotonicRegression."""
@@ -393,7 +395,9 @@ class TestSklearnCompatibility:
         assert calibrator.lam == -1.0
         assert calibrator2.percentile == 150
 
-        calibrator3 = RegularizedIsotonicRegression(alpha=-0.1)  # Should not raise immediately
+        calibrator3 = RegularizedIsotonicRegression(
+            alpha=-0.1
+        )  # Should not raise immediately
         assert calibrator3.alpha == -0.1
 
 

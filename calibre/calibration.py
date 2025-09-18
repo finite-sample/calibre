@@ -6,7 +6,7 @@ with a focus on monotonic and nearly-monotonic calibration methods.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Dict, Optional
 
 import cvxpy as cp
 import numpy as np
@@ -14,7 +14,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.isotonic import IsotonicRegression
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import Ridge
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import SplineTransformer
 
@@ -759,7 +759,6 @@ class RelaxedPAVA(BaseCalibrator):
 
         # Sort by X values
         sort_idx = np.argsort(X)
-        X_sorted = X[sort_idx]
         y_sorted = y[sort_idx]
 
         # Calculate absolute differences between adjacent points
@@ -808,7 +807,6 @@ class RelaxedPAVA(BaseCalibrator):
 
         # Sort by X values
         sort_idx = np.argsort(X)
-        X_sorted = X[sort_idx]
         y_sorted = y[sort_idx]
         n = len(y_sorted)
 

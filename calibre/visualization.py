@@ -10,15 +10,11 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
 try:
-    import matplotlib.patches as patches
     import matplotlib.pyplot as plt
-    from matplotlib.colors import ListedColormap
 
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
-
-from .utils import extract_plateaus
 
 
 def _check_matplotlib():

@@ -6,12 +6,10 @@ flattening (good) and limited-data flattening (bad) in isotonic regression calib
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from scipy.interpolate import interp1d
 from sklearn.isotonic import IsotonicRegression
-from sklearn.model_selection import KFold
 from sklearn.preprocessing import SplineTransformer
 
 from .utils import (
@@ -20,7 +18,6 @@ from .utils import (
     compute_delong_ci,
     extract_plateaus,
     minimum_detectable_difference,
-    sort_by_x,
 )
 
 logger = logging.getLogger(__name__)
@@ -380,7 +377,7 @@ class IsotonicDiagnostics:
             spline_transformer = SplineTransformer(
                 n_splines=min(10, len(X) // 3), degree=3, include_bias=False
             )
-            X_spline = spline_transformer.fit_transform(X.reshape(-1, 1))
+            spline_transformer.fit(X.reshape(-1, 1))
 
             # Use isotonic regression on spline basis for monotonicity
             iso_spline = IsotonicRegression(out_of_bounds="clip")
@@ -445,45 +442,48 @@ class IsotonicDiagnostics:
     def _classify_plateaus(self) -> None:
         """Classify plateaus as supported, limited-data, or inconclusive."""
         for plateau in self.plateaus_:
-            criteria = []
+            criteria = self._extract_plateau_criteria(plateau)
+            plateau.classification = self._determine_classification(criteria)
 
-            # Tie stability criterion
-            if plateau.tie_stability is not None:
-                if plateau.tie_stability > 0.7:
-                    criteria.append("stable")
-                elif plateau.tie_stability < 0.3:
-                    criteria.append("unstable")
+    def _extract_plateau_criteria(self, plateau) -> List[str]:
+        """Extract diagnostic criteria for a plateau."""
+        criteria = []
 
-            # Conditional AUC criterion
-            if plateau.conditional_auc is not None:
-                if plateau.conditional_auc < 0.55:
-                    criteria.append("low_auc")
-                elif plateau.conditional_auc > 0.65:
-                    criteria.append("high_auc")
+        # Tie stability criterion
+        if plateau.tie_stability is not None:
+            if plateau.tie_stability > 0.7:
+                criteria.append("stable")
+            elif plateau.tie_stability < 0.3:
+                criteria.append("unstable")
 
-            # Local slope criterion
-            if plateau.local_slope is not None and plateau.local_slope_ci is not None:
-                ci_lower, ci_upper = plateau.local_slope_ci
-                if ci_lower <= 0 <= ci_upper:
-                    criteria.append("flat_slope")
-                elif ci_lower > 0:
-                    criteria.append("positive_slope")
+        # Conditional AUC criterion
+        if plateau.conditional_auc is not None:
+            if plateau.conditional_auc < 0.55:
+                criteria.append("low_auc")
+            elif plateau.conditional_auc > 0.65:
+                criteria.append("high_auc")
 
-            # Classification logic
-            if (
-                "stable" in criteria
-                and "low_auc" in criteria
-                and "flat_slope" in criteria
-            ):
-                plateau.classification = "supported"
-            elif (
-                "unstable" in criteria
-                and "high_auc" in criteria
-                and "positive_slope" in criteria
-            ):
-                plateau.classification = "limited_data"
-            else:
-                plateau.classification = "inconclusive"
+        # Local slope criterion
+        if plateau.local_slope is not None and plateau.local_slope_ci is not None:
+            ci_lower, ci_upper = plateau.local_slope_ci
+            if ci_lower <= 0 <= ci_upper:
+                criteria.append("flat_slope")
+            elif ci_lower > 0:
+                criteria.append("positive_slope")
+
+        return criteria
+
+    def _determine_classification(self, criteria: List[str]) -> str:
+        """Determine plateau classification based on criteria."""
+        supported_criteria = {"stable", "low_auc", "flat_slope"}
+        limited_data_criteria = {"unstable", "high_auc", "positive_slope"}
+
+        if supported_criteria.issubset(set(criteria)):
+            return "supported"
+        elif limited_data_criteria.issubset(set(criteria)):
+            return "limited_data"
+        else:
+            return "inconclusive"
 
     def _generate_summary(self) -> Dict[str, Any]:
         """Generate comprehensive summary of results."""
