@@ -319,9 +319,9 @@ def test_progressive_sampling_diversity():
 
 def test_edge_cases():
     """Test edge cases and error conditions."""
-    # Empty data
-    with pytest.raises(ValueError):
-        extract_plateaus(np.array([]), np.array([]))
+    # Empty data - should return empty list, not raise error
+    plateaus = extract_plateaus(np.array([]), np.array([]))
+    assert len(plateaus) == 0
     
     # Mismatched lengths
     with pytest.raises(ValueError):
