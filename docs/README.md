@@ -94,6 +94,8 @@ The API documentation is automatically generated from docstrings in the source c
 
 Documentation is automatically deployed to GitHub Pages when changes are pushed to the main branch. The deployment workflow is defined in `.github/workflows/docs.yml`.
 
+**⚠️ Important**: You need to enable GitHub Pages in your repository settings first. See [GITHUB_PAGES_SETUP.md](GITHUB_PAGES_SETUP.md) for detailed instructions.
+
 **Live documentation**: https://finite-sample.github.io/calibre/
 
 ## Troubleshooting
