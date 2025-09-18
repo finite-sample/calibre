@@ -2,8 +2,11 @@
 Evaluation metrics for calibration.
 """
 
+from typing import List, Optional, Tuple
+
 import numpy as np
 from scipy.stats import spearmanr
+from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss
 from sklearn.utils import check_array
 
@@ -339,7 +342,9 @@ def correlation_metrics(y_true, y_pred, x=None, y_orig=None):
     if y_orig is not None:
         y_orig = check_array(y_orig, ensure_2d=False)
         results["spearman_corr_to_y_orig"] = spearmanr(y_orig, y_pred).correlation
-        results["spearman_corr_orig_to_calib"] = spearmanr(y_orig, y_pred).correlation  # Alias for backward compatibility
+        results["spearman_corr_orig_to_calib"] = spearmanr(
+            y_orig, y_pred
+        ).correlation  # Alias for backward compatibility
 
     if x is not None:
         x = check_array(x, ensure_2d=False)
@@ -452,3 +457,279 @@ def calibration_curve(y_true, y_pred, n_bins=10, strategy="uniform"):
     prob_pred[nonzero] = bin_pred_sums[nonzero] / bin_counts[nonzero]
 
     return prob_true, prob_pred, bin_counts
+
+
+def tie_preservation_score(
+    y_original: np.ndarray, y_calibrated: np.ndarray, tolerance: float = 1e-10
+) -> float:
+    """
+    Measure how well calibration preserves genuine ties while removing spurious ones.
+
+    Parameters
+    ----------
+    y_original : array-like of shape (n_samples,)
+        Original predicted probabilities before calibration.
+    y_calibrated : array-like of shape (n_samples,)
+        Calibrated probabilities.
+    tolerance : float, default=1e-10
+        Tolerance for considering values as tied.
+
+    Returns
+    -------
+    score : float
+        Tie preservation score between 0 and 1.
+        Higher values indicate better preservation of meaningful ties.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> y_orig = np.array([0.1, 0.15, 0.2, 0.6, 0.65, 0.7])
+    >>> y_cal = np.array([0.1, 0.15, 0.2, 0.65, 0.65, 0.65])
+    >>> score = tie_preservation_score(y_orig, y_cal)
+    >>> 0 <= score <= 1
+    True
+    """
+    y_original = check_array(y_original, ensure_2d=False)
+    y_calibrated = check_array(y_calibrated, ensure_2d=False)
+
+    if len(y_original) != len(y_calibrated):
+        raise ValueError("Arrays must have the same length")
+
+    n = len(y_original)
+    if n < 2:
+        return 1.0
+
+    # Count tied pairs in original and calibrated data
+    tied_orig = 0
+    tied_cal = 0
+    preserved_ties = 0
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            orig_tied = abs(y_original[i] - y_original[j]) <= tolerance
+            cal_tied = abs(y_calibrated[i] - y_calibrated[j]) <= tolerance
+
+            if orig_tied:
+                tied_orig += 1
+                if cal_tied:
+                    preserved_ties += 1
+
+            if cal_tied:
+                tied_cal += 1
+
+    # Score based on preservation of original ties and avoidance of spurious ties
+    if tied_orig == 0:
+        # No original ties to preserve
+        preservation_rate = 1.0
+    else:
+        preservation_rate = preserved_ties / tied_orig
+
+    # Penalty for creating too many new ties
+    if tied_cal == 0:
+        spurious_penalty = 0.0
+    else:
+        spurious_ties = tied_cal - preserved_ties
+        spurious_penalty = spurious_ties / (n * (n - 1) / 2)  # Normalize by total pairs
+
+    score = preservation_rate - spurious_penalty
+    return max(0.0, min(1.0, score))
+
+
+def plateau_quality_score(
+    X: np.ndarray, y: np.ndarray, y_calibrated: np.ndarray
+) -> float:
+    """
+    Overall quality score for plateaus in calibrated predictions.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples,)
+        Input features.
+    y : array-like of shape (n_samples,)
+        True target values.
+    y_calibrated : array-like of shape (n_samples,)
+        Calibrated predictions.
+
+    Returns
+    -------
+    score : float
+        Quality score between 0 and 1.
+        Higher values indicate better plateau quality.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> y = np.array([0, 0, 1, 1, 1])
+    >>> y_cal = np.array([0.1, 0.25, 0.25, 0.4, 0.6])
+    >>> score = plateau_quality_score(X, y, y_cal)
+    >>> 0 <= score <= 1
+    True
+    """
+    from .utils import extract_plateaus
+
+    X = check_array(X, ensure_2d=False)
+    y = check_array(y, ensure_2d=False)
+    y_calibrated = check_array(y_calibrated, ensure_2d=False)
+
+    if not (len(X) == len(y) == len(y_calibrated)):
+        raise ValueError("All arrays must have the same length")
+
+    # Sort by X
+    sort_idx = np.argsort(X)
+    X_sorted = X[sort_idx]
+    y_sorted = y[sort_idx]
+    y_cal_sorted = y_calibrated[sort_idx]
+
+    # Extract plateaus
+    plateaus = extract_plateaus(X_sorted, y_cal_sorted)
+
+    if not plateaus:
+        return 1.0  # No plateaus is good
+
+    scores = []
+
+    for start_idx, end_idx, value in plateaus:
+        # Check if plateau represents genuine flatness
+        plateau_y = y_sorted[start_idx : end_idx + 1]
+        plateau_var = np.var(plateau_y)
+
+        # Good plateaus have low variance in true outcomes
+        # and appropriate size (not too small or too large)
+        size = end_idx - start_idx + 1
+        size_penalty = abs(size - len(X) * 0.1) / (
+            len(X) * 0.1
+        )  # Penalize very large plateaus
+
+        plateau_score = np.exp(-plateau_var - size_penalty)
+        scores.append(plateau_score)
+
+    return np.mean(scores) if scores else 1.0
+
+
+def calibration_diversity_index(
+    y_calibrated: np.ndarray, reference_diversity: Optional[float] = None
+) -> float:
+    """
+    Measure granularity preservation in calibrated predictions.
+
+    Parameters
+    ----------
+    y_calibrated : array-like of shape (n_samples,)
+        Calibrated predictions.
+    reference_diversity : float, optional
+        Reference diversity to compare against (e.g., diversity of original predictions).
+        If None, returns absolute diversity.
+
+    Returns
+    -------
+    diversity : float
+        Diversity index. Higher values indicate more granular predictions.
+        If reference_diversity is provided, returns relative diversity.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> y_cal = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> diversity = calibration_diversity_index(y_cal)
+    >>> diversity > 0
+    True
+    """
+    y_calibrated = check_array(y_calibrated, ensure_2d=False)
+
+    # Number of unique values normalized by total samples
+    n_unique = len(np.unique(y_calibrated))
+    n_total = len(y_calibrated)
+
+    diversity = n_unique / n_total
+
+    if reference_diversity is not None:
+        if reference_diversity == 0:
+            return np.inf if diversity > 0 else 1.0
+        return diversity / reference_diversity
+
+    return diversity
+
+
+def progressive_sampling_diversity(
+    X: np.ndarray,
+    y: np.ndarray,
+    sample_sizes: Optional[List[int]] = None,
+    n_trials: int = 10,
+    random_state: Optional[int] = None,
+) -> Tuple[List[int], List[float]]:
+    """
+    Compute diversity vs sample size curve for progressive sampling analysis.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples,)
+        Input features.
+    y : array-like of shape (n_samples,)
+        Target values.
+    sample_sizes : list of int, optional
+        Sample sizes to test. If None, uses default range.
+    n_trials : int, default=10
+        Number of trials per sample size.
+    random_state : int, optional
+        Random state for reproducibility.
+
+    Returns
+    -------
+    sizes : list of int
+        Sample sizes tested.
+    diversities : list of float
+        Average diversity at each sample size.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> X = np.linspace(0, 1, 100)
+    >>> y = np.random.binomial(1, X, 100)
+    >>> sizes, divs = progressive_sampling_diversity(X, y, sample_sizes=[20, 50, 80])
+    >>> len(sizes) == len(divs) == 3
+    True
+    """
+    X = check_array(X, ensure_2d=False)
+    y = check_array(y, ensure_2d=False)
+
+    if len(X) != len(y):
+        raise ValueError("X and y must have the same length")
+
+    n_total = len(X)
+
+    if sample_sizes is None:
+        sample_sizes = [
+            max(10, n_total // 10),
+            max(20, n_total // 5),
+            max(30, n_total // 3),
+            max(50, n_total // 2),
+            min(n_total - 10, int(n_total * 0.8)),
+            n_total,
+        ]
+        sample_sizes = [s for s in sample_sizes if s <= n_total]
+
+    rng = np.random.RandomState(random_state)
+    diversities = []
+
+    for size in sample_sizes:
+        trial_diversities = []
+
+        for trial in range(n_trials):
+            # Random subsample
+            indices = rng.choice(n_total, size=size, replace=False)
+            X_sub = X[indices]
+            y_sub = y[indices]
+
+            # Fit isotonic regression
+            iso_reg = IsotonicRegression(out_of_bounds="clip")
+            iso_reg.fit(X_sub, y_sub)
+            y_cal = iso_reg.transform(X_sub)
+
+            # Compute diversity
+            diversity = calibration_diversity_index(y_cal)
+            trial_diversities.append(diversity)
+
+        diversities.append(np.mean(trial_diversities))
+
+    return sample_sizes, diversities

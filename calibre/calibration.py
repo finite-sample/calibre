@@ -84,6 +84,221 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         return self.fit(X, y).transform(X)
 
 
+class IsotonicRegressionWithDiagnostics(BaseCalibrator):
+    """
+    Isotonic regression with integrated plateau diagnostics.
+
+    This class wraps sklearn's IsotonicRegression and adds comprehensive
+    plateau analysis to distinguish between noise-based and limited-data flattening.
+
+    Parameters
+    ----------
+    y_min : float, default=None
+        Lower bound for the calibrated values.
+    y_max : float, default=None
+        Upper bound for the calibrated values.
+    increasing : bool, default=True
+        Whether the calibration function should be increasing.
+    out_of_bounds : {'nan', 'clip', 'raise'}, default='clip'
+        How to handle out-of-bounds values in transform.
+    enable_diagnostics : bool, default=True
+        Whether to enable plateau diagnostics.
+    n_bootstraps : int, default=100
+        Number of bootstrap samples for diagnostic analysis.
+    n_splits : int, default=5
+        Number of splits for cross-validation diagnostics.
+    random_state : int, optional
+        Random state for reproducible diagnostics.
+
+    Attributes
+    ----------
+    isotonic_ : IsotonicRegression
+        The fitted isotonic regression model.
+    diagnostics_ : dict or None
+        Diagnostic results from plateau analysis.
+    """
+
+    def __init__(
+        self,
+        y_min: Optional[float] = None,
+        y_max: Optional[float] = None,
+        increasing: bool = True,
+        out_of_bounds: str = "clip",
+        enable_diagnostics: bool = True,
+        n_bootstraps: int = 100,
+        n_splits: int = 5,
+        random_state: Optional[int] = None,
+    ):
+        self.y_min = y_min
+        self.y_max = y_max
+        self.increasing = increasing
+        self.out_of_bounds = out_of_bounds
+        self.enable_diagnostics = enable_diagnostics
+        self.n_bootstraps = n_bootstraps
+        self.n_splits = n_splits
+        self.random_state = random_state
+
+        self.isotonic_: Optional[IsotonicRegression] = None
+        self.diagnostics_: Optional[Dict] = None
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "IsotonicRegressionWithDiagnostics":
+        """
+        Fit the isotonic regression model with optional diagnostics.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples,)
+            The training input samples.
+        y : array-like of shape (n_samples,)
+            The target values.
+
+        Returns
+        -------
+        self : IsotonicRegressionWithDiagnostics
+            Returns self.
+        """
+        X, y = check_arrays(X, y)
+
+        # Fit standard isotonic regression
+        self.isotonic_ = IsotonicRegression(
+            y_min=self.y_min,
+            y_max=self.y_max,
+            increasing=self.increasing,
+            out_of_bounds=self.out_of_bounds,
+        )
+        self.isotonic_.fit(X, y)
+
+        # Run diagnostics if enabled
+        if self.enable_diagnostics:
+            self._run_diagnostics(X, y)
+
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """
+        Apply isotonic calibration to new data.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples,)
+            The values to be calibrated.
+
+        Returns
+        -------
+        array-like of shape (n_samples,)
+            Calibrated values.
+        """
+        if self.isotonic_ is None:
+            raise ValueError("Model must be fitted before transform")
+
+        X = np.asarray(X).ravel()
+        return self.isotonic_.transform(X)
+
+    def _run_diagnostics(self, X: np.ndarray, y: np.ndarray) -> None:
+        """Run plateau diagnostics on the fitted model."""
+        from .diagnostics import IsotonicDiagnostics
+
+        logger.info("Running plateau diagnostics...")
+
+        try:
+            diagnostics = IsotonicDiagnostics(
+                n_bootstraps=self.n_bootstraps,
+                n_splits=self.n_splits,
+                random_state=self.random_state,
+            )
+
+            # For now, run diagnostics without test data
+            # In practice, users might provide test data separately
+            self.diagnostics_ = diagnostics.analyze(X, y)
+
+            # Log summary
+            if self.diagnostics_["n_plateaus"] > 0:
+                n_supported = self.diagnostics_["classification_counts"]["supported"]
+                n_limited = self.diagnostics_["classification_counts"]["limited_data"]
+                n_inconclusive = self.diagnostics_["classification_counts"][
+                    "inconclusive"
+                ]
+
+                logger.info(
+                    f"Found {self.diagnostics_['n_plateaus']} plateau(s): "
+                    f"{n_supported} supported, {n_limited} limited-data, "
+                    f"{n_inconclusive} inconclusive"
+                )
+
+                # Warn about potential limited-data flattening
+                if n_limited > 0:
+                    logger.warning(
+                        f"Detected {n_limited} plateau(s) with potential "
+                        f"limited-data flattening. Consider using a softer "
+                        f"calibration method or collecting more data."
+                    )
+            else:
+                logger.info("No plateaus detected in isotonic regression fit.")
+
+        except Exception as e:
+            logger.warning(f"Diagnostic analysis failed: {e}")
+            self.diagnostics_ = None
+
+    def get_diagnostics(self) -> Optional[Dict]:
+        """
+        Get diagnostic results from plateau analysis.
+
+        Returns
+        -------
+        diagnostics : dict or None
+            Diagnostic results, or None if diagnostics were not run.
+        """
+        return self.diagnostics_
+
+    def plateau_summary(self) -> str:
+        """
+        Get a human-readable summary of plateau analysis.
+
+        Returns
+        -------
+        summary : str
+            Human-readable plateau summary.
+        """
+        if not self.enable_diagnostics or self.diagnostics_ is None:
+            return "Diagnostics not available."
+
+        if self.diagnostics_["n_plateaus"] == 0:
+            return "No plateaus detected in isotonic regression fit."
+
+        lines = [f"Detected {self.diagnostics_['n_plateaus']} plateau(s):"]
+        lines.append("")
+
+        for plateau in self.diagnostics_["plateaus"]:
+            lines.append(f"Plateau {plateau['plateau_id'] + 1}:")
+            lines.append(
+                f"  X range: [{plateau['x_range'][0]:.3f}, {plateau['x_range'][1]:.3f}]"
+            )
+            lines.append(f"  Value: {plateau['value']:.3f}")
+            lines.append(f"  Width: {plateau['width']} samples")
+            lines.append(f"  Classification: {plateau['classification']}")
+
+            if plateau["tie_stability"] is not None:
+                lines.append(f"  Tie stability: {plateau['tie_stability']:.3f}")
+
+            if plateau["conditional_auc"] is not None:
+                auc_str = f"{plateau['conditional_auc']:.3f}"
+                if plateau["conditional_auc_ci"] is not None:
+                    ci_lower, ci_upper = plateau["conditional_auc_ci"]
+                    auc_str += f" (CI: [{ci_lower:.3f}, {ci_upper:.3f}])"
+                lines.append(f"  Conditional AUC: {auc_str}")
+
+            lines.append("")
+
+        # Summary statistics
+        counts = self.diagnostics_["classification_counts"]
+        lines.append("Classification summary:")
+        lines.append(f"  Supported plateaus: {counts['supported']}")
+        lines.append(f"  Limited-data plateaus: {counts['limited_data']}")
+        lines.append(f"  Inconclusive plateaus: {counts['inconclusive']}")
+
+        return "\n".join(lines)
+
+
 class NearlyIsotonicRegression(BaseCalibrator):
     """Nearly-isotonic regression for flexible monotonic calibration.
 
@@ -433,7 +648,7 @@ class ISplineCalibrator(BaseCalibrator):
 
         X_spline = self.spline_.transform(X_2d)
         predictions = self.model_.predict(X_spline)
-        
+
         # Ensure predictions are within [0, 1] bounds
         return np.clip(predictions, 0, 1)
 

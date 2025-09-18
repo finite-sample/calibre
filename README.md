@@ -105,6 +105,64 @@ cal_smoothed.fit(y_pred, y_true)
 y_calibrated_smooth = cal_smoothed.transform(y_pred)
 ```
 
+### 🔬 Plateau Diagnostics (New in v0.4.0)
+
+Distinguish between **noise-based flattening** (good) and **limited-data flattening** (bad) in isotonic regression:
+
+```python
+from calibre import IsotonicRegressionWithDiagnostics, analyze_plateaus
+
+# Automatic diagnostics with isotonic regression
+cal = IsotonicRegressionWithDiagnostics(enable_diagnostics=True)
+cal.fit(y_pred, y_true)
+y_calibrated = cal.transform(y_pred)
+
+# Get human-readable diagnostic summary
+print(cal.plateau_summary())
+
+# Advanced analysis with test data
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(y_pred, y_true, test_size=0.3)
+
+results = analyze_plateaus(X_train, y_train, X_test, y_test, n_bootstraps=100)
+print(f"Found {results['n_plateaus']} plateau(s)")
+print(f"Classifications: {results['classification_counts']}")
+```
+
+**Key Diagnostic Methods:**
+- **Bootstrap Tie Stability**: Measures plateau consistency across resamples
+- **Conditional AUC**: Tests discrimination ability among tied pairs
+- **Minimum Detectable Difference**: Statistical power analysis at boundaries
+- **Progressive Sampling**: How diversity changes with sample size
+- **Local Slope Testing**: Uses smooth fits to test genuine flatness
+
+**Plateau Classifications:**
+- **Supported**: High stability + low conditional AUC + flat slope → genuine plateaus
+- **Limited-data**: Low stability + high conditional AUC + positive slope → artifacts
+- **Inconclusive**: Mixed evidence requiring further investigation
+
+```python
+# Advanced diagnostic metrics
+from calibre import (
+    tie_preservation_score,
+    plateau_quality_score, 
+    calibration_diversity_index,
+    progressive_sampling_diversity
+)
+
+# Measure tie preservation quality
+tie_score = tie_preservation_score(y_pred, y_calibrated)
+
+# Overall plateau quality
+quality = plateau_quality_score(y_pred, y_true, y_calibrated)
+
+# Granularity preservation
+diversity = calibration_diversity_index(y_calibrated)
+
+# Sample size analysis
+sizes, diversities = progressive_sampling_diversity(y_pred, y_true)
+```
+
 ### Evaluating Calibration Quality
 
 ```python
@@ -156,6 +214,8 @@ Counts unique values in predictions to assess granularity preservation.
 
 ## When to Use Which Method
 
+### Calibration Methods
+
 - **NearlyIsotonicRegression (method='cvx')**: When you want precise control over the monotonicity/granularity trade-off and can afford the computational cost of convex optimization.
 
 - **NearlyIsotonicRegression (method='path')**: When you need an efficient algorithm for larger datasets that still provides control over monotonicity.
@@ -167,6 +227,20 @@ Counts unique values in predictions to assess granularity preservation.
 - **RegularizedIsotonicRegression**: When you need smoother calibration curves with L2 regularization to prevent overfitting.
 
 - **SmoothedIsotonicRegression**: When you want to reduce the "staircase effect" of standard isotonic regression while preserving monotonicity.
+
+### Plateau Diagnostics
+
+- **IsotonicRegressionWithDiagnostics**: Always use when applying isotonic regression to automatically detect and classify plateaus.
+
+- **analyze_plateaus()**: Use for comprehensive plateau analysis when you have separate test data and want detailed diagnostic reports.
+
+- **Diagnostic Metrics**: Use `tie_preservation_score()`, `plateau_quality_score()`, and `progressive_sampling_diversity()` to quantitatively assess calibration quality beyond traditional error metrics.
+
+**Decision Framework:**
+1. **Run diagnostics first** with `IsotonicRegressionWithDiagnostics`
+2. **If limited-data plateaus detected**: Consider `NearlyIsotonicRegression`, `RegularizedIsotonicRegression`, or collecting more calibration data
+3. **If supported plateaus**: Standard isotonic regression is appropriate
+4. **If inconclusive**: Cross-validate between strict and soft methods
 
 ## References
 
