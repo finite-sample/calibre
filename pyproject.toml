@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "calibre"
-version = "0.2.0"
+version = "0.4.0"
 description = "Advanced probability calibration techniques for machine learning models"
 readme = "README.md"
 authors = [
@@ -34,14 +34,24 @@ dev = [
     "pytest>=6.0.0",
     "pytest-cov>=2.12.0",
     "black>=21.5b2",
-    "mypy>=0.812",
     "isort>=5.9.0",
+    "flake8>=3.8.0",
+    "scikit-learn>=1.0.0",  # Needed for integration tests
+    "build>=0.7.0",  # For package building
+]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",  # ReadTheDocs theme
+    "sphinx-autodoc-typehints>=1.24.0",  # Type hints support
+    "nbsphinx>=0.9.0",  # Jupyter notebook support
+    "myst-parser>=2.0.0",  # Markdown support
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/gojiplus/calibre"
-"Bug Tracker" = "https://github.com/gojiplus/calibre/issues"
-"Documentation" = "https://github.com/gojiplus/calibre#readme"
+"Homepage" = "https://github.com/finite-sample/calibre"
+"Bug Tracker" = "https://github.com/finite-sample/calibre/issues"
+"Documentation" = "https://finite-sample.github.io/calibre/"
+"Repository" = "https://github.com/finite-sample/calibre"
 
 [tool.setuptools]
 packages = ["calibre"]
@@ -64,4 +74,3 @@ disallow_incomplete_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"
-addopts = "--cov=calibre"

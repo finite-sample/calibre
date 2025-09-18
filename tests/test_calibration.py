@@ -12,17 +12,17 @@ from sklearn.isotonic import IsotonicRegression
 # Import calibrator classes and metrics from the package.
 # Adjust these imports if your package structure differs.
 from calibre.calibration import (
-    NearlyIsotonicRegression,
     ISplineCalibrator,
-    RelaxedPAVA,
+    NearlyIsotonicRegression,
     RegularizedIsotonicRegression,
-    SmoothedIsotonicRegression
+    RelaxedPAVA,
+    SmoothedIsotonicRegression,
 )
 from calibre.metrics import (
-    mean_calibration_error,
     binned_calibration_error,
     correlation_metrics,
-    unique_value_counts
+    mean_calibration_error,
+    unique_value_counts,
 )
 
 
@@ -36,7 +36,7 @@ def test_data():
     # The true underlying probabilities (monotonic).
     y_true = x.copy()
     # Introduce a non-linear bias: a quadratic term that increases for higher x.
-    bias = 0.5 * x**2  
+    bias = 0.5 * x**2
     # Add some Gaussian noise (small relative to the bias).
     noise = np.random.normal(0, 0.05, size=n)
     # Observed predictions are biased: true + bias + noise.
@@ -45,10 +45,12 @@ def test_data():
     # Here we intentionally do not re-sort y_observed so the calibrator has to correct for bias plus small non-monotonicity.
     return x, y_observed, y_true
 
+
 def test_nearly_isotonic_regression_cvx(test_data):
     x, y_observed, y_true = test_data
     from calibre.calibration import NearlyIsotonicRegression
-    cal = NearlyIsotonicRegression(lam=10.0, method='cvx')
+
+    cal = NearlyIsotonicRegression(lam=10.0, method="cvx")
     cal.fit(x, y_observed)
     y_calib = cal.transform(x)
     assert len(y_calib) == len(x)
@@ -60,7 +62,7 @@ def test_nearly_isotonic_regression_cvx(test_data):
 def test_nearly_isotonic_regression_path(test_data):
     """Test NearlyIsotonicRegression using the path algorithm."""
     x, y, y_true = test_data
-    cal = NearlyIsotonicRegression(lam=0.1, method='path')
+    cal = NearlyIsotonicRegression(lam=0.1, method="path")
     cal.fit(x, y)
     y_calib = cal.transform(x)
     assert len(y_calib) == len(x)
@@ -104,7 +106,9 @@ def test_regularized_isotonic_regression(test_data):
 def test_smoothed_isotonic_regression(test_data):
     """Test SmoothedIsotonicRegression."""
     x, y, y_true = test_data
-    cal = SmoothedIsotonicRegression(window_length=7, poly_order=3, interp_method='linear')
+    cal = SmoothedIsotonicRegression(
+        window_length=7, poly_order=3, interp_method="linear"
+    )
     cal.fit(x, y)
     y_calib = cal.transform(x)
     assert len(y_calib) == len(x)
@@ -128,13 +132,13 @@ def test_metrics_functions(test_data):
 
     metrics = correlation_metrics(y_true, y, x=x, y_orig=y)
     # Check the basic keys exist and values are in expected range.
-    assert 'spearman_corr_to_y_true' in metrics
-    assert -1 <= metrics['spearman_corr_to_y_true'] <= 1
+    assert "spearman_corr_to_y_true" in metrics
+    assert -1 <= metrics["spearman_corr_to_y_true"] <= 1
 
     counts = unique_value_counts(y, y_orig=y)
-    assert 'n_unique_y_pred' in counts
-    assert 'n_unique_y_orig' in counts
-    assert counts['n_unique_y_pred'] <= counts['n_unique_y_orig']
+    assert "n_unique_y_pred" in counts
+    assert "n_unique_y_orig" in counts
+    assert counts["n_unique_y_pred"] <= counts["n_unique_y_orig"]
 
 
 def test_error_handling():
@@ -142,9 +146,9 @@ def test_error_handling():
     x_good = np.array([1, 2, 3, 4, 5])
     y_good = np.array([1, 2, 3, 4, 5])
     x_bad = np.array([1, 2, 3])  # mismatched length
-    
+
     with pytest.raises(ValueError):
-        NearlyIsotonicRegression(lam=1.0, method='cvx').fit(x_bad, y_good)
+        NearlyIsotonicRegression(lam=1.0, method="cvx").fit(x_bad, y_good)
 
 
 if __name__ == "__main__":

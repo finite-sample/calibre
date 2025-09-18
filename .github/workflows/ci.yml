@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '*.md'
+      - 'docs/**'
+      - 'examples/**/*.md'
+      - '.github/*.md'
+      - 'LICENSE'
+      - 'citation.cff'
+      - 'CHANGELOG.md'
+      - 'CLAUDE.md'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - '*.md'
+      - 'docs/**'
+      - 'examples/**/*.md'
+      - '.github/*.md'
+      - 'LICENSE'
+      - 'citation.cff'
+      - 'CHANGELOG.md'
+      - 'CLAUDE.md'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Test on Linux with multiple Python versions (main compatibility testing)
+          - os: ubuntu-latest
+            python-version: "3.10"
+          - os: ubuntu-latest
+            python-version: "3.11" 
+          - os: ubuntu-latest
+            python-version: "3.12"
+          # Test on other OS with latest stable Python only
+          - os: macos-latest
+            python-version: "3.11"
+          - os: windows-latest
+            python-version: "3.11"
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run black code formatting check (informational)
+      continue-on-error: true
+      run: |
+        black --check calibre/ tests/
+
+    - name: Run isort import sorting check (informational)
+      continue-on-error: true
+      run: |
+        isort --check-only calibre/ tests/
+
+    - name: Run flake8 linting (informational)
+      continue-on-error: true
+      run: |
+        flake8 calibre/ tests/ --count --max-complexity=10 --max-line-length=88 --statistics
+
+    - name: Run tests with coverage
+      run: |
+        pytest --cov=calibre --cov-report=xml --cov-report=term-missing -v
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Build package
+      run: |
+        python -m build
+
+    - name: Test package installation
+      run: |
+        pip install dist/*.whl
+        python -c "import calibre; print(f'Successfully imported calibre v{calibre.__version__}')"
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install markdown
+
+    - name: Check README syntax
+      run: |
+        python -c "
+        import markdown
+        with open('README.md', 'r') as f:
+            content = f.read()
+        markdown.markdown(content)
+        print('README.md syntax is valid')
+        "

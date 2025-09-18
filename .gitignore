@@ -174,3 +174,7 @@ cython_debug/
 .pypirc
 .DS_Store
 test_env/
+
+# Documentation build directory
+docs/build/
+

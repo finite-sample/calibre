@@ -1,0 +1,51 @@
+/* Custom CSS for Calibre documentation */
+
+/* Make code blocks more readable */
+.highlight {
+    background: #f8f8f8;
+    border: 1px solid #e1e4e5;
+    border-radius: 4px;
+}
+
+/* Style the version banner */
+.wy-side-nav-search {
+    background-color: #2980b9;
+}
+
+/* Better spacing for API documentation */
+.class dt {
+    margin-bottom: 10px;
+}
+
+/* Style admonitions */
+.admonition {
+    margin: 1em 0;
+    padding: 12px;
+    border-radius: 4px;
+}
+
+.admonition.note {
+    background: #e7f2fa;
+    border-left: 4px solid #2980b9;
+}
+
+.admonition.warning {
+    background: #ffedcc;
+    border-left: 4px solid #e67e22;
+}
+
+/* Better table styling */
+.wy-table-responsive table td {
+    white-space: normal;
+}
+
+/* Improve navigation */
+.wy-nav-content {
+    max-width: none;
+}
+
+@media screen and (min-width: 1400px) {
+    .wy-nav-content {
+        max-width: 1200px;
+    }
+}
