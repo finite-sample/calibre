@@ -232,9 +232,19 @@ flake8 calibre/ tests/
 ### Building Documentation
 
 ```bash
-# Run the benchmark notebook to generate results
-jupyter nbconvert --to notebook --execute benchmark.ipynb
+# Build Sphinx documentation
+cd docs
+make html
+
+# View documentation locally
+open build/html/index.html  # macOS
+# or navigate to docs/build/html/index.html in your browser
+
+# Install documentation dependencies
+pip install -e ".[docs]"
 ```
+
+**📖 Live Documentation**: https://finite-sample.github.io/calibre/
 
 ### Continuous Integration
 

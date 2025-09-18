@@ -13,6 +13,10 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     
     steps:
     - name: Checkout repository
@@ -35,20 +39,17 @@ jobs:
         cd docs
         make html
     
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v4
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
       if: github.ref == 'refs/heads/main'
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./docs/build/html
-        force_orphan: true
-        user_name: 'github-actions[bot]'
-        user_email: 'github-actions[bot]@users.noreply.github.com'
-        commit_message: 'Deploy documentation ${{ github.sha }}'
     
     - name: Upload documentation artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-pages-artifact@v3
+      if: github.ref == 'refs/heads/main'
       with:
-        name: documentation
-        path: docs/build/html/
-        retention-days: 30
+        path: ./docs/build/html
+    
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+      if: github.ref == 'refs/heads/main'
