@@ -1,6 +1,7 @@
 ## Calibre: Advanced Calibration Models
 
 [![CI](https://github.com/gojiplus/calibre/workflows/CI/badge.svg)](https://github.com/gojiplus/calibre/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-github.io-blue)](https://finite-sample.github.io/calibre/)
 [![PyPI version](https://img.shields.io/pypi/v/calibre.svg)](https://pypi.org/project/calibre/)
 [![PyPI Downloads](https://static.pepy.tech/badge/calibre)](https://pepy.tech/projects/calibre)
 [![Python Versions](https://img.shields.io/pypi/pyversions/calibre.svg)](https://pypi.org/project/calibre/)
