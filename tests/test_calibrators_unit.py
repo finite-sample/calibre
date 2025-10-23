@@ -344,13 +344,22 @@ class TestCalibratorCommonInterface:
         x, y = binary_data
 
         for cal in all_calibrators:
+            # Get base parameters
+            params = cal.get_params()
+            
             # Test with diagnostics disabled
-            cal_no_diag = cal.__class__(**cal.get_params(), enable_diagnostics=False)
+            params_no_diag = params.copy()
+            params_no_diag.pop('enable_diagnostics', None)  # Remove to avoid conflict
+            params_no_diag['enable_diagnostics'] = False
+            cal_no_diag = cal.__class__(**params_no_diag)
             cal_no_diag.fit(x, y)
             assert not cal_no_diag.has_diagnostics()
 
             # Test with diagnostics enabled
-            cal_with_diag = cal.__class__(**cal.get_params(), enable_diagnostics=True)
+            params_with_diag = params.copy()
+            params_with_diag.pop('enable_diagnostics', None)  # Remove to avoid conflict
+            params_with_diag['enable_diagnostics'] = True
+            cal_with_diag = cal.__class__(**params_with_diag)
             cal_with_diag.fit(x, y)
             assert cal_with_diag.has_diagnostics()
             assert isinstance(cal_with_diag.get_diagnostics(), dict)
