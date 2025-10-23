@@ -5,7 +5,8 @@ This directory contains example notebooks demonstrating the calibre package func
 ## Contents
 
 - `benchmark.ipynb` - Performance comparison of different calibration methods across various scenarios
-- `validation/calibration_validation.ipynb` - Visual validation of calibration methods with reliability diagrams
+- `calibration_validation.ipynb` - Visual validation of calibration methods with reliability diagrams
+- `plateau_diagnostics_demo.ipynb` - Comprehensive demo of plateau diagnostic tools for isotonic regression
 
 ## Usage
 
