@@ -1,582 +1,370 @@
 """
-Diagnostic tools for isotonic regression plateau analysis.
+Diagnostic analysis tools for calibration.
 
-This module provides comprehensive diagnostics to distinguish between noise-based
-flattening (good) and limited-data flattening (bad) in isotonic regression calibration.
+This module provides diagnostic analysis to help understand calibration behavior,
+particularly detecting plateaus (flat regions) and identifying potential data quality issues.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
-from sklearn.isotonic import IsotonicRegression
-from sklearn.preprocessing import SplineTransformer
-
-from .utils import (
-    bootstrap_resample,
-    check_arrays,
-    compute_delong_ci,
-    extract_plateaus,
-    minimum_detectable_difference,
-)
 
 logger = logging.getLogger(__name__)
 
 
-class PlateauInfo:
-    """Information about a plateau in isotonic regression output."""
-
-    def __init__(
-        self,
-        start_idx: int,
-        end_idx: int,
-        value: float,
-        x_range: Tuple[float, float],
-        sample_size: int,
-    ):
-        self.start_idx = start_idx
-        self.end_idx = end_idx
-        self.value = value
-        self.x_range = x_range
-        self.sample_size = sample_size
-        self.width = end_idx - start_idx + 1
-
-        # Diagnostic results (filled by analysis)
-        self.tie_stability: Optional[float] = None
-        self.conditional_auc: Optional[float] = None
-        self.conditional_auc_ci: Optional[Tuple[float, float]] = None
-        self.mdd_left: Optional[float] = None
-        self.mdd_right: Optional[float] = None
-        self.local_slope: Optional[float] = None
-        self.local_slope_ci: Optional[Tuple[float, float]] = None
-        self.classification: Optional[str] = None
-
-    def __repr__(self):
-        return (
-            f"PlateauInfo(indices={self.start_idx}-{self.end_idx}, "
-            f"value={self.value:.3f}, width={self.width}, "
-            f"classification={self.classification})"
-        )
-
-
-class PlateauAnalyzer:
-    """Helper class for analyzing individual plateaus."""
-
-    def __init__(self, tolerance: float = 1e-10):
-        self.tolerance = tolerance
-
-    def identify_plateaus(
-        self, X: np.ndarray, y_calibrated: np.ndarray
-    ) -> List[PlateauInfo]:
-        """
-        Identify plateaus in isotonic regression output.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples,)
-            Input features (should be sorted).
-        y_calibrated : array-like of shape (n_samples,)
-            Calibrated output values from isotonic regression.
-
-        Returns
-        -------
-        plateaus : list of PlateauInfo
-            List of identified plateaus.
-        """
-        X = np.asarray(X)
-        y_calibrated = np.asarray(y_calibrated)
-
-        plateau_tuples = extract_plateaus(X, y_calibrated, self.tolerance)
-        plateaus = []
-
-        for start_idx, end_idx, value in plateau_tuples:
-            x_range = (X[start_idx], X[end_idx])
-            sample_size = end_idx - start_idx + 1
-
-            plateau = PlateauInfo(start_idx, end_idx, value, x_range, sample_size)
-            plateaus.append(plateau)
-
-        return plateaus
-
-    def compute_mdd_for_plateau(
-        self,
-        plateau: PlateauInfo,
-        X: np.ndarray,
-        y: np.ndarray,
-        alpha: float = 0.05,
-        power: float = 0.8,
-    ) -> Tuple[float, float]:
-        """
-        Compute minimum detectable differences at plateau boundaries.
-
-        Parameters
-        ----------
-        plateau : PlateauInfo
-            Plateau to analyze.
-        X : array-like of shape (n_samples,)
-            Input features.
-        y : array-like of shape (n_samples,)
-            Target values.
-        alpha : float, default=0.05
-            Significance level.
-        power : float, default=0.8
-            Statistical power.
-
-        Returns
-        -------
-        mdd_left : float
-            MDD at left boundary.
-        mdd_right : float
-            MDD at right boundary.
-        """
-        # Get samples in plateau and adjacent regions
-        plateau_y = y[plateau.start_idx : plateau.end_idx + 1]
-        p_pooled = np.mean(plateau_y)
-        n_plateau = len(plateau_y)
-
-        # Left boundary
-        if plateau.start_idx > 0:
-            left_y = y[: plateau.start_idx]
-            n_left = len(left_y)
-            mdd_left = minimum_detectable_difference(
-                n_left, n_plateau, p_pooled, alpha, power
-            )
-        else:
-            mdd_left = np.inf
-
-        # Right boundary
-        if plateau.end_idx < len(y) - 1:
-            right_y = y[plateau.end_idx + 1 :]
-            n_right = len(right_y)
-            mdd_right = minimum_detectable_difference(
-                n_plateau, n_right, p_pooled, alpha, power
-            )
-        else:
-            mdd_right = np.inf
-
-        return mdd_left, mdd_right
-
-
-class IsotonicDiagnostics:
+def run_plateau_diagnostics(
+    X: np.ndarray,
+    y: np.ndarray,
+    y_calibrated: np.ndarray,
+    n_bootstraps: int = 100,  # Kept for API compatibility but unused
+    random_state: int = None,  # Kept for API compatibility but unused
+) -> Dict:
     """
-    Main class for diagnosing isotonic regression plateaus.
+    Detect and analyze plateaus (flat regions) in calibration curves.
 
-    This class provides comprehensive diagnostics to distinguish between
-    noise-based flattening (good) and limited-data flattening (bad).
+    This function identifies flat regions where the calibrator outputs the same
+    value for multiple inputs, and flags potentially problematic plateaus based
+    on simple, interpretable criteria like sample count.
 
     Parameters
     ----------
+    X : array-like of shape (n_samples,)
+        Original predicted probabilities.
+    y : array-like of shape (n_samples,)
+        True labels.
+    y_calibrated : array-like of shape (n_samples,)
+        Calibrated probabilities.
     n_bootstraps : int, default=100
-        Number of bootstrap samples for stability analysis.
-    n_splits : int, default=5
-        Number of cross-validation splits for stability analysis.
-    alpha : float, default=0.05
-        Significance level for statistical tests.
-    power : float, default=0.8
-        Statistical power for MDD calculations.
+        Kept for API compatibility, currently unused.
     random_state : int, optional
-        Random state for reproducibility.
-
-    Attributes
-    ----------
-    plateaus_ : list of PlateauInfo
-        Identified plateaus from the last analysis.
-    stability_results_ : dict
-        Results from stability analysis.
-    """
-
-    def __init__(
-        self,
-        n_bootstraps: int = 100,
-        n_splits: int = 5,
-        alpha: float = 0.05,
-        power: float = 0.8,
-        random_state: Optional[int] = None,
-    ):
-        self.n_bootstraps = n_bootstraps
-        self.n_splits = n_splits
-        self.alpha = alpha
-        self.power = power
-        self.random_state = random_state
-        self.plateau_analyzer = PlateauAnalyzer()
-
-        self.plateaus_: Optional[List[PlateauInfo]] = None
-        self.stability_results_: Optional[Dict] = None
-
-    def analyze(
-        self,
-        X_train: np.ndarray,
-        y_train: np.ndarray,
-        X_test: Optional[np.ndarray] = None,
-        y_test: Optional[np.ndarray] = None,
-    ) -> Dict[str, Any]:
-        """
-        Perform comprehensive plateau analysis.
-
-        Parameters
-        ----------
-        X_train : array-like of shape (n_samples,)
-            Training input features.
-        y_train : array-like of shape (n_samples,)
-            Training target values.
-        X_test : array-like of shape (n_test_samples,), optional
-            Test input features for conditional AUC analysis.
-        y_test : array-like of shape (n_test_samples,), optional
-            Test target values for conditional AUC analysis.
-
-        Returns
-        -------
-        results : dict
-            Comprehensive analysis results.
-        """
-        X_train, y_train = check_arrays(X_train, y_train)
-
-        if X_test is not None and y_test is not None:
-            X_test, y_test = check_arrays(X_test, y_test)
-
-        # Fit isotonic regression on training data
-        iso_reg = IsotonicRegression(out_of_bounds="clip")
-        iso_reg.fit(X_train, y_train)
-        y_calibrated = iso_reg.transform(X_train)
-
-        # Identify plateaus
-        self.plateaus_ = self.plateau_analyzer.identify_plateaus(X_train, y_calibrated)
-
-        if not self.plateaus_:
-            return {
-                "n_plateaus": 0,
-                "plateaus": [],
-                "summary": "No plateaus detected in isotonic regression fit.",
-            }
-
-        # Perform diagnostic analyses
-        self._analyze_tie_stability(X_train, y_train)
-        self._analyze_conditional_auc(X_train, y_train, X_test, y_test)
-        self._analyze_mdd(X_train, y_train)
-        self._analyze_local_slopes(X_train, y_train)
-        self._classify_plateaus()
-
-        # Generate summary
-        results = self._generate_summary()
-        return results
-
-    def _analyze_tie_stability(self, X: np.ndarray, y: np.ndarray) -> None:
-        """Analyze tie stability across bootstrap resamples."""
-        logger.info("Analyzing tie stability across bootstrap resamples...")
-
-        rng = np.random.RandomState(self.random_state)
-
-        for plateau in self.plateaus_:
-            tie_counts = 0
-            total_bootstraps = 0
-
-            for i in range(self.n_bootstraps):
-                # Bootstrap resample
-                X_boot, y_boot = bootstrap_resample(
-                    X, y, random_state=rng.randint(0, 2**31)
-                )
-
-                # Fit isotonic regression
-                try:
-                    iso_reg = IsotonicRegression(out_of_bounds="clip")
-                    iso_reg.fit(X_boot, y_boot)
-                    y_boot_cal = iso_reg.transform(X_boot)
-
-                    # Check if original plateau region is still tied
-                    # Map original indices to bootstrap space (approximate)
-                    original_x_range = (X[plateau.start_idx], X[plateau.end_idx])
-                    mask = (X_boot >= original_x_range[0]) & (
-                        X_boot <= original_x_range[1]
-                    )
-
-                    if np.sum(mask) > 1:
-                        boot_cal_in_range = y_boot_cal[mask]
-                        # Check if values are approximately equal (forming a tie)
-                        if np.std(boot_cal_in_range) < 1e-6:
-                            tie_counts += 1
-
-                    total_bootstraps += 1
-
-                except Exception as e:
-                    logger.warning(f"Bootstrap {i} failed: {e}")
-                    continue
-
-            if total_bootstraps > 0:
-                plateau.tie_stability = tie_counts / total_bootstraps
-            else:
-                plateau.tie_stability = 0.0
-
-    def _analyze_conditional_auc(
-        self,
-        X_train: np.ndarray,
-        y_train: np.ndarray,
-        X_test: Optional[np.ndarray],
-        y_test: Optional[np.ndarray],
-    ) -> None:
-        """Analyze conditional AUC among tied pairs."""
-        if X_test is None or y_test is None:
-            logger.warning("Test data not provided, skipping conditional AUC analysis")
-            for plateau in self.plateaus_:
-                plateau.conditional_auc = None
-                plateau.conditional_auc_ci = None
-            return
-
-        logger.info("Analyzing conditional AUC among tied pairs...")
-
-        # Fit isotonic regression
-        iso_reg = IsotonicRegression(out_of_bounds="clip")
-        iso_reg.fit(X_train, y_train)
-
-        for plateau in self.plateaus_:
-            # Find test samples in plateau's X range
-            x_min, x_max = plateau.x_range
-            mask = (X_test >= x_min) & (X_test <= x_max)
-
-            if np.sum(mask) < 2:
-                plateau.conditional_auc = None
-                plateau.conditional_auc_ci = None
-                continue
-
-            X_test_plateau = X_test[mask]
-            y_test_plateau = y_test[mask]
-
-            # Check if we have both classes
-            if len(np.unique(y_test_plateau)) < 2:
-                plateau.conditional_auc = None
-                plateau.conditional_auc_ci = None
-                continue
-
-            # Compute AUC using original scores within plateau range
-            auc, ci_lower, ci_upper = compute_delong_ci(
-                y_test_plateau, X_test_plateau, self.alpha
-            )
-
-            plateau.conditional_auc = auc
-            if not (np.isnan(ci_lower) or np.isnan(ci_upper)):
-                plateau.conditional_auc_ci = (ci_lower, ci_upper)
-            else:
-                plateau.conditional_auc_ci = None
-
-    def _analyze_mdd(self, X: np.ndarray, y: np.ndarray) -> None:
-        """Analyze minimum detectable differences at plateau boundaries."""
-        logger.info("Computing minimum detectable differences...")
-
-        for plateau in self.plateaus_:
-            mdd_left, mdd_right = self.plateau_analyzer.compute_mdd_for_plateau(
-                plateau, X, y, self.alpha, self.power
-            )
-            plateau.mdd_left = mdd_left
-            plateau.mdd_right = mdd_right
-
-    def _analyze_local_slopes(self, X: np.ndarray, y: np.ndarray) -> None:
-        """Analyze local slopes using smooth monotone fits."""
-        logger.info("Analyzing local slopes with smooth monotone fits...")
-
-        try:
-            # Fit a monotone spline
-            spline_transformer = SplineTransformer(
-                n_splines=min(10, len(X) // 3), degree=3, include_bias=False
-            )
-            spline_transformer.fit(X.reshape(-1, 1))
-
-            # Use isotonic regression on spline basis for monotonicity
-            iso_spline = IsotonicRegression(out_of_bounds="clip")
-            iso_spline.fit(X, y)
-            y_smooth = iso_spline.transform(X)
-
-            for plateau in self.plateaus_:
-                # Estimate local slope in plateau region
-                start_idx = max(0, plateau.start_idx - 1)
-                end_idx = min(len(X) - 1, plateau.end_idx + 1)
-
-                if end_idx > start_idx:
-                    X_local = X[start_idx : end_idx + 1]
-                    y_local = y_smooth[start_idx : end_idx + 1]
-
-                    if len(X_local) > 1:
-                        # Simple linear slope estimate
-                        slope = (y_local[-1] - y_local[0]) / (X_local[-1] - X_local[0])
-
-                        # Bootstrap confidence interval for slope
-                        slopes = []
-                        rng = np.random.RandomState(self.random_state)
-
-                        for _ in range(min(50, self.n_bootstraps)):
-                            indices = rng.choice(
-                                len(X_local), size=len(X_local), replace=True
-                            )
-                            X_boot = X_local[indices]
-                            y_boot = y_local[indices]
-
-                            if len(np.unique(X_boot)) > 1:
-                                sort_idx = np.argsort(X_boot)
-                                X_boot_sorted = X_boot[sort_idx]
-                                y_boot_sorted = y_boot[sort_idx]
-
-                                boot_slope = (y_boot_sorted[-1] - y_boot_sorted[0]) / (
-                                    X_boot_sorted[-1] - X_boot_sorted[0]
-                                )
-                                slopes.append(boot_slope)
-
-                        plateau.local_slope = slope
-
-                        if slopes:
-                            ci_lower = np.percentile(slopes, 100 * self.alpha / 2)
-                            ci_upper = np.percentile(slopes, 100 * (1 - self.alpha / 2))
-                            plateau.local_slope_ci = (ci_lower, ci_upper)
-                        else:
-                            plateau.local_slope_ci = None
-                    else:
-                        plateau.local_slope = None
-                        plateau.local_slope_ci = None
-                else:
-                    plateau.local_slope = None
-                    plateau.local_slope_ci = None
-
-        except Exception as e:
-            logger.warning(f"Local slope analysis failed: {e}")
-            for plateau in self.plateaus_:
-                plateau.local_slope = None
-                plateau.local_slope_ci = None
-
-    def _classify_plateaus(self) -> None:
-        """Classify plateaus as supported, limited-data, or inconclusive."""
-        for plateau in self.plateaus_:
-            criteria = self._extract_plateau_criteria(plateau)
-            plateau.classification = self._determine_classification(criteria)
-
-    def _extract_plateau_criteria(self, plateau) -> List[str]:
-        """Extract diagnostic criteria for a plateau."""
-        criteria = []
-
-        # Tie stability criterion
-        if plateau.tie_stability is not None:
-            if plateau.tie_stability > 0.7:
-                criteria.append("stable")
-            elif plateau.tie_stability < 0.3:
-                criteria.append("unstable")
-
-        # Conditional AUC criterion
-        if plateau.conditional_auc is not None:
-            if plateau.conditional_auc < 0.55:
-                criteria.append("low_auc")
-            elif plateau.conditional_auc > 0.65:
-                criteria.append("high_auc")
-
-        # Local slope criterion
-        if plateau.local_slope is not None and plateau.local_slope_ci is not None:
-            ci_lower, ci_upper = plateau.local_slope_ci
-            if ci_lower <= 0 <= ci_upper:
-                criteria.append("flat_slope")
-            elif ci_lower > 0:
-                criteria.append("positive_slope")
-
-        return criteria
-
-    def _determine_classification(self, criteria: List[str]) -> str:
-        """Determine plateau classification based on criteria."""
-        supported_criteria = {"stable", "low_auc", "flat_slope"}
-        limited_data_criteria = {"unstable", "high_auc", "positive_slope"}
-
-        if supported_criteria.issubset(set(criteria)):
-            return "supported"
-        elif limited_data_criteria.issubset(set(criteria)):
-            return "limited_data"
-        else:
-            return "inconclusive"
-
-    def _generate_summary(self) -> Dict[str, Any]:
-        """Generate comprehensive summary of results."""
-        summary = {"n_plateaus": len(self.plateaus_), "plateaus": []}
-
-        for i, plateau in enumerate(self.plateaus_):
-            plateau_summary = {
-                "plateau_id": i,
-                "indices": (plateau.start_idx, plateau.end_idx),
-                "x_range": plateau.x_range,
-                "value": plateau.value,
-                "width": plateau.width,
-                "sample_size": plateau.sample_size,
-                "tie_stability": plateau.tie_stability,
-                "conditional_auc": plateau.conditional_auc,
-                "conditional_auc_ci": plateau.conditional_auc_ci,
-                "mdd_left": plateau.mdd_left,
-                "mdd_right": plateau.mdd_right,
-                "local_slope": plateau.local_slope,
-                "local_slope_ci": plateau.local_slope_ci,
-                "classification": plateau.classification,
-            }
-            summary["plateaus"].append(plateau_summary)
-
-        # Overall statistics
-        classifications = [p.classification for p in self.plateaus_ if p.classification]
-        summary["classification_counts"] = {
-            "supported": classifications.count("supported"),
-            "limited_data": classifications.count("limited_data"),
-            "inconclusive": classifications.count("inconclusive"),
-        }
-
-        return summary
-
-    def plateau_summary(self) -> str:
-        """Generate a human-readable summary of plateau analysis."""
-        if not self.plateaus_:
-            return "No plateaus detected."
-
-        lines = [f"Detected {len(self.plateaus_)} plateau(s):"]
-        lines.append("")
-
-        for i, plateau in enumerate(self.plateaus_):
-            lines.append(f"Plateau {i+1}:")
-            lines.append(
-                f"  Range: [{plateau.x_range[0]:.3f}, {plateau.x_range[1]:.3f}]"
-            )
-            lines.append(f"  Value: {plateau.value:.3f}")
-            lines.append(f"  Width: {plateau.width} samples")
-            lines.append(f"  Classification: {plateau.classification}")
-
-            if plateau.tie_stability is not None:
-                lines.append(f"  Tie stability: {plateau.tie_stability:.3f}")
-
-            if plateau.conditional_auc is not None:
-                auc_str = f"{plateau.conditional_auc:.3f}"
-                if plateau.conditional_auc_ci is not None:
-                    ci_lower, ci_upper = plateau.conditional_auc_ci
-                    auc_str += f" (CI: [{ci_lower:.3f}, {ci_upper:.3f}])"
-                lines.append(f"  Conditional AUC: {auc_str}")
-
-            lines.append("")
-
-        return "\n".join(lines)
-
-
-def analyze_plateaus(
-    X_train: np.ndarray,
-    y_train: np.ndarray,
-    X_test: Optional[np.ndarray] = None,
-    y_test: Optional[np.ndarray] = None,
-    **kwargs,
-) -> Dict[str, Any]:
-    """
-    Convenience function for comprehensive plateau analysis.
-
-    Parameters
-    ----------
-    X_train : array-like of shape (n_samples,)
-        Training input features.
-    y_train : array-like of shape (n_samples,)
-        Training target values.
-    X_test : array-like of shape (n_test_samples,), optional
-        Test input features.
-    y_test : array-like of shape (n_test_samples,), optional
-        Test target values.
-    **kwargs
-        Additional arguments passed to IsotonicDiagnostics.
+        Kept for API compatibility, currently unused.
 
     Returns
     -------
-    results : dict
-        Comprehensive analysis results.
+    diagnostics : dict
+        Dictionary containing:
+        - 'n_plateaus': Number of plateaus detected
+        - 'plateaus': List of plateau information dicts, each containing:
+            - 'plateau_id': Unique identifier (0-indexed)
+            - 'x_range': Tuple of (min, max) input values in plateau
+            - 'value': The constant output value of the plateau
+            - 'width': Number of samples in the plateau
+            - 'n_samples': Number of samples (same as width)
+            - 'sample_density': 'adequate', 'sparse', or 'very_sparse'
+        - 'warnings': List of warning messages about problematic plateaus
+
+    Examples
+    --------
+    >>> X = np.array([0.1, 0.2, 0.3, 0.7, 0.8, 0.9])
+    >>> y = np.array([0, 0, 0, 1, 1, 1])
+    >>> y_cal = np.array([0.2, 0.2, 0.2, 0.8, 0.8, 0.8])
+    >>> diagnostics = run_plateau_diagnostics(X, y, y_cal)
+    >>> print(diagnostics['n_plateaus'])
+    2
+    >>> print(diagnostics['warnings'])
+    []
     """
-    diagnostics = IsotonicDiagnostics(**kwargs)
-    return diagnostics.analyze(X_train, y_train, X_test, y_test)
+    # Sort by calibrated values to find consecutive identical values
+    sorted_indices = np.argsort(y_calibrated)
+    y_cal_sorted = y_calibrated[sorted_indices]
+    X_sorted = X[sorted_indices]
+
+    # Detect plateaus
+    plateau_indices = detect_plateaus(y_cal_sorted)
+
+    # Analyze each plateau
+    plateaus = []
+    warnings = []
+
+    for i, (start_idx, end_idx, value) in enumerate(plateau_indices):
+        plateau_info = analyze_plateau_simple(
+            X_sorted, y_cal_sorted, start_idx, end_idx, value, i
+        )
+        plateaus.append(plateau_info)
+
+        # Generate warnings for problematic plateaus
+        if plateau_info["sample_density"] == "very_sparse":
+            warnings.append(
+                f"Plateau {i+1} at [{plateau_info['x_range'][0]:.3f}, "
+                f"{plateau_info['x_range'][1]:.3f}] has only "
+                f"{plateau_info['n_samples']} samples - may be unreliable"
+            )
+        elif plateau_info["sample_density"] == "sparse":
+            warnings.append(
+                f"Plateau {i+1} at [{plateau_info['x_range'][0]:.3f}, "
+                f"{plateau_info['x_range'][1]:.3f}] has {plateau_info['n_samples']} "
+                f"samples - consider collecting more data in this range"
+            )
+
+    # Summary
+    diagnostics = {
+        "n_plateaus": len(plateaus),
+        "plateaus": plateaus,
+        "warnings": warnings,
+    }
+
+    return diagnostics
+
+
+def detect_plateaus(
+    y_calibrated: np.ndarray, min_width: int = 2
+) -> List[Tuple[int, int, float]]:
+    """
+    Detect plateaus (consecutive identical values) in calibrated predictions.
+
+    Parameters
+    ----------
+    y_calibrated : array-like of shape (n_samples,)
+        Sorted calibrated probabilities.
+    min_width : int, default=2
+        Minimum number of consecutive identical values to count as a plateau.
+
+    Returns
+    -------
+    plateaus : list of tuples
+        List of (start_index, end_index, value) tuples for each detected plateau.
+        Indices are inclusive.
+
+    Examples
+    --------
+    >>> y_cal = np.array([0.2, 0.2, 0.2, 0.5, 0.8, 0.8])
+    >>> plateaus = detect_plateaus(y_cal)
+    >>> print(plateaus)
+    [(0, 2, 0.2), (4, 5, 0.8)]
+    """
+    if len(y_calibrated) == 0:
+        return []
+
+    plateaus = []
+    start_idx = 0
+    current_value = y_calibrated[0]
+
+    for i in range(1, len(y_calibrated)):
+        if not np.isclose(y_calibrated[i], current_value):
+            # End of current plateau
+            width = i - start_idx
+            if width >= min_width:
+                plateaus.append((start_idx, i - 1, current_value))
+
+            # Start new potential plateau
+            start_idx = i
+            current_value = y_calibrated[i]
+
+    # Check final plateau
+    width = len(y_calibrated) - start_idx
+    if width >= min_width:
+        plateaus.append((start_idx, len(y_calibrated) - 1, current_value))
+
+    return plateaus
+
+
+def analyze_plateau_simple(
+    X: np.ndarray,
+    y_calibrated: np.ndarray,
+    start_idx: int,
+    end_idx: int,
+    value: float,
+    plateau_id: int,
+) -> Dict:
+    """
+    Analyze a single plateau with simple, interpretable metrics.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples,)
+        Sorted input predictions.
+    y_calibrated : array-like of shape (n_samples,)
+        Sorted calibrated predictions.
+    start_idx : int
+        Start index of plateau (inclusive).
+    end_idx : int
+        End index of plateau (inclusive).
+    value : float
+        The constant value of the plateau.
+    plateau_id : int
+        Unique identifier for this plateau.
+
+    Returns
+    -------
+    plateau_info : dict
+        Dictionary with plateau information:
+        - plateau_id
+        - x_range: (min, max) of input values
+        - value: output value
+        - width: number of samples
+        - n_samples: same as width
+        - sample_density: 'adequate', 'sparse', or 'very_sparse'
+    """
+    # Extract plateau region
+    X_plateau = X[start_idx : end_idx + 1]
+
+    # Basic statistics
+    width = end_idx - start_idx + 1
+    x_min = float(np.min(X_plateau))
+    x_max = float(np.max(X_plateau))
+
+    # Assess sample density (simple thresholds)
+    if width < 5:
+        sample_density = "very_sparse"
+    elif width < 10:
+        sample_density = "sparse"
+    else:
+        sample_density = "adequate"
+
+    return {
+        "plateau_id": plateau_id,
+        "x_range": (x_min, x_max),
+        "value": float(value),
+        "width": width,
+        "n_samples": width,
+        "sample_density": sample_density,
+    }
+
+
+def diversity_learning_curve(
+    X: np.ndarray,
+    y: np.ndarray,
+    calibrator=None,
+    sample_sizes: Optional[List[int]] = None,
+    n_trials: int = 10,
+    random_state: Optional[int] = None,
+) -> Tuple[List[int], List[float]]:
+    """
+    Measure how calibration diversity changes with training sample size.
+
+    This diagnostic tool helps determine whether you have sufficient training
+    data for stable calibration. If diversity continues increasing with sample
+    size, more data would likely improve calibration granularity.
+
+    Parameters
+    ----------
+    X : array-like of shape (n_samples,)
+        Input features (predicted probabilities).
+    y : array-like of shape (n_samples,)
+        True binary labels.
+    calibrator : BaseCalibrator, optional
+        Calibrator to test. If None, uses IsotonicCalibrator.
+    sample_sizes : list of int, optional
+        Sample sizes to test. If None, uses default range covering
+        10% to 100% of available data.
+    n_trials : int, default=10
+        Number of random trials per sample size for averaging.
+    random_state : int, optional
+        Random state for reproducibility.
+
+    Returns
+    -------
+    sizes : list of int
+        Sample sizes tested.
+    diversities : list of float
+        Average diversity at each sample size, where diversity is
+        the fraction of unique calibrated values.
+
+    Notes
+    -----
+    This function is computationally expensive as it fits the calibrator
+    multiple times (n_trials × len(sample_sizes) fits). Use for diagnostic
+    analysis, not routine evaluation.
+
+    The diversity metric measures granularity: higher diversity means more
+    unique calibrated values, indicating better discrimination. If diversity
+    plateaus, you have sufficient data. If it keeps increasing, more data
+    would help.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from calibre import IsotonicCalibrator
+    >>>
+    >>> # Generate example data
+    >>> np.random.seed(42)
+    >>> X = np.random.uniform(0, 1, 500)
+    >>> y = (X > 0.5).astype(int)
+    >>>
+    >>> # Test data sufficiency
+    >>> sizes, divs = diversity_learning_curve(X, y,
+    ...     sample_sizes=[50, 100, 200, 300, 400, 500])
+    >>>
+    >>> # Check if converged
+    >>> if divs[-1] - divs[-2] < 0.05:
+    ...     print("✓ Diversity has converged - sufficient data")
+    ... else:
+    ...     print("⚠ Diversity still increasing - more data may help")
+    >>>
+    >>> # Compare methods
+    >>> from calibre import SplineCalibrator
+    >>> sizes, iso_divs = diversity_learning_curve(X, y,
+    ...     calibrator=IsotonicCalibrator())
+    >>> sizes, spl_divs = diversity_learning_curve(X, y,
+    ...     calibrator=SplineCalibrator())
+    >>> # Compare which method preserves more diversity at each sample size
+
+    See Also
+    --------
+    unique_value_counts : Count unique values in calibrated predictions
+    run_plateau_diagnostics : Detect and analyze plateaus
+    """
+    from sklearn.utils.validation import check_array
+
+    X = check_array(X, ensure_2d=False)
+    y = check_array(y, ensure_2d=False)
+
+    if len(X) != len(y):
+        raise ValueError("X and y must have the same length")
+
+    n_total = len(X)
+
+    # Default calibrator
+    if calibrator is None:
+        from .calibrators.isotonic import IsotonicCalibrator
+
+        calibrator = IsotonicCalibrator()
+
+    # Default sample sizes
+    if sample_sizes is None:
+        sample_sizes = [
+            max(10, n_total // 10),
+            max(20, n_total // 5),
+            max(30, n_total // 3),
+            max(50, n_total // 2),
+            min(n_total - 10, int(n_total * 0.8)),
+            n_total,
+        ]
+        sample_sizes = [s for s in sample_sizes if s <= n_total]
+
+    rng = np.random.RandomState(random_state)
+    diversities = []
+
+    for size in sample_sizes:
+        trial_diversities = []
+
+        for trial in range(n_trials):
+            # Random subsample
+            indices = rng.choice(n_total, size=size, replace=False)
+            X_sub = X[indices]
+            y_sub = y[indices]
+
+            # Fit calibrator
+            try:
+                # Create fresh instance for each trial
+                cal = calibrator.__class__(**calibrator.get_params())
+                cal.fit(X_sub, y_sub)
+                y_cal = cal.transform(X_sub)
+
+                # Compute diversity
+                n_unique = len(np.unique(y_cal))
+                diversity = n_unique / len(y_cal)
+                trial_diversities.append(diversity)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to fit calibrator at size {size}, trial {trial}: {e}"
+                )
+                continue
+
+        if trial_diversities:
+            diversities.append(np.mean(trial_diversities))
+        else:
+            diversities.append(0.0)
+
+    return sample_sizes, diversities

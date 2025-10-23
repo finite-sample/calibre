@@ -5,13 +5,14 @@ This module provides functions to generate synthetic datasets that mimic
 common miscalibration patterns observed in real machine learning models.
 """
 
+from typing import Any, Dict, Tuple
+
 import numpy as np
-from typing import Tuple, Dict, Any
 from sklearn.datasets import make_classification
-from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.neural_network import MLPClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPClassifier
 
 
 class CalibrationDataGenerator:

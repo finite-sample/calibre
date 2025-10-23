@@ -10,25 +10,26 @@ This module runs systematic tests across all combinations of:
 Total test combinations: ~400 tests
 """
 
+import warnings
+from itertools import product
+from typing import Any, Dict, List, Tuple
+
 import numpy as np
 import pytest
-from itertools import product
-from typing import Dict, List, Tuple, Any
-import warnings
 
-from calibre.calibration import (
-    NearlyIsotonicRegression,
-    ISplineCalibrator,
-    RelaxedPAVA,
-    RegularizedIsotonicRegression,
-    SmoothedIsotonicRegression,
+from calibre import (
+    NearlyIsotonicCalibrator,
+    RegularizedIsotonicCalibrator,
+    RelaxedPAVACalibrator,
+    SmoothedIsotonicCalibrator,
+    SplineCalibrator,
 )
 from calibre.metrics import (
-    mean_calibration_error,
-    expected_calibration_error,
-    maximum_calibration_error,
     brier_score,
     correlation_metrics,
+    expected_calibration_error,
+    maximum_calibration_error,
+    mean_calibration_error,
     unique_value_counts,
 )
 from tests.data_generators import CalibrationDataGenerator
@@ -45,35 +46,43 @@ class TestMatrix:
         # Define calibrator configurations
         cls.calibrator_configs = {
             # Nearly Isotonic Regression variants
-            "nir_strict_cvx": lambda: NearlyIsotonicRegression(lam=10.0, method="cvx"),
-            "nir_relaxed_cvx": lambda: NearlyIsotonicRegression(lam=0.1, method="cvx"),
-            "nir_strict_path": lambda: NearlyIsotonicRegression(
+            "nir_strict_cvx": lambda: NearlyIsotonicCalibrator(lam=10.0, method="cvx"),
+            "nir_relaxed_cvx": lambda: NearlyIsotonicCalibrator(lam=0.1, method="cvx"),
+            "nir_strict_path": lambda: NearlyIsotonicCalibrator(
                 lam=10.0, method="path"
             ),
-            "nir_relaxed_path": lambda: NearlyIsotonicRegression(
+            "nir_relaxed_path": lambda: NearlyIsotonicCalibrator(
                 lam=0.1, method="path"
             ),
             # I-Spline Calibrator variants
-            "ispline_small": lambda: ISplineCalibrator(n_splines=5, degree=2, cv=3),
-            "ispline_medium": lambda: ISplineCalibrator(n_splines=10, degree=3, cv=3),
-            "ispline_large": lambda: ISplineCalibrator(n_splines=20, degree=3, cv=5),
+            "ispline_small": lambda: SplineCalibrator(n_splines=5, degree=2, cv=3),
+            "ispline_medium": lambda: SplineCalibrator(n_splines=10, degree=3, cv=3),
+            "ispline_large": lambda: SplineCalibrator(n_splines=20, degree=3, cv=5),
             # Relaxed PAVA variants
-            "rpava_strict_adaptive": lambda: RelaxedPAVA(percentile=5, adaptive=True),
-            "rpava_loose_adaptive": lambda: RelaxedPAVA(percentile=20, adaptive=True),
-            "rpava_strict_block": lambda: RelaxedPAVA(percentile=5, adaptive=False),
-            "rpava_loose_block": lambda: RelaxedPAVA(percentile=20, adaptive=False),
+            "rpava_strict_adaptive": lambda: RelaxedPAVACalibrator(
+                percentile=5, adaptive=True
+            ),
+            "rpava_loose_adaptive": lambda: RelaxedPAVACalibrator(
+                percentile=20, adaptive=True
+            ),
+            "rpava_strict_block": lambda: RelaxedPAVACalibrator(
+                percentile=5, adaptive=False
+            ),
+            "rpava_loose_block": lambda: RelaxedPAVACalibrator(
+                percentile=20, adaptive=False
+            ),
             # Regularized Isotonic variants
-            "rir_weak": lambda: RegularizedIsotonicRegression(alpha=0.01),
-            "rir_medium": lambda: RegularizedIsotonicRegression(alpha=0.1),
-            "rir_strong": lambda: RegularizedIsotonicRegression(alpha=1.0),
+            "rir_weak": lambda: RegularizedIsotonicCalibrator(alpha=0.01),
+            "rir_medium": lambda: RegularizedIsotonicCalibrator(alpha=0.1),
+            "rir_strong": lambda: RegularizedIsotonicCalibrator(alpha=1.0),
             # Smoothed Isotonic variants
-            "sir_fixed_small": lambda: SmoothedIsotonicRegression(
+            "sir_fixed_small": lambda: SmoothedIsotonicCalibrator(
                 window_length=5, poly_order=2
             ),
-            "sir_fixed_medium": lambda: SmoothedIsotonicRegression(
+            "sir_fixed_medium": lambda: SmoothedIsotonicCalibrator(
                 window_length=11, poly_order=3
             ),
-            "sir_adaptive": lambda: SmoothedIsotonicRegression(
+            "sir_adaptive": lambda: SmoothedIsotonicCalibrator(
                 window_length=None, adaptive=True, min_window=5
             ),
         }
@@ -242,6 +251,7 @@ class TestMatrix:
             result["calibrated_brier"] <= 1.0
         ), f"Invalid Brier score for {calibrator_name} on {pattern}"
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "calibrator_name",
         [
@@ -263,6 +273,7 @@ class TestMatrix:
                     "bounds_valid"
                 ], f"{calibrator_name} violated bounds on {pattern}"
 
+    @pytest.mark.slow
     @pytest.mark.parametrize(
         "pattern",
         [
@@ -300,6 +311,7 @@ class TestMatrix:
             improvement_rate >= 0.0
         ), f"Only {improvement_rate:.1%} of calibrators improved on {pattern}"
 
+    @pytest.mark.slow
     def test_monotonicity_strict_calibrators(self):
         """Test that strict monotonicity calibrators maintain monotonicity."""
         strict_calibrators = ["rir_weak", "rir_medium", "rir_strong"]
@@ -318,6 +330,7 @@ class TestMatrix:
                         result["monotonicity_violations"] <= 35
                     ), f"{calibrator_name} violated strict monotonicity on {pattern}: {result['monotonicity_violations']} violations"
 
+    @pytest.mark.slow
     def test_relaxed_monotonicity_calibrators(self):
         """Test that relaxed monotonicity calibrators have controlled violations."""
         relaxed_calibrators = ["nir_relaxed_path", "rpava_loose_adaptive"]
@@ -370,6 +383,7 @@ class TestMatrix:
                     result["calibrated_brier"] <= 1.0
                 ), f"{calibrator_name} invalid Brier with noise={noise_level}"
 
+    @pytest.mark.slow
     def test_granularity_preservation(self):
         """Test that calibrators preserve reasonable granularity."""
         calibrators = [
@@ -395,6 +409,7 @@ class TestMatrix:
                         result["granularity_ratio"] <= 5.0
                     ), f"{calibrator_name} created too many unique values on {pattern}: {result['granularity_ratio']:.3f}"
 
+    @pytest.mark.slow
     def test_extreme_scenarios(self):
         """Test calibrators on extreme scenarios."""
         extreme_tests = [
@@ -425,6 +440,7 @@ class TestMatrix:
                             result["rank_correlation"] >= -0.5
                         ), f"{calibrator_name} very negative correlation on {pattern}: {result['rank_correlation']:.3f}"
 
+    @pytest.mark.slow
     def test_parameter_sensitivity(self):
         """Test sensitivity to calibrator parameters."""
         # Test Nearly Isotonic lambda sensitivity
@@ -433,7 +449,7 @@ class TestMatrix:
 
         results = []
         for lam in lambdas:
-            calibrator = NearlyIsotonicRegression(lam=lam, method="path")
+            calibrator = NearlyIsotonicCalibrator(lam=lam, method="path")
             try:
                 y_pred, y_true = self.data_generator.generate_dataset(
                     pattern, n_samples=300
@@ -547,6 +563,7 @@ class TestMatrix:
 class TestMatrixAnalysis:
     """Analysis and reporting on test matrix results."""
 
+    @pytest.mark.slow
     def test_calibrator_ranking_by_improvement(self):
         """Rank calibrators by average calibration improvement."""
         # This would typically be run after the comprehensive matrix
@@ -570,15 +587,15 @@ class TestMatrixAnalysis:
                 try:
                     # Create calibrator
                     if cal_name == "nir_strict_path":
-                        calibrator = NearlyIsotonicRegression(lam=10.0, method="path")
+                        calibrator = NearlyIsotonicCalibrator(lam=10.0, method="path")
                     elif cal_name == "ispline_medium":
-                        calibrator = ISplineCalibrator(n_splines=10, degree=3, cv=3)
+                        calibrator = SplineCalibrator(n_splines=10, degree=3, cv=3)
                     elif cal_name == "rpava_strict_adaptive":
-                        calibrator = RelaxedPAVA(percentile=5, adaptive=True)
+                        calibrator = RelaxedPAVACalibrator(percentile=5, adaptive=True)
                     elif cal_name == "rir_medium":
-                        calibrator = RegularizedIsotonicRegression(alpha=0.1)
+                        calibrator = RegularizedIsotonicCalibrator(alpha=0.1)
                     elif cal_name == "sir_fixed_medium":
-                        calibrator = SmoothedIsotonicRegression(
+                        calibrator = SmoothedIsotonicCalibrator(
                             window_length=11, poly_order=3
                         )
 

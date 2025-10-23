@@ -282,7 +282,7 @@ pytest
 pytest --cov=calibre --cov-report=html
 
 # Run specific test file
-pytest tests/test_calibration.py
+pytest tests/test_calibrators_unit.py
 
 # Run tests in verbose mode
 pytest -xvs tests/

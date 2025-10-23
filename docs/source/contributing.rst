@@ -79,7 +79,7 @@ All contributions should include tests. We use pytest for testing:
    pytest --cov=calibre
    
    # Run specific test file
-   pytest tests/test_calibration.py
+   pytest tests/test_calibrators_unit.py
 
 **Note**: Some tests may be skipped when calibrators reach their mathematical limits. This is expected behavior - typically 6-8 tests are skipped out of ~140 total tests.
 

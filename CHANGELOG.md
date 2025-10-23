@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-01-23
+
+### Changed
+- **🏗️ Simplified Diagnostic Architecture**: Streamlined BaseCalibrator diagnostic system
+  - Removed complex diagnostic parameters (`n_bootstraps`, `random_state`) from BaseCalibrator
+  - Simplified to single `enable_diagnostics` boolean parameter
+  - Diagnostic functions now called from standalone `diagnostics.py` module
+  - Cleaner inheritance pattern for all calibrator classes
+  - Maintained backward compatibility for diagnostic functionality
+
+### Fixed
+- Corrected diagnostic function signatures in tests
+- Fixed imports and references to removed diagnostic parameters
+- Improved code formatting and consistency across codebase
+
+### Documentation
+- Updated CLAUDE.md to reflect simplified diagnostic approach
+- Removed references to deprecated diagnostic parameters in examples
+- Updated usage patterns for cleaner API
+
 ## [0.4.0] - 2025-09-18
 
 ### Added
@@ -75,7 +95,7 @@ This release addresses a critical gap in calibration methodology by providing th
 ### Added
 - **Comprehensive Testing Framework**: Added extensive test suite for validation and quality assurance
   - `tests/data_generators.py`: Realistic test data generators with 8 miscalibration patterns (overconfident neural networks, underconfident random forests, sigmoid distortion, imbalanced binary, multi-modal, weather forecasting, click-through rate, medical diagnosis)
-  - `tests/test_mathematical_properties.py`: Mathematical property validation tests for bounds, monotonicity, calibration improvement, and granularity preservation
+  - `tests/test_properties.py`: Mathematical property validation tests for bounds, monotonicity, calibration improvement, and granularity preservation
   - `tests/test_comprehensive_matrix.py`: Comprehensive test matrix covering ~400 test combinations across all calibrators, patterns, sample sizes, and noise levels
   - `tests/validation/calibration_validation.ipynb`: Visual validation notebook with reliability diagrams and performance comparisons
 
