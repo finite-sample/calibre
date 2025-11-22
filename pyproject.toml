@@ -30,20 +30,30 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=6.0.0",
-    "pytest-cov>=2.12.0",
-    "black>=21.5b2",
-    "isort>=5.9.0",
-    "flake8>=3.8.0",
-    "scikit-learn>=1.0.0",  # Needed for integration tests
-]
 docs = [
-    "sphinx>=7.0.0",
-    "sphinx-rtd-theme>=2.0.0",  # ReadTheDocs theme
-    "sphinx-autodoc-typehints>=1.24.0",  # Type hints support
-    "nbsphinx>=0.9.0",  # Jupyter notebook support
-    "myst-parser>=2.0.0",  # Markdown support
+    "sphinx>=7.0",
+    "furo>=2024.1.29",
+    "sphinx-autodoc-typehints>=1.25",
+    "sphinx-copybutton>=0.5",
+    "myst-parser>=2.0",
+    "nbsphinx>=0.9.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-xdist>=3.0",
+    "ruff>=0.7.0",
+    "mypy>=1.0",
+    "black>=24.0",
+    "isort>=5.0",
+    "pre-commit>=3.0",
+]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-xdist>=3.0",
 ]
 
 [project.urls]
@@ -53,13 +63,53 @@ docs = [
 "Repository" = "https://github.com/finite-sample/calibre"
 
 
+# Ruff configuration
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    "docs",
+    ".eggs",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # imported but unused
+"tests/*" = ["S101"]  # use of assert
+
+[tool.ruff.lint.isort]
+known-first-party = ["calibre"]
+
+# Black configuration
 [tool.black]
 line-length = 88
-target-version = ["py310"]
+target-version = ["py310", "py311", "py312"]
 
+# isort configuration
 [tool.isort]
 profile = "black"
 line_length = 88
+known_first_party = ["calibre"]
 
 [tool.mypy]
 python_version = "3.10"
@@ -69,8 +119,33 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
 [tool.pytest.ini_options]
+minversion = "7.0"
 testpaths = ["tests"]
 python_files = "test_*.py"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--cov=calibre",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["calibre"]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
 ]

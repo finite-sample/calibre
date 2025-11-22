@@ -30,9 +30,37 @@ extensions = [
     'sphinx.ext.napoleon',       # Support for Google/NumPy style docstrings
     'sphinx.ext.viewcode',       # Add links to source code
     'sphinx.ext.intersphinx',    # Link to other project's documentation
+    'sphinx.ext.coverage',       # Coverage extension
+    'sphinx.ext.mathjax',        # Math support
     'sphinx_autodoc_typehints',  # Type hints support
+    'sphinx_copybutton',         # Copy button for code blocks
     'nbsphinx',                  # Jupyter notebook support
     'myst_parser',               # Markdown support
+]
+
+# Source file configuration
+source_suffix = {
+    '.rst': 'restructuredtext',
+    '.md': 'markdown',
+}
+
+# Copy button settings
+copybutton_prompt_text = r">>> |\.\.\. |\$ "
+copybutton_prompt_is_regexp = True
+
+# MyST parser settings
+myst_enable_extensions = [
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "replacements",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
 ]
 
 templates_path = ['_templates']
@@ -73,49 +101,42 @@ intersphinx_mapping = {
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'furo'
+html_title = project
 html_static_path = ['_static']
 
+# Furo theme options
 html_theme_options = {
-    'analytics_id': '',
-    'analytics_anonymize_ip': False,
-    'logo_only': False,
-    'display_version': True,
-    'prev_next_buttons_location': 'bottom',
-    'style_external_links': False,
-    'vcs_pageview_mode': '',
-    'style_nav_header_background': 'white',
-    # Toc options
-    'collapse_navigation': True,
-    'sticky_navigation': True,
-    'navigation_depth': 4,
-    'includehidden': True,
-    'titles_only': False
+    "light_css_variables": {
+        "color-brand-primary": "#336790",
+        "color-brand-content": "#336790",
+    },
+    "dark_css_variables": {
+        "color-brand-primary": "#4db8ff",
+        "color-brand-content": "#4db8ff",
+    },
+    "sidebar_hide_name": False,
+    "navigation_with_keys": True,
+    "top_of_page_buttons": ["view", "edit"],
 }
 
-# Add custom CSS
-html_css_files = [
-    'custom.css',
-]
+# Custom sidebar templates for furo theme
+html_sidebars = {
+    "**": [
+        "sidebar/scroll-start.html",
+        "sidebar/brand.html",
+        "sidebar/search.html",
+        "sidebar/navigation.html",
+        "sidebar/ethical-ads.html",
+        "sidebar/scroll-end.html",
+    ]
+}
 
 # -- Options for nbsphinx ---------------------------------------------------
 
 nbsphinx_execute = 'never'  # Don't execute notebooks during build
 nbsphinx_allow_errors = True
 
-# -- MyST parser configuration ----------------------------------------------
-
-myst_enable_extensions = [
-    "colon_fence",
-    "deflist",
-    "html_admonition",
-    "html_image",
-    "linkify",
-    "replacements",
-    "smartquotes",
-    "substitution",
-    "tasklist",
-]
 
 # -- Options for LaTeX output -----------------------------------------------
 
