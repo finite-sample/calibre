@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "calibre"
@@ -37,7 +37,6 @@ dev = [
     "isort>=5.9.0",
     "flake8>=3.8.0",
     "scikit-learn>=1.0.0",  # Needed for integration tests
-    "build>=0.7.0",  # For package building
 ]
 docs = [
     "sphinx>=7.0.0",
@@ -53,8 +52,6 @@ docs = [
 "Documentation" = "https://finite-sample.github.io/calibre/"
 "Repository" = "https://github.com/finite-sample/calibre"
 
-[tool.setuptools]
-packages = ["calibre"]
 
 [tool.black]
 line-length = 88

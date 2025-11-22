@@ -62,13 +62,13 @@ flake8 --max-line-length=88 --max-complexity=10 calibre/ tests/ --statistics
 ### Build and Distribution
 ```bash
 # Build package
-python -m build
+uv build
 
 # Install in development mode
-pip install -e .
+uv pip install -e .
 
 # Install with development dependencies
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ## Code Architecture
