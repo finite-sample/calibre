@@ -46,17 +46,33 @@ pytest -xvs tests/
 
 ### Code Quality
 ```bash
-# Format code with Black
-black calibre/ tests/ --line-length=88
+# Format and lint code with ruff (unified tool)
+ruff format calibre/ tests/
+ruff check calibre/ tests/
 
-# Sort imports
-isort calibre/ tests/
+# Fix automatically fixable issues
+ruff check --fix calibre/ tests/
 
 # Type checking
 mypy calibre/
+```
 
-# Lint with flake8 (configured for line length 88, complexity 10)
-flake8 --max-line-length=88 --max-complexity=10 calibre/ tests/ --statistics
+### Dependency Management
+```bash
+# Install/sync all dependencies including dev dependencies
+uv sync --all-extras --dev
+
+# Add a new dependency
+uv add package-name
+
+# Add a development dependency
+uv add --group dev package-name
+
+# Update dependencies (regenerate uv.lock)
+uv lock
+
+# Update all dependencies to latest versions
+uv lock --upgrade
 ```
 
 ### Build and Distribution
@@ -64,12 +80,37 @@ flake8 --max-line-length=88 --max-complexity=10 calibre/ tests/ --statistics
 # Build package
 uv build
 
-# Install in development mode
-uv pip install -e .
-
-# Install with development dependencies
-uv pip install -e ".[dev]"
+# Install in development mode (after uv sync)
+uv sync --all-extras --dev
 ```
+
+## Development Workflow
+
+### Dependency Management Best Practices
+
+**IMPORTANT**: Always commit `uv.lock` changes when modifying dependencies. The CI/CD pipeline validates that `uv.lock` is consistent with `pyproject.toml`.
+
+**When adding/updating dependencies:**
+1. Run `uv add package-name` or `uv add --group dev package-name` 
+2. This automatically updates both `pyproject.toml` and `uv.lock`
+3. Commit both files together
+4. CI will validate the lock file is up-to-date
+
+**When pulling changes with new dependencies:**
+1. Run `uv sync --all-extras --dev` to install new dependencies
+2. This uses the exact versions specified in `uv.lock`
+
+**Periodic dependency updates:**
+1. Run `uv lock --upgrade` to update to latest compatible versions
+2. Test thoroughly as this may introduce breaking changes
+3. Commit the updated `uv.lock`
+
+### CI/CD Integration
+
+The CI pipeline uses `uv sync --locked` to ensure:
+- Consistent dependency versions across all environments
+- Fast builds with dependency caching based on `uv.lock` hash
+- Deterministic behavior between local development and CI
 
 ## Code Architecture
 
