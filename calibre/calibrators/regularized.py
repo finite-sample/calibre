@@ -5,6 +5,8 @@ This module provides isotonic regression with L2 regularization to prevent
 overfitting and produce smoother calibration curves.
 """
 
+from __future__ import annotations
+
 import logging
 
 import cvxpy as cp
@@ -73,7 +75,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
         self.alpha = alpha
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "RegularizedIsotonicCalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> RegularizedIsotonicCalibrator:
         """Fit the regularized isotonic regression model.
 
         Parameters

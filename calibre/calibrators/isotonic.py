@@ -7,6 +7,8 @@ perform sophisticated plateau analysis to distinguish between genuine flat
 regions and artifacts of limited data.
 """
 
+from __future__ import annotations
+
 import logging
 
 import numpy as np
@@ -94,7 +96,7 @@ class IsotonicCalibrator(BaseCalibrator):
 
         self.isotonic_: IsotonicRegression | None = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "IsotonicCalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> IsotonicCalibrator:
         """
         Fit the isotonic regression model.
 

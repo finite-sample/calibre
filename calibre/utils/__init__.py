@@ -28,6 +28,8 @@ Examples
 [0.1 0.2 0.3]
 """
 
+from __future__ import annotations
+
 # Import from array_ops module
 from .array_ops import (
     clip_to_range,

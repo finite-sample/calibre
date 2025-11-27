@@ -5,6 +5,8 @@ This module provides plotting functions to visualize plateau analysis results
 and compare different calibration methods.
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 import numpy as np

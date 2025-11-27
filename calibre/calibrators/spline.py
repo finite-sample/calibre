@@ -6,6 +6,8 @@ functions with non-negative coefficients to ensure monotonicity while providing
 smooth calibration curves.
 """
 
+from __future__ import annotations
+
 import logging
 
 import numpy as np
@@ -86,7 +88,7 @@ class SplineCalibrator(BaseCalibrator):
         self.degree = degree
         self.cv = cv
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "SplineCalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> SplineCalibrator:
         """Fit the I-Spline calibration model.
 
         Parameters

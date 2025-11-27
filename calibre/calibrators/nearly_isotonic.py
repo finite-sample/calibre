@@ -5,6 +5,8 @@ This module provides nearly-isotonic regression, which relaxes the strict
 monotonicity constraint by penalizing rather than prohibiting violations.
 """
 
+from __future__ import annotations
+
 import logging
 
 import cvxpy as cp
@@ -88,7 +90,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         self.lam = lam
         self.method = method
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "NearlyIsotonicCalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> NearlyIsotonicCalibrator:
         """Fit the nearly-isotonic regression model.
 
         Parameters

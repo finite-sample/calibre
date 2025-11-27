@@ -36,11 +36,11 @@ jobs:
         include:
           # Test on Linux with multiple Python versions (main compatibility testing)
           - os: ubuntu-latest
-            python-version: "3.10"
-          - os: ubuntu-latest
             python-version: "3.11" 
           - os: ubuntu-latest
             python-version: "3.12"
+          - os: ubuntu-latest
+            python-version: "3.13"
           # Test on other OS with latest stable Python only
           - os: macos-latest
             python-version: "3.11"

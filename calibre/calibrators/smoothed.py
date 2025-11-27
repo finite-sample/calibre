@@ -5,6 +5,8 @@ This module provides isotonic regression with Savitzky-Golay smoothing to
 reduce jaggedness while preserving monotonicity.
 """
 
+from __future__ import annotations
+
 import logging
 
 import numpy as np
@@ -95,7 +97,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         self.min_window = min_window
         self.max_window = max_window
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "SmoothedIsotonicCalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> SmoothedIsotonicCalibrator:
         """Fit the smoothed isotonic regression model.
 
         Parameters

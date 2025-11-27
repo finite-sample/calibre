@@ -5,6 +5,8 @@ This module provides functions for common array operations used in calibration,
 such as sorting, transforming, and manipulating arrays.
 """
 
+from __future__ import annotations
+
 import numpy as np
 
 

@@ -5,6 +5,8 @@ This module provides diagnostic analysis to help understand calibration behavior
 particularly detecting plateaus (flat regions) and identifying potential data quality issues.
 """
 
+from __future__ import annotations
+
 import logging
 
 import numpy as np

@@ -5,6 +5,8 @@ This library provides various methods for calibrating probability predictions
 from machine learning models to improve their reliability.
 """
 
+from __future__ import annotations
+
 # Import modules (users can do: from calibre import metrics)
 from . import metrics
 
@@ -31,7 +33,7 @@ try:
     __version__ = importlib.metadata.version("calibre")
 except importlib.metadata.PackageNotFoundError:
     # Fallback for development/editable installs
-    __version__ = "0.4.2-dev"
+    __version__ = "0.5.0-dev"
 
 __all__ = [
     # Base classes

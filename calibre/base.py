@@ -7,6 +7,8 @@ Supports a modular architecture with concrete implementations in the
 calibrators package.
 """
 
+from __future__ import annotations
+
 import logging
 
 import numpy as np
@@ -73,7 +75,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         self._fit_data_X = None
         self._fit_data_y = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> "BaseCalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> BaseCalibrator:
         """Fit the calibrator.
 
         Parameters

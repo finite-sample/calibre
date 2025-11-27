@@ -33,6 +33,8 @@ Examples
 >>> X_calibrated = cal.transform(X)
 """
 
+from __future__ import annotations
+
 # Import all calibrators
 from .isotonic import IsotonicCalibrator
 from .nearly_isotonic import NearlyIsotonicCalibrator

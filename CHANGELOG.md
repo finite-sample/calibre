@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-11-27
+
+### 💥 BREAKING CHANGES
+- **Python Version Requirement**: Minimum Python version increased from 3.10 to 3.11
+  - Updated CI test matrix to support Python 3.11, 3.12, and 3.13
+  - Removed Python 3.10 from supported versions
+  - Users must upgrade to Python 3.11+ to use this version
+
+### Changed
+- **🐍 Modern Python Features**: Leveraged Python 3.11+ capabilities
+  - Added `from __future__ import annotations` to all modules for cleaner type hints
+  - Updated development tooling configuration for Python 3.11 target version
+  - Modernized type annotations throughout the codebase
+
+### Improved
+- **🛠️ Development Tooling**: Consolidated to ruff-only workflow
+  - Removed black, isort, and flake8 dependencies in favor of unified ruff tooling
+  - Updated CI/CD pipeline to use ruff for both linting and formatting
+  - Simplified development workflow with single tool for code quality
+
 ## [0.4.2] - 2025-11-27
 
 ### Improved

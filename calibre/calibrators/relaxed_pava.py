@@ -6,6 +6,8 @@ violations, creating smoother calibration curves while maintaining general
 monotonic trends.
 """
 
+from __future__ import annotations
+
 import logging
 
 import numpy as np
@@ -72,7 +74,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         self.percentile = percentile
         self.adaptive = adaptive
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "RelaxedPAVACalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> RelaxedPAVACalibrator:
         """Fit the relaxed PAVA model.
 
         Parameters

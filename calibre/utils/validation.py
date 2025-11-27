@@ -5,6 +5,8 @@ This module provides functions for validating and checking input arrays
 to ensure they meet the requirements for calibration.
 """
 
+from __future__ import annotations
+
 from sklearn.utils import check_array
 
 

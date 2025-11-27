@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "calibre"
-version = "0.4.2"
+version = "0.5.0"
 description = "Advanced probability calibration techniques for machine learning models"
 readme = "README.md"
 authors = [
     {name = "Gaurav Sood", email = "gsood07@gmail.com"}
 ]
 license = {text = "MIT"}
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -64,7 +64,7 @@ test = [
 # Ruff configuration
 [tool.ruff]
 line-length = 88
-target-version = "py310"
+target-version = "py311"
 exclude = [
     ".git",
     "__pycache__",
@@ -107,7 +107,7 @@ line-ending = "auto"
 
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
