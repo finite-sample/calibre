@@ -122,9 +122,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             f"{self.__class__.__name__} must implement the transform() method"
         )
 
-    def fit_transform(
-        self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> np.ndarray:
+    def fit_transform(self, X: np.ndarray, y: np.ndarray | None = None) -> np.ndarray:
         """Fit the calibrator and then transform the data.
 
         This is a convenience method that combines fit() and transform()

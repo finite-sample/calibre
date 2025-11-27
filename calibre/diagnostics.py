@@ -85,13 +85,13 @@ def run_plateau_diagnostics(
         # Generate warnings for problematic plateaus
         if plateau_info["sample_density"] == "very_sparse":
             warnings.append(
-                f"Plateau {i+1} at [{plateau_info['x_range'][0]:.3f}, "
+                f"Plateau {i + 1} at [{plateau_info['x_range'][0]:.3f}, "
                 f"{plateau_info['x_range'][1]:.3f}] has only "
                 f"{plateau_info['n_samples']} samples - may be unreliable"
             )
         elif plateau_info["sample_density"] == "sparse":
             warnings.append(
-                f"Plateau {i+1} at [{plateau_info['x_range'][0]:.3f}, "
+                f"Plateau {i + 1} at [{plateau_info['x_range'][0]:.3f}, "
                 f"{plateau_info['x_range'][1]:.3f}] has {plateau_info['n_samples']} "
                 f"samples - consider collecting more data in this range"
             )

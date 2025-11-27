@@ -168,9 +168,9 @@ class TestCalibratorComparison:
 
             # All metrics should be valid
             for metric_name, value in metrics.items():
-                assert (
-                    isinstance(value, float) and value >= 0
-                ), f"{name} {metric_name} invalid"
+                assert isinstance(value, float) and value >= 0, (
+                    f"{name} {metric_name} invalid"
+                )
 
             assert len(y_calib) == len(data["y_test"])
 

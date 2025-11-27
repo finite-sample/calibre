@@ -102,7 +102,7 @@ def plot_plateau_diagnostics(
                 xmax=(x_range[1] - X.min()) / (X.max() - X.min()),
                 alpha=0.3,
                 color=color,
-                label=f'Plateau {i+1} ({plateau["classification"]})',
+                label=f"Plateau {i + 1} ({plateau['classification']})",
             )
 
         ax1.set_xlabel("Input Score")
@@ -179,7 +179,7 @@ def plot_plateau_diagnostics(
         ax3.set_ylabel("Tie Stability")
         ax3.set_title("Bootstrap Tie Stability")
         ax3.set_xticks(range(len(tie_stabilities)))
-        ax3.set_xticklabels([f"P{i+1}" for i in range(len(tie_stabilities))])
+        ax3.set_xticklabels([f"P{i + 1}" for i in range(len(tie_stabilities))])
         ax3.axhline(
             y=0.7, color="green", linestyle="--", alpha=0.5, label="High stability"
         )
@@ -594,7 +594,7 @@ def plot_mdd_analysis(
         ax1.set_ylabel("MDD")
         ax1.set_title("Left Boundary MDD")
         ax1.set_xticks(range(len(mdd_left_finite)))
-        ax1.set_xticklabels([f"P{i+1}" for i in range(len(mdd_left_finite))])
+        ax1.set_xticklabels([f"P{i + 1}" for i in range(len(mdd_left_finite))])
         ax1.grid(True, alpha=0.3)
     else:
         ax1.text(
@@ -614,7 +614,7 @@ def plot_mdd_analysis(
         ax2.set_ylabel("MDD")
         ax2.set_title("Right Boundary MDD")
         ax2.set_xticks(range(len(mdd_right_finite)))
-        ax2.set_xticklabels([f"P{i+1}" for i in range(len(mdd_right_finite))])
+        ax2.set_xticklabels([f"P{i + 1}" for i in range(len(mdd_right_finite))])
         ax2.grid(True, alpha=0.3)
     else:
         ax2.text(

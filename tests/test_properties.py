@@ -5,7 +5,6 @@ This module tests fundamental mathematical properties that calibration
 algorithms should satisfy, using realistic test data.
 """
 
-
 import numpy as np
 import pytest
 
@@ -63,13 +62,13 @@ class TestProbabilityBounds:
                     calibrator.fit(y_pred, y_true)
                     y_calib = calibrator.transform(y_pred)
 
-                    assert np.all(
-                        y_calib >= 0
-                    ), f"{cal_name} negative values in {case_name}"
+                    assert np.all(y_calib >= 0), (
+                        f"{cal_name} negative values in {case_name}"
+                    )
                     assert np.all(y_calib <= 1), f"{cal_name} values > 1 in {case_name}"
-                    assert len(y_calib) == len(
-                        y_pred
-                    ), f"{cal_name} length changed in {case_name}"
+                    assert len(y_calib) == len(y_pred), (
+                        f"{cal_name} length changed in {case_name}"
+                    )
 
                 except Exception as e:
                     pytest.skip(f"{cal_name} failed on {case_name}: {e}")
@@ -108,9 +107,9 @@ class TestProbabilityBounds:
             try:
                 calibrator.fit(y_pred_train, y_true_train)
                 y_calib = calibrator.transform(y_pred_test)
-                assert np.all(y_calib >= 0) and np.all(
-                    y_calib <= 1
-                ), f"{cal_name} extrapolation bounds"
+                assert np.all(y_calib >= 0) and np.all(y_calib <= 1), (
+                    f"{cal_name} extrapolation bounds"
+                )
             except Exception as e:
                 pytest.skip(f"{cal_name} failed on extrapolation: {e}")
 
@@ -152,9 +151,9 @@ class TestMonotonicity:
                         calibrator, y_pred, y_true, max_violations
                     )
 
-                    assert (
-                        is_monotonic
-                    ), f"{name} violations {violation_rate:.3f} > {max_violations} on {pattern}"
+                    assert is_monotonic, (
+                        f"{name} violations {violation_rate:.3f} > {max_violations} on {pattern}"
+                    )
 
                 except Exception as e:
                     pytest.skip(f"{name} failed on {pattern}: {e}")
@@ -172,9 +171,9 @@ class TestMonotonicity:
                 y_calib = calibrator.transform(x_test)
 
                 correlation = np.corrcoef(x_test, y_calib)[0, 1]
-                assert (
-                    correlation > 0.7
-                ), f"{name} correlation {correlation:.3f} too low"
+                assert correlation > 0.7, (
+                    f"{name} correlation {correlation:.3f} too low"
+                )
 
             except Exception as e:
                 pytest.skip(f"{name} failed: {e}")
@@ -212,18 +211,18 @@ class TestCalibrationImprovement:
                 # Test Brier score bounds
                 calibrated_brier = brier_score(y_true, y_calib)
                 assert calibrated_brier <= 0.5, f"{name} poor Brier on {pattern}"
-                assert (
-                    calibrated_brier <= original_brier * 2.0
-                ), f"{name} deteriorated Brier on {pattern}"
+                assert calibrated_brier <= original_brier * 2.0, (
+                    f"{name} deteriorated Brier on {pattern}"
+                )
 
             except Exception as e:
                 pytest.skip(f"{name} failed on {pattern}: {e}")
 
         # At least 60% should improve ECE
         improvement_rate = improved_count / max(total_count, 1)
-        assert (
-            improvement_rate >= 0.6
-        ), f"Only {improvement_rate:.1%} improved ECE on {pattern}"
+        assert improvement_rate >= 0.6, (
+            f"Only {improvement_rate:.1%} improved ECE on {pattern}"
+        )
 
     def test_reliability_improvement(self, data_generator):
         """Test that calibration improves reliability diagram alignment."""
@@ -247,9 +246,9 @@ class TestCalibrationImprovement:
                     y_true, y_calib
                 )
 
-                assert (
-                    calibrated_reliability <= original_reliability * 1.2
-                ), f"{name} degraded reliability"
+                assert calibrated_reliability <= original_reliability * 1.2, (
+                    f"{name} degraded reliability"
+                )
 
             except Exception as e:
                 pytest.skip(f"{name} failed: {e}")
@@ -274,22 +273,22 @@ class TestGranularityPreservation:
                 # Test granularity preservation
                 calibrated_unique = len(np.unique(np.round(y_calib, 6)))
                 preservation_ratio = calibrated_unique / original_unique
-                assert (
-                    0.3 <= preservation_ratio <= 3.0
-                ), f"{name} granularity ratio {preservation_ratio:.3f} on {pattern}"
+                assert 0.3 <= preservation_ratio <= 3.0, (
+                    f"{name} granularity ratio {preservation_ratio:.3f} on {pattern}"
+                )
 
                 # Test ranking preservation
                 rank_correlation = np.corrcoef(y_pred, y_calib)[0, 1]
-                assert (
-                    rank_correlation >= 0.7
-                ), f"{name} ranking correlation {rank_correlation:.3f} on {pattern}"
+                assert rank_correlation >= 0.7, (
+                    f"{name} ranking correlation {rank_correlation:.3f} on {pattern}"
+                )
 
                 # Test high/low ordering preservation
                 high_mask, low_mask = y_pred >= 0.8, y_pred <= 0.2
                 if np.sum(high_mask) > 0 and np.sum(low_mask) > 0:
-                    assert np.mean(y_calib[high_mask]) > np.mean(
-                        y_calib[low_mask]
-                    ), f"{name} inverted ordering on {pattern}"
+                    assert np.mean(y_calib[high_mask]) > np.mean(y_calib[low_mask]), (
+                        f"{name} inverted ordering on {pattern}"
+                    )
 
             except Exception as e:
                 pytest.skip(f"{name} failed on {pattern}: {e}")
@@ -307,12 +306,12 @@ class TestEdgeCases:
                     y_calib = calibrator.transform(y_pred)
 
                     # Common checks
-                    assert len(y_calib) == len(
-                        y_pred
-                    ), f"{cal_name} length change in {case_name}"
-                    assert np.all(y_calib >= 0) and np.all(
-                        y_calib <= 1
-                    ), f"{cal_name} bounds in {case_name}"
+                    assert len(y_calib) == len(y_pred), (
+                        f"{cal_name} length change in {case_name}"
+                    )
+                    assert np.all(y_calib >= 0) and np.all(y_calib <= 1), (
+                        f"{cal_name} bounds in {case_name}"
+                    )
 
                     # Case-specific checks
                     if extra_checks:
@@ -330,9 +329,9 @@ class TestEdgeCases:
         def perfect_calib_check(name, y_calib, y_pred, y_true):
             original_ece = expected_calibration_error(y_true, y_pred)
             calibrated_ece = expected_calibration_error(y_true, y_calib)
-            assert (
-                calibrated_ece <= original_ece * 1.5
-            ), f"{name} degraded perfect calibration"
+            assert calibrated_ece <= original_ece * 1.5, (
+                f"{name} degraded perfect calibration"
+            )
 
         def imbalance_check(name, y_calib, y_pred, y_true):
             true_rate = np.mean(y_true)
@@ -400,9 +399,9 @@ class TestParameterSensitivity:
         if len(lambda_results) >= 2:
             # Higher lambda should reduce violations
             low_lam, high_lam = min(lambda_results.keys()), max(lambda_results.keys())
-            assert (
-                lambda_results[high_lam] <= lambda_results[low_lam]
-            ), "Lambda trend check failed"
+            assert lambda_results[high_lam] <= lambda_results[low_lam], (
+                "Lambda trend check failed"
+            )
 
         # Test percentile sensitivity for RelaxedPAVACalibrator
         y_pred2, y_true2 = data_generator.generate_dataset("multi_modal", n_samples=300)
@@ -419,9 +418,9 @@ class TestParameterSensitivity:
 
         if len(percentile_results) == 2:
             # Higher percentile should preserve more unique values
-            assert (
-                percentile_results[20] >= percentile_results[5]
-            ), "Percentile trend check failed"
+            assert percentile_results[20] >= percentile_results[5], (
+                "Percentile trend check failed"
+            )
 
 
 # Utility functions for property testing

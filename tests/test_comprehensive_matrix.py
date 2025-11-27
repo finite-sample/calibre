@@ -232,20 +232,20 @@ class TestMatrix:
             pytest.skip(f"Test failed: {result['error']}")
 
         # Core requirements
-        assert result[
-            "bounds_valid"
-        ], f"Bounds violated for {calibrator_name} on {pattern}"
+        assert result["bounds_valid"], (
+            f"Bounds violated for {calibrator_name} on {pattern}"
+        )
         # Handle NaN correlations gracefully
         if not np.isnan(result["rank_correlation"]):
-            assert (
-                result["rank_correlation"] >= 0.2
-            ), f"Poor rank correlation for {calibrator_name} on {pattern}: {result['rank_correlation']:.3f}"
-        assert (
-            result["calibrated_ece"] >= 0
-        ), f"Invalid ECE for {calibrator_name} on {pattern}"
-        assert (
-            result["calibrated_brier"] <= 1.0
-        ), f"Invalid Brier score for {calibrator_name} on {pattern}"
+            assert result["rank_correlation"] >= 0.2, (
+                f"Poor rank correlation for {calibrator_name} on {pattern}: {result['rank_correlation']:.3f}"
+            )
+        assert result["calibrated_ece"] >= 0, (
+            f"Invalid ECE for {calibrator_name} on {pattern}"
+        )
+        assert result["calibrated_brier"] <= 1.0, (
+            f"Invalid Brier score for {calibrator_name} on {pattern}"
+        )
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -265,9 +265,9 @@ class TestMatrix:
             result = self._run_single_test(calibrator_name, pattern, 200, 0.1)
 
             if result["success"]:
-                assert result[
-                    "bounds_valid"
-                ], f"{calibrator_name} violated bounds on {pattern}"
+                assert result["bounds_valid"], (
+                    f"{calibrator_name} violated bounds on {pattern}"
+                )
 
     @pytest.mark.slow
     @pytest.mark.parametrize(
@@ -303,9 +303,9 @@ class TestMatrix:
 
         improvement_rate = improvements / max(total_tests, 1)
         # Some patterns are inherently difficult - allow 0% improvement rate
-        assert (
-            improvement_rate >= 0.0
-        ), f"Only {improvement_rate:.1%} of calibrators improved on {pattern}"
+        assert improvement_rate >= 0.0, (
+            f"Only {improvement_rate:.1%} of calibrators improved on {pattern}"
+        )
 
     @pytest.mark.slow
     def test_monotonicity_strict_calibrators(self):
@@ -322,9 +322,9 @@ class TestMatrix:
 
                 if result["success"]:
                     # Allow some violations even for "strict" methods due to numerical precision
-                    assert (
-                        result["monotonicity_violations"] <= 35
-                    ), f"{calibrator_name} violated strict monotonicity on {pattern}: {result['monotonicity_violations']} violations"
+                    assert result["monotonicity_violations"] <= 35, (
+                        f"{calibrator_name} violated strict monotonicity on {pattern}: {result['monotonicity_violations']} violations"
+                    )
 
     @pytest.mark.slow
     def test_relaxed_monotonicity_calibrators(self):
@@ -339,9 +339,9 @@ class TestMatrix:
                     violation_rate = (
                         result["monotonicity_violations"] / 49
                     )  # 50 test points = 49 intervals
-                    assert (
-                        violation_rate <= 0.4
-                    ), f"{calibrator_name} had too many violations ({violation_rate:.1%}) on {pattern}"
+                    assert violation_rate <= 0.4, (
+                        f"{calibrator_name} had too many violations ({violation_rate:.1%}) on {pattern}"
+                    )
 
     @pytest.mark.parametrize("n_samples", [100, 300, 1000])
     def test_scalability(self, n_samples):
@@ -353,14 +353,14 @@ class TestMatrix:
             result = self._run_single_test(calibrator_name, pattern, n_samples, 0.1)
 
             if result["success"]:
-                assert result[
-                    "bounds_valid"
-                ], f"{calibrator_name} failed bounds on n={n_samples}"
+                assert result["bounds_valid"], (
+                    f"{calibrator_name} failed bounds on n={n_samples}"
+                )
                 # Handle NaN correlations gracefully
                 if not np.isnan(result["rank_correlation"]):
-                    assert (
-                        result["rank_correlation"] >= 0.1
-                    ), f"{calibrator_name} poor correlation on n={n_samples}: {result['rank_correlation']:.3f}"
+                    assert result["rank_correlation"] >= 0.1, (
+                        f"{calibrator_name} poor correlation on n={n_samples}: {result['rank_correlation']:.3f}"
+                    )
 
     @pytest.mark.parametrize("noise_level", [0.05, 0.1, 0.2])
     def test_noise_robustness(self, noise_level):
@@ -372,12 +372,12 @@ class TestMatrix:
             result = self._run_single_test(calibrator_name, pattern, 300, noise_level)
 
             if result["success"]:
-                assert result[
-                    "bounds_valid"
-                ], f"{calibrator_name} failed bounds with noise={noise_level}"
-                assert (
-                    result["calibrated_brier"] <= 1.0
-                ), f"{calibrator_name} invalid Brier with noise={noise_level}"
+                assert result["bounds_valid"], (
+                    f"{calibrator_name} failed bounds with noise={noise_level}"
+                )
+                assert result["calibrated_brier"] <= 1.0, (
+                    f"{calibrator_name} invalid Brier with noise={noise_level}"
+                )
 
     @pytest.mark.slow
     def test_granularity_preservation(self):
@@ -396,14 +396,14 @@ class TestMatrix:
 
                 if result["success"]:
                     # Should preserve at least 0.3% of unique values (extremely relaxed)
-                    assert (
-                        result["granularity_ratio"] >= 0.003
-                    ), f"{calibrator_name} collapsed granularity too much on {pattern}: {result['granularity_ratio']:.3f}"
+                    assert result["granularity_ratio"] >= 0.003, (
+                        f"{calibrator_name} collapsed granularity too much on {pattern}: {result['granularity_ratio']:.3f}"
+                    )
 
                     # Should not create unrealistic explosion
-                    assert (
-                        result["granularity_ratio"] <= 5.0
-                    ), f"{calibrator_name} created too many unique values on {pattern}: {result['granularity_ratio']:.3f}"
+                    assert result["granularity_ratio"] <= 5.0, (
+                        f"{calibrator_name} created too many unique values on {pattern}: {result['granularity_ratio']:.3f}"
+                    )
 
     @pytest.mark.slow
     def test_extreme_scenarios(self):
@@ -424,17 +424,17 @@ class TestMatrix:
 
                 if result["success"]:
                     # Basic sanity checks for extreme scenarios
-                    assert result[
-                        "bounds_valid"
-                    ], f"{calibrator_name} bounds failed on {pattern}"
-                    assert (
-                        0 <= result["calibrated_ece"] <= 1
-                    ), f"{calibrator_name} invalid ECE on {pattern}"
+                    assert result["bounds_valid"], (
+                        f"{calibrator_name} bounds failed on {pattern}"
+                    )
+                    assert 0 <= result["calibrated_ece"] <= 1, (
+                        f"{calibrator_name} invalid ECE on {pattern}"
+                    )
                     # Handle NaN correlations in extreme scenarios
                     if not np.isnan(result["rank_correlation"]):
-                        assert (
-                            result["rank_correlation"] >= -0.5
-                        ), f"{calibrator_name} very negative correlation on {pattern}: {result['rank_correlation']:.3f}"
+                        assert result["rank_correlation"] >= -0.5, (
+                            f"{calibrator_name} very negative correlation on {pattern}: {result['rank_correlation']:.3f}"
+                        )
 
     @pytest.mark.slow
     def test_parameter_sensitivity(self):
@@ -468,9 +468,9 @@ class TestMatrix:
             if len(results) >= 3:
                 high_lambda_violations = violations_sorted[-1]
                 low_lambda_violations = violations_sorted[0]
-                assert (
-                    high_lambda_violations <= low_lambda_violations + 2
-                ), "Higher lambda should reduce violations"
+                assert high_lambda_violations <= low_lambda_violations + 2, (
+                    "Higher lambda should reduce violations"
+                )
 
     @pytest.mark.slow
     def test_comprehensive_matrix(self):

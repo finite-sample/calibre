@@ -64,20 +64,15 @@ jobs:
       run: |
         uv pip install --system -e . --group dev
 
-    - name: Run black code formatting check (informational)
+    - name: Run ruff linting check (informational)
       continue-on-error: true
       run: |
-        black --check calibre/ tests/
+        ruff check calibre/ tests/
 
-    - name: Run isort import sorting check (informational)
+    - name: Run ruff formatting check (informational)
       continue-on-error: true
       run: |
-        isort --check-only calibre/ tests/
-
-    - name: Run flake8 linting (informational)
-      continue-on-error: true
-      run: |
-        flake8 calibre/ tests/ --count --max-complexity=10 --max-line-length=88 --statistics
+        ruff format --check calibre/ tests/
 
     - name: Run tests with coverage
       run: |

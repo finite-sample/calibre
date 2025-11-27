@@ -2,7 +2,6 @@
 Evaluation metrics for calibration.
 """
 
-
 import numpy as np
 from scipy.stats import spearmanr
 from sklearn.isotonic import IsotonicRegression
