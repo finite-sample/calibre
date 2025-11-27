@@ -37,14 +37,15 @@ p_test = cal.transform(scores_test)
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Optional, Tuple, List
 
 import numpy as np
 
 try:
     # Optional: for sklearn-style get_params/set_params compatibility
     from sklearn.base import BaseEstimator, TransformerMixin
+
     _SK_AVAILABLE = True
 except Exception:
     BaseEstimator = object  # type: ignore
@@ -53,6 +54,7 @@ except Exception:
 
 
 # ----------------------------- utilities ---------------------------------- #
+
 
 def _triangular_kernel(dist: np.ndarray, h: float) -> np.ndarray:
     """Triangular kernel K(d; h) = max(0, 1 - d/h) for d >= 0."""
@@ -77,59 +79,64 @@ def _inv_std_normal_cdf(p: float) -> float:
 
     # Coefficients in rational approximations
     a = [
-        -3.969683028665376e+01,
-         2.209460984245205e+02,
-        -2.759285104469687e+02,
-         1.383577518672690e+02,
-        -3.066479806614716e+01,
-         2.506628277459239e+00
+        -3.969683028665376e01,
+        2.209460984245205e02,
+        -2.759285104469687e02,
+        1.383577518672690e02,
+        -3.066479806614716e01,
+        2.506628277459239e00,
     ]
     b = [
-        -5.447609879822406e+01,
-         1.615858368580409e+02,
-        -1.556989798598866e+02,
-         6.680131188771972e+01,
-        -1.328068155288572e+01
+        -5.447609879822406e01,
+        1.615858368580409e02,
+        -1.556989798598866e02,
+        6.680131188771972e01,
+        -1.328068155288572e01,
     ]
     c = [
         -7.784894002430293e-03,
         -3.223964580411365e-01,
-        -2.400758277161838e+00,
-        -2.549732539343734e+00,
-         4.374664141464968e+00,
-         2.938163982698783e+00
+        -2.400758277161838e00,
+        -2.549732539343734e00,
+        4.374664141464968e00,
+        2.938163982698783e00,
     ]
     d = [
-         7.784695709041462e-03,
-         3.224671290700398e-01,
-         2.445134137142996e+00,
-         3.754408661907416e+00
+        7.784695709041462e-03,
+        3.224671290700398e-01,
+        2.445134137142996e00,
+        3.754408661907416e00,
     ]
 
     # Define break-points
-    plow  = 0.02425
+    plow = 0.02425
     phigh = 1 - plow
 
     if p < plow:
-        q = np.sqrt(-2*np.log(p))
-        return (((((c[0]*q + c[1])*q + c[2])*q + c[3])*q + c[4])*q + c[5]) / \
-               ((((d[0]*q + d[1])*q + d[2])*q + d[3])*q + 1)
+        q = np.sqrt(-2 * np.log(p))
+        return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / (
+            (((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1
+        )
     elif p <= phigh:
         q = p - 0.5
-        r = q*q
-        return (((((a[0]*r + a[1])*r + a[2])*r + a[3])*r + a[4])*r + a[5])*q / \
-               (((((b[0]*r + b[1])*r + b[2])*r + b[3])*r + b[4])*r + 1)
+        r = q * q
+        return (
+            (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
+            * q
+            / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
+        )
     else:
-        q = np.sqrt(-2*np.log(1-p))
-        return -(((((c[0]*q + c[1])*q + c[2])*q + c[3])*q + c[4])*q + c[5]) / \
-                 ((((d[0]*q + d[1])*q + d[2])*q + d[3])*q + 1)
+        q = np.sqrt(-2 * np.log(1 - p))
+        return -(
+            ((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]
+        ) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
 
 
 def _z_value(alpha: float) -> float:
     """Two-sided z such that P(|Z| <= z) = 1 - alpha."""
     alpha = float(alpha)
     alpha = min(max(alpha, 1e-9), 0.999999999)  # guard
-    return _inv_std_normal_cdf(1 - alpha/2.0)
+    return _inv_std_normal_cdf(1 - alpha / 2.0)
 
 
 def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
@@ -141,9 +148,9 @@ def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
     w = np.asarray(w, dtype=float)
     assert y.ndim == 1 and w.ndim == 1 and y.size == w.size and y.size > 0
 
-    means: List[float] = []
-    weights: List[float] = []
-    counts: List[int] = []
+    means: list[float] = []
+    weights: list[float] = []
+    counts: list[int] = []
 
     for i in range(y.size):
         means.append(y[i])
@@ -154,7 +161,7 @@ def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
         while len(means) >= 2 and means[-2] > means[-1]:
             m2, w2, c2 = means.pop(), weights.pop(), counts.pop()
             m1, w1, c1 = means.pop(), weights.pop(), counts.pop()
-            m = (w1*m1 + w2*m2) / (w1 + w2)
+            m = (w1 * m1 + w2 * m2) / (w1 + w2)
             w_new = w1 + w2
             c_new = c1 + c2
             means.append(m)
@@ -167,6 +174,7 @@ def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
 
 
 # ----------------------------- calibrator ---------------------------------- #
+
 
 @dataclass
 class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[misc]
@@ -204,8 +212,8 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
     - Predictions are stepwise-constant in the training score order.
     """
 
-    thresholds: Optional[Iterable[float]] = None
-    threshold_weights: Optional[Iterable[float]] = None
+    thresholds: Iterable[float] | None = None
+    threshold_weights: Iterable[float] | None = None
     bandwidth: float = 0.05
     alpha: float = 0.05
     gamma: float = 0.15
@@ -217,12 +225,12 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
     _fitted: bool = False
     _s_min: float = 0.0
     _s_max: float = 1.0
-    _x_unique: Optional[np.ndarray] = None        # unique sorted scores (train scale)
-    _x_unique_scaled: Optional[np.ndarray] = None # scaled to [0,1] if normalize_scores
-    _z_fit: Optional[np.ndarray] = None           # calibrated values per unique score
-    _L: Optional[np.ndarray] = None               # local bounds per adjacency
-    _R: Optional[np.ndarray] = None               # cumulative shift
-    _w_block: Optional[np.ndarray] = None         # weights per unique score (counts)
+    _x_unique: np.ndarray | None = None  # unique sorted scores (train scale)
+    _x_unique_scaled: np.ndarray | None = None  # scaled to [0,1] if normalize_scores
+    _z_fit: np.ndarray | None = None  # calibrated values per unique score
+    _L: np.ndarray | None = None  # local bounds per adjacency
+    _R: np.ndarray | None = None  # cumulative shift
+    _w_block: np.ndarray | None = None  # weights per unique score (counts)
 
     # ----------------------------- core API -------------------------------- #
 
@@ -230,8 +238,8 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         self,
         scores: np.ndarray,
         y: np.ndarray,
-        sample_weight: Optional[np.ndarray] = None,
-    ) -> "CDIIsotonicCalibrator":
+        sample_weight: np.ndarray | None = None,
+    ) -> CDIIsotonicCalibrator:
         """
         Fit CDI-ISO on (scores, y).
 
@@ -254,7 +262,9 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         if s.shape[0] != y.shape[0]:
             raise ValueError("scores and y must have the same length")
         if np.any((y < 0) | (y > 1)):
-            raise ValueError("y must be in {0,1} (or in [0,1] for probabilistic labels)")
+            raise ValueError(
+                "y must be in {0,1} (or in [0,1] for probabilistic labels)"
+            )
 
         if sample_weight is None:
             w = np.ones_like(y, dtype=float)
@@ -270,7 +280,9 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         s_sorted, y_sorted, w_sorted = s[order], y[order], w[order]
 
         # Aggregate duplicates to unique-score blocks for stability/efficiency
-        uniq_vals, idx_first, counts = np.unique(s_sorted, return_index=True, return_counts=True)
+        uniq_vals, idx_first, counts = np.unique(
+            s_sorted, return_index=True, return_counts=True
+        )
         idx_edges = np.r_[idx_first, s_sorted.size]  # segment boundaries
 
         sum_w = np.add.reduceat(w_sorted, idx_first)
@@ -278,11 +290,18 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         y_bar = np.divide(sum_yw, sum_w, out=np.zeros_like(sum_yw), where=sum_w > 0.0)
 
         x_unique = uniq_vals.astype(float)  # shape (m,)
-        w_block = sum_w.astype(float)       # shape (m,)
+        w_block = sum_w.astype(float)  # shape (m,)
         m = x_unique.size
         if m < 2:
             # Degenerate: constant mapping
-            self._store_fit(x_unique, x_unique, np.full(m, y_bar[0]), np.zeros(0), np.zeros(m), w_block)
+            self._store_fit(
+                x_unique,
+                x_unique,
+                np.full(m, y_bar[0]),
+                np.zeros(0),
+                np.zeros(m),
+                w_block,
+            )
             return self
 
         # Score scaling for economics kernel
@@ -291,7 +310,9 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         if self.normalize_scores and s_max > s_min:
             x_scaled = (x_unique - s_min) / (s_max - s_min)
         else:
-            x_scaled = (x_unique - s_min)  # could be [0, range], but distances are consistent
+            x_scaled = (
+                x_unique - s_min
+            )  # could be [0, range], but distances are consistent
         self._x_unique = x_unique
         self._x_unique_scaled = x_scaled
 
@@ -351,15 +372,15 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
     # --------------------------- diagnostics -------------------------------- #
 
-    def adjacency_bounds_(self) -> Optional[np.ndarray]:
+    def adjacency_bounds_(self) -> np.ndarray | None:
         """Return the learned local bounds L_i per adjacency (shape: m-1) or None if not fitted."""
         return None if not self._fitted else self._L
 
-    def cumulative_shift_(self) -> Optional[np.ndarray]:
+    def cumulative_shift_(self) -> np.ndarray | None:
         """Return the cumulative shift R_i (shape: m) or None if not fitted."""
         return None if not self._fitted else self._R
 
-    def breakpoints_(self) -> Optional[Tuple[np.ndarray, np.ndarray]]:
+    def breakpoints_(self) -> tuple[np.ndarray, np.ndarray] | None:
         """Return (unique_scores, calibrated_values) on the training grid."""
         return None if not self._fitted else (self._x_unique, self._z_fit)
 
@@ -384,9 +405,9 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
     def _compute_local_bounds(
         self,
-        x_scaled: np.ndarray,   # shape (m,)
-        y_bar: np.ndarray,      # shape (m,)
-        w_block: np.ndarray,    # shape (m,)
+        x_scaled: np.ndarray,  # shape (m,)
+        y_bar: np.ndarray,  # shape (m,)
+        w_block: np.ndarray,  # shape (m,)
     ) -> np.ndarray:
         """
         Build L_i = phi_i - epsilon_i for i=0..m-2 using:
@@ -403,22 +424,22 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
         # Economics weights per adjacency: center at midpoints between x_i and x_{i+1}
         mids = 0.5 * (x_scaled[:-1] + x_scaled[1:])  # shape (m-1,)
-        w_econ = self._economics_weight(mids)        # in [0,1], shape (m-1,)
+        w_econ = self._economics_weight(mids)  # in [0,1], shape (m-1,)
 
         # Evidence on adjacent-block differences within a sliding window
         win = int(max(1, self.window))
         L_list = []
 
         # Precompute cumulative sums for fast band aggregation
-        c_w = np.cumsum(w_block)                    # weights
-        c_yw = np.cumsum(y_bar * w_block)           # weighted positives
+        c_w = np.cumsum(w_block)  # weights
+        c_yw = np.cumsum(y_bar * w_block)  # weighted positives
 
-        def band_sums(lo: int, hi: int) -> Tuple[float, float]:
+        def band_sums(lo: int, hi: int) -> tuple[float, float]:
             """Inclusive band [lo, hi], return (sum_w, sum_pos_weighted)."""
             if lo > hi:
                 return 0.0, 0.0
-            sw = c_w[hi] - (c_w[lo-1] if lo > 0 else 0.0)
-            sy = c_yw[hi] - (c_yw[lo-1] if lo > 0 else 0.0)
+            sw = c_w[hi] - (c_w[lo - 1] if lo > 0 else 0.0)
+            sy = c_yw[hi] - (c_yw[lo - 1] if lo > 0 else 0.0)
             return sw, sy
 
         for i in range(m - 1):

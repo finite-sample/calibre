@@ -27,10 +27,11 @@ from .diagnostics import detect_plateaus, run_plateau_diagnostics
 # Get version from pyproject.toml - single source of truth
 try:
     import importlib.metadata
+
     __version__ = importlib.metadata.version("calibre")
 except importlib.metadata.PackageNotFoundError:
     # Fallback for development/editable installs
-    __version__ = "0.4.1-dev"
+    __version__ = "0.4.2-dev"
 
 __all__ = [
     # Base classes

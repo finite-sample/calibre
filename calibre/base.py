@@ -3,13 +3,11 @@ Base classes and interfaces for calibration.
 
 This module provides the foundational classes that all calibrators inherit from,
 as well as optional mixins for additional functionality like diagnostics.
-
-This module provides base classes and interfaces for all calibrators,
-supporting a modular architecture with concrete implementations in the calibrators package.
+Supports a modular architecture with concrete implementations in the
+calibrators package.
 """
 
 import logging
-from typing import Dict, Optional
 
 import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -75,7 +73,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         self._fit_data_X = None
         self._fit_data_y = None
 
-    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "BaseCalibrator":
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> "BaseCalibrator":
         """Fit the calibrator.
 
         Parameters
@@ -125,7 +123,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         )
 
     def fit_transform(
-        self, X: np.ndarray, y: Optional[np.ndarray] = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> np.ndarray:
         """Fit the calibrator and then transform the data.
 
@@ -205,7 +203,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         """
         return self.diagnostics_ is not None
 
-    def get_diagnostics(self) -> Optional[Dict]:
+    def get_diagnostics(self) -> dict | None:
         """
         Get diagnostic results.
 

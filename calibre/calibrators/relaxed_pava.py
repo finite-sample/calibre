@@ -7,7 +7,6 @@ monotonic trends.
 """
 
 import logging
-from typing import Optional
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -33,6 +32,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     adaptive : bool, default=True
         Whether to use the adaptive implementation (recommended) or the
         block-merging implementation.
+    enable_diagnostics : bool, default=False
+        Whether to enable plateau diagnostics analysis.
 
     Attributes
     ----------
@@ -44,7 +45,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     Examples
     --------
     >>> import numpy as np
-    >>> from calibre.calibrators import RelaxedPAVACalibrator
+    >>> from calibre import RelaxedPAVACalibrator
     >>>
     >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])

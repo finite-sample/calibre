@@ -6,7 +6,6 @@ particularly detecting plateaus (flat regions) and identifying potential data qu
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -19,7 +18,7 @@ def run_plateau_diagnostics(
     y_calibrated: np.ndarray,
     n_bootstraps: int = 100,  # Kept for API compatibility but unused
     random_state: int = None,  # Kept for API compatibility but unused
-) -> Dict:
+) -> dict:
     """
     Detect and analyze plateaus (flat regions) in calibration curves.
 
@@ -109,7 +108,7 @@ def run_plateau_diagnostics(
 
 def detect_plateaus(
     y_calibrated: np.ndarray, min_width: int = 2
-) -> List[Tuple[int, int, float]]:
+) -> list[tuple[int, int, float]]:
     """
     Detect plateaus (consecutive identical values) in calibrated predictions.
 
@@ -166,7 +165,7 @@ def analyze_plateau_simple(
     end_idx: int,
     value: float,
     plateau_id: int,
-) -> Dict:
+) -> dict:
     """
     Analyze a single plateau with simple, interpretable metrics.
 
@@ -226,10 +225,10 @@ def diversity_learning_curve(
     X: np.ndarray,
     y: np.ndarray,
     calibrator=None,
-    sample_sizes: Optional[List[int]] = None,
+    sample_sizes: list[int] | None = None,
     n_trials: int = 10,
-    random_state: Optional[int] = None,
-) -> Tuple[List[int], List[float]]:
+    random_state: int | None = None,
+) -> tuple[list[int], list[float]]:
     """
     Measure how calibration diversity changes with training sample size.
 

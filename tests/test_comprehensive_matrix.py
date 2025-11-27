@@ -10,9 +10,8 @@ This module runs systematic tests across all combinations of:
 Total test combinations: ~400 tests
 """
 
-import warnings
 from itertools import product
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import numpy as np
 import pytest
@@ -26,11 +25,8 @@ from calibre import (
 )
 from calibre.metrics import (
     brier_score,
-    correlation_metrics,
     expected_calibration_error,
     maximum_calibration_error,
-    mean_calibration_error,
-    unique_value_counts,
 )
 from tests.data_generators import CalibrationDataGenerator
 
@@ -108,7 +104,7 @@ class TestMatrix:
 
     def _run_single_test(
         self, calibrator_name: str, pattern: str, n_samples: int, noise_level: float
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Run a single test combination and return results."""
         try:
             # Generate data
@@ -630,11 +626,11 @@ class TestMatrixAnalysis:
 
 # Utility functions for test matrix
 def run_test_matrix_subset(
-    calibrator_names: List[str] = None,
-    patterns: List[str] = None,
+    calibrator_names: list[str] = None,
+    patterns: list[str] = None,
     n_samples: int = 300,
     noise_level: float = 0.1,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run a subset of the test matrix for quick analysis."""
     if calibrator_names is None:
         calibrator_names = ["nir_strict_path", "ispline_medium", "rir_medium"]
@@ -656,7 +652,7 @@ def run_test_matrix_subset(
     return results
 
 
-def analyze_test_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
+def analyze_test_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     """Analyze test results and generate summary statistics."""
     successful = [r for r in results if r.get("success", False)]
     failed = [r for r in results if not r.get("success", False)]

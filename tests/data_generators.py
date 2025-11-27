@@ -5,7 +5,7 @@ This module provides functions to generate synthetic datasets that mimic
 common miscalibration patterns observed in real machine learning models.
 """
 
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import numpy as np
 from sklearn.datasets import make_classification
@@ -31,7 +31,7 @@ class CalibrationDataGenerator:
 
     def overconfident_neural_network(
         self, n_samples: int = 1000, noise_level: float = 0.1
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data mimicking overconfident neural network predictions.
 
         Neural networks tend to be overconfident, producing predictions
@@ -75,7 +75,7 @@ class CalibrationDataGenerator:
 
     def underconfident_random_forest(
         self, n_samples: int = 1000, noise_level: float = 0.1
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data mimicking underconfident random forest predictions.
 
         Random forests tend to be underconfident, with predictions
@@ -115,7 +115,7 @@ class CalibrationDataGenerator:
 
     def sigmoid_temperature_distorted(
         self, n_samples: int = 1000, temperature: float = 2.0, noise_level: float = 0.1
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data with sigmoid temperature scaling distortion.
 
         Models trained with improper temperature scaling show
@@ -164,7 +164,7 @@ class CalibrationDataGenerator:
         n_samples: int = 1000,
         minority_ratio: float = 0.05,
         bias_strength: float = 0.3,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data from imbalanced classification with prediction bias.
 
         Imbalanced datasets often lead to biased probability estimates,
@@ -211,7 +211,7 @@ class CalibrationDataGenerator:
 
     def multi_modal_ensemble_disagreement(
         self, n_samples: int = 1000, n_modes: int = 3, noise_level: float = 0.1
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data with multi-modal prediction distribution.
 
         Ensemble models sometimes show multi-modal distributions
@@ -271,7 +271,7 @@ class CalibrationDataGenerator:
         n_samples: int = 1000,
         temporal_correlation: float = 0.7,
         seasonal_amplitude: float = 0.3,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data mimicking weather forecasting patterns.
 
         Weather prediction has smooth probability gradients with
@@ -322,7 +322,7 @@ class CalibrationDataGenerator:
         n_samples: int = 1000,
         power_law_alpha: float = 1.5,
         noise_level: float = 0.05,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data mimicking click-through rate prediction.
 
         CTR prediction often shows power-law distribution with
@@ -372,7 +372,7 @@ class CalibrationDataGenerator:
         disease_prevalence: float = 0.01,
         test_sensitivity: float = 0.95,
         test_specificity: float = 0.98,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate data mimicking medical diagnosis scenarios.
 
         Medical diagnosis involves rare diseases with high-stakes
@@ -430,7 +430,7 @@ class CalibrationDataGenerator:
 
     def generate_dataset(
         self, pattern: str, n_samples: int = 1000, **kwargs
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate a dataset with the specified miscalibration pattern.
 
         Parameters
@@ -475,7 +475,7 @@ class CalibrationDataGenerator:
 
         return generators[pattern](n_samples=n_samples, **kwargs)
 
-    def get_pattern_info(self) -> Dict[str, Dict[str, Any]]:
+    def get_pattern_info(self) -> dict[str, dict[str, Any]]:
         """Get information about available patterns and their parameters.
 
         Returns
@@ -536,7 +536,7 @@ def create_ml_model_predictions(
     model_type: str = "neural_network",
     add_miscalibration: bool = True,
     random_state: int = 42,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Create realistic predictions from actual ML models.
 
     This function trains real sklearn models and extracts their
@@ -617,7 +617,7 @@ def create_ml_model_predictions(
 # Convenience function for quick testing
 def quick_test_data(
     pattern: str = "overconfident_nn", n_samples: int = 100
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate quick test data for development and debugging.
 
     Parameters

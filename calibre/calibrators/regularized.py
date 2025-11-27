@@ -6,7 +6,6 @@ overfitting and produce smoother calibration curves.
 """
 
 import logging
-from typing import Optional
 
 import cvxpy as cp
 import numpy as np
@@ -25,10 +24,19 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     This calibrator adds L2 regularization to standard isotonic regression to
     prevent overfitting and produce smoother calibration curves.
 
+    The optimization problem solved is:
+
+    .. math::
+        \\min_{\\beta} \\sum_{i=1}^{n} (y_i - \\beta_i)^2 + \\alpha \\sum_{i=1}^{n} \\beta_i^2
+
+    subject to :math:`\\beta_i \\leq \\beta_{i+1}` for all :math:`i`.
+
     Parameters
     ----------
     alpha : float, default=0.1
         Regularization strength. Higher values result in smoother curves.
+    enable_diagnostics : bool, default=False
+        Whether to enable plateau diagnostics analysis.
 
     Attributes
     ----------
@@ -40,7 +48,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     Examples
     --------
     >>> import numpy as np
-    >>> from calibre.calibrators import RegularizedIsotonicCalibrator
+    >>> from calibre import RegularizedIsotonicCalibrator
     >>>
     >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])

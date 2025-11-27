@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2025-11-27
+
+### Improved
+- **📖 Documentation Quality & Consistency**: Comprehensive docstring improvements
+  - Standardized import paths across all examples to use main package imports (`from calibre import`)
+  - Enhanced mathematical notation with proper LaTeX formulation for optimization problems
+  - Added detailed documentation for private methods (`_transform_cvx`, `_transform_path`)
+  - Standardized parameter descriptions across all calibrator classes
+  - Added missing `enable_diagnostics` parameter documentation to all calibrators
+  - Fixed module docstring duplication in base classes
+
+### Fixed
+- **🔧 CI/CD Improvements**: Streamlined continuous integration
+  - Fixed dependency installation in CI to use new uv dependency groups format (`--group dev`)
+  - Removed unnecessary Codecov upload step from CI workflow
+  - Removed redundant README validation job from CI
+  - Updated documentation deployment to trigger on every commit to main branch
+
+### Developer Experience
+- Improved code maintainability with consistent documentation standards
+- Better developer onboarding with standardized examples across all calibrators
+- More reliable CI pipeline with proper dependency management
+
 ## [0.4.1] - 2025-01-23
 
 ### Changed

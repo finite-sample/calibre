@@ -5,7 +5,6 @@ This module provides functions for common array operations used in calibration,
 such as sorting, transforming, and manipulating arrays.
 """
 
-from typing import Tuple
 
 import numpy as np
 

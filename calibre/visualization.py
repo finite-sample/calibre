@@ -5,7 +5,7 @@ This module provides plotting functions to visualize plateau analysis results
 and compare different calibration methods.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -27,10 +27,10 @@ def _check_matplotlib():
 
 
 def plot_plateau_diagnostics(
-    results: Dict[str, Any],
-    X: Optional[np.ndarray] = None,
-    y_calibrated: Optional[np.ndarray] = None,
-    figsize: Tuple[float, float] = (12, 8),
+    results: dict[str, Any],
+    X: np.ndarray | None = None,
+    y_calibrated: np.ndarray | None = None,
+    figsize: tuple[float, float] = (12, 8),
 ) -> plt.Figure:
     """
     Plot comprehensive plateau diagnostic results.
@@ -272,8 +272,8 @@ def plot_plateau_diagnostics(
 
 def plot_stability_heatmap(
     stability_matrix: np.ndarray,
-    plateau_labels: Optional[List[str]] = None,
-    figsize: Tuple[float, float] = (8, 6),
+    plateau_labels: list[str] | None = None,
+    figsize: tuple[float, float] = (8, 6),
 ) -> plt.Figure:
     """
     Plot a heatmap of tie stability across bootstrap resamples.
@@ -315,9 +315,9 @@ def plot_stability_heatmap(
 
 
 def plot_progressive_sampling(
-    sample_sizes: List[int],
-    diversities: List[float],
-    figsize: Tuple[float, float] = (8, 6),
+    sample_sizes: list[int],
+    diversities: list[float],
+    figsize: tuple[float, float] = (8, 6),
 ) -> plt.Figure:
     """
     Plot diversity vs sample size curve.
@@ -389,8 +389,8 @@ def plot_progressive_sampling(
 def plot_calibration_comparison(
     X: np.ndarray,
     y_true: np.ndarray,
-    calibrators: Dict[str, Any],
-    figsize: Tuple[float, float] = (12, 8),
+    calibrators: dict[str, Any],
+    figsize: tuple[float, float] = (12, 8),
 ) -> plt.Figure:
     """
     Compare calibration curves from different methods.
@@ -541,7 +541,7 @@ def plot_calibration_comparison(
 
 
 def plot_mdd_analysis(
-    results: Dict[str, Any], figsize: Tuple[float, float] = (10, 6)
+    results: dict[str, Any], figsize: tuple[float, float] = (10, 6)
 ) -> plt.Figure:
     """
     Plot minimum detectable difference analysis for plateaus.

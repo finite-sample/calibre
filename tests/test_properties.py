@@ -5,7 +5,6 @@ This module tests fundamental mathematical properties that calibration
 algorithms should satisfy, using realistic test data.
 """
 
-from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import pytest
@@ -19,13 +18,9 @@ from calibre import (
 )
 from calibre.metrics import (
     brier_score,
-    correlation_metrics,
     expected_calibration_error,
-    maximum_calibration_error,
-    mean_calibration_error,
-    unique_value_counts,
 )
-from tests.data_generators import CalibrationDataGenerator, quick_test_data
+from tests.data_generators import CalibrationDataGenerator
 
 
 @pytest.fixture

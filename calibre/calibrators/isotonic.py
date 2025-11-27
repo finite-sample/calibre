@@ -8,7 +8,6 @@ regions and artifacts of limited data.
 """
 
 import logging
-from typing import Optional
 
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
@@ -79,8 +78,8 @@ class IsotonicCalibrator(BaseCalibrator):
 
     def __init__(
         self,
-        y_min: Optional[float] = None,
-        y_max: Optional[float] = None,
+        y_min: float | None = None,
+        y_max: float | None = None,
         increasing: bool = True,
         out_of_bounds: str = "clip",
         enable_diagnostics: bool = False,
@@ -93,7 +92,7 @@ class IsotonicCalibrator(BaseCalibrator):
         self.increasing = increasing
         self.out_of_bounds = out_of_bounds
 
-        self.isotonic_: Optional[IsotonicRegression] = None
+        self.isotonic_: IsotonicRegression | None = None
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "IsotonicCalibrator":
         """

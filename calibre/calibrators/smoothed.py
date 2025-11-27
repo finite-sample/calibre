@@ -6,7 +6,6 @@ reduce jaggedness while preserving monotonicity.
 """
 
 import logging
-from typing import Optional
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -48,6 +47,8 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     max_window : int or None, default=None
         Maximum window length when using adaptive=True.
         If None, max_window is set to len(X)//5.
+    enable_diagnostics : bool, default=False
+        Whether to enable plateau diagnostics analysis.
 
     Attributes
     ----------
@@ -59,7 +60,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     Examples
     --------
     >>> import numpy as np
-    >>> from calibre.calibrators import SmoothedIsotonicCalibrator
+    >>> from calibre import SmoothedIsotonicCalibrator
     >>>
     >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
@@ -76,12 +77,12 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
     def __init__(
         self,
-        window_length: Optional[int] = None,
+        window_length: int | None = None,
         poly_order: int = DEFAULT_POLY_ORDER,
         interp_method: str = "linear",
         adaptive: bool = False,
         min_window: int = 5,
-        max_window: Optional[int] = None,
+        max_window: int | None = None,
         enable_diagnostics: bool = False,
     ):
         # Call base class for diagnostic support

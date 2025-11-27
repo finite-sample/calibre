@@ -5,7 +5,6 @@ This module provides functions for validating and checking input arrays
 to ensure they meet the requirements for calibration.
 """
 
-import numpy as np
 from sklearn.utils import check_array
 
 

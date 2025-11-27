@@ -7,7 +7,6 @@ smooth calibration curves.
 """
 
 import logging
-from typing import Optional
 
 import numpy as np
 from sklearn.isotonic import IsotonicRegression
@@ -36,6 +35,8 @@ class SplineCalibrator(BaseCalibrator):
         Polynomial degree of spline basis functions.
     cv : int, default=5
         Number of cross-validation folds.
+    enable_diagnostics : bool, default=False
+        Whether to enable plateau diagnostics analysis.
 
     Attributes
     ----------
@@ -49,7 +50,7 @@ class SplineCalibrator(BaseCalibrator):
     Examples
     --------
     >>> import numpy as np
-    >>> from calibre.calibrators import SplineCalibrator
+    >>> from calibre import SplineCalibrator
     >>>
     >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])

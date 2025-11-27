@@ -2,7 +2,6 @@
 Evaluation metrics for calibration.
 """
 
-from typing import List, Optional, Tuple
 
 import numpy as np
 from scipy.stats import spearmanr
@@ -608,7 +607,7 @@ def plateau_quality_score(
 
 
 def calibration_diversity_index(
-    y_calibrated: np.ndarray, reference_diversity: Optional[float] = None
+    y_calibrated: np.ndarray, reference_diversity: float | None = None
 ) -> float:
     """
     Measure granularity preservation in calibrated predictions.
@@ -654,10 +653,10 @@ def calibration_diversity_index(
 def progressive_sampling_diversity(
     X: np.ndarray,
     y: np.ndarray,
-    sample_sizes: Optional[List[int]] = None,
+    sample_sizes: list[int] | None = None,
     n_trials: int = 10,
-    random_state: Optional[int] = None,
-) -> Tuple[List[int], List[float]]:
+    random_state: int | None = None,
+) -> tuple[list[int], list[float]]:
     """
     Compute diversity vs sample size curve for progressive sampling analysis.
 

@@ -6,7 +6,6 @@ monotonicity constraint by penalizing rather than prohibiting violations.
 """
 
 import logging
-from typing import Optional
 
 import cvxpy as cp
 import numpy as np
@@ -36,6 +35,8 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         Method to use for solving the optimization problem:
         - 'cvx': Uses convex optimization with CVXPY
         - 'path': Uses a path algorithm similar to the original nearly-isotonic paper
+    enable_diagnostics : bool, default=False
+        Whether to enable plateau diagnostics analysis.
 
     Attributes
     ----------
@@ -48,7 +49,11 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     -----
     Nearly-isotonic regression solves the following optimization problem:
 
-        minimize sum((y_i - beta_i)^2) + lambda * sum(max(0, beta_i - beta_{i+1}))
+    .. math::
+        \\min_{\\beta} \\sum_{i=1}^{n} (y_i - \\beta_i)^2 + \\lambda \\sum_{i=1}^{n-1} \\max(0, \\beta_i - \\beta_{i+1})
+
+    where :math:`\\beta` is the calibrated output, :math:`y` are the true labels,
+    and :math:`\\lambda > 0` controls the strength of the monotonicity penalty.
 
     This formulation penalizes violations of monotonicity proportionally to their
     magnitude, allowing small violations when they significantly improve the fit.
@@ -56,7 +61,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     Examples
     --------
     >>> import numpy as np
-    >>> from calibre.calibrators import NearlyIsotonicCalibrator
+    >>> from calibre import NearlyIsotonicCalibrator
     >>>
     >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
@@ -137,7 +142,22 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
             raise ValueError(f"Unknown method: {self.method}. Use 'cvx' or 'path'.")
 
     def _transform_cvx(self, X: np.ndarray) -> np.ndarray:
-        """Implement nearly-isotonic regression using convex optimization."""
+        """Implement nearly-isotonic regression using convex optimization.
+
+        This method solves the convex optimization problem:
+        minimize ||β - y||² + λ * Σ max(0, β[i] - β[i+1])
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples,)
+            Input values to calibrate.
+
+        Returns
+        -------
+        ndarray of shape (n_samples,)
+            Calibrated values obtained by linear interpolation of the
+            optimal solution on the training grid.
+        """
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
 
         # Define variables
@@ -181,7 +201,24 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         return ir.transform(X)
 
     def _transform_path(self, X: np.ndarray) -> np.ndarray:
-        """Implement nearly-isotonic regression using a path algorithm."""
+        """Implement nearly-isotonic regression using a path algorithm.
+
+        This method implements the path algorithm from the original
+        nearly-isotonic regression paper, which iteratively merges
+        groups of points that violate monotonicity until the penalty
+        budget λ is exhausted.
+
+        Parameters
+        ----------
+        X : ndarray of shape (n_samples,)
+            Input values to calibrate.
+
+        Returns
+        -------
+        ndarray of shape (n_samples,)
+            Calibrated values obtained by linear interpolation after
+            applying the path algorithm.
+        """
         order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
         n = len(y_sorted)
 

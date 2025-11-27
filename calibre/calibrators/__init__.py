@@ -22,7 +22,7 @@ SmoothedIsotonicCalibrator
 
 Examples
 --------
->>> from calibre.calibrators import IsotonicCalibrator
+>>> from calibre import IsotonicCalibrator
 >>> import numpy as np
 >>>
 >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
