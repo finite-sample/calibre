@@ -85,16 +85,16 @@ jobs:
     - name: Run ruff linting check (informational)
       continue-on-error: true
       run: |
-        ruff check calibre/ tests/
+        uv run ruff check calibre/ tests/
 
     - name: Run ruff formatting check (informational)
       continue-on-error: true
       run: |
-        ruff format --check calibre/ tests/
+        uv run ruff format --check calibre/ tests/
 
     - name: Run tests with coverage
       run: |
-        pytest --cov=calibre --cov-report=xml --cov-report=term-missing -v
+        uv run pytest --cov=calibre --cov-report=xml --cov-report=term-missing -v
 
 
     - name: Build package
@@ -103,6 +103,6 @@ jobs:
 
     - name: Test package installation
       run: |
-        uv pip install --system dist/*.whl
-        python -c "import calibre; print(f'Successfully imported calibre v{calibre.__version__}')"
+        uv pip install dist/*.whl
+        uv run python -c "import calibre; print(f'Successfully imported calibre v{calibre.__version__}')"
 
