@@ -62,7 +62,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv pip install --system -e ".[dev]"
+        uv pip install --system -e . --group dev
 
     - name: Run black code formatting check (informational)
       continue-on-error: true
@@ -83,13 +83,6 @@ jobs:
       run: |
         pytest --cov=calibre --cov-report=xml --cov-report=term-missing -v
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
 
     - name: Build package
       run: |
@@ -100,7 +93,7 @@ jobs:
         uv pip install --system dist/*.whl
         python -c "import calibre; print(f'Successfully imported calibre v{calibre.__version__}')"
 
-  docs:
+  validate-readme:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
