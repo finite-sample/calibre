@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
 
 [project]
 name = "calibre"
@@ -53,6 +53,10 @@ test = [
     "pytest-cov>=4.0",
     "pytest-xdist>=3.0",
 ]
+
+[tool.uv.build-backend]
+module-name = "calibre"
+module-root = ""
 
 [project.urls]
 "Homepage" = "https://github.com/finite-sample/calibre"

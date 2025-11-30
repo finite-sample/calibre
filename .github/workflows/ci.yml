@@ -31,12 +31,12 @@ jobs:
   validate-lockfile:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v7.1.4
       with:
-        version: "0.5.14"
+        version: "0.9.13"
 
     - name: Validate lock file is up-to-date
       run: |
@@ -64,17 +64,13 @@ jobs:
             python-version: "3.11"
 
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+    - uses: actions/checkout@v5
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v7
+      uses: astral-sh/setup-uv@v7.1.4
       with:
-        version: "0.5.14"
+        version: "0.9.13"
+        python-version: ${{ matrix.python-version }}
         enable-cache: true
         cache-dependency-glob: "uv.lock"
 
