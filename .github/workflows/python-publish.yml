@@ -14,7 +14,36 @@ on:
         default: 'Manual build'
 
 jobs:
+  sync-citation:
+    name: Sync citation.cff with package version
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Sync citation
+      uses: gojiplus/citation-sync@main
+      with:
+        citation_path: CITATION.cff
+        package_path: pyproject.toml
+    
+    - name: Commit and push if changed
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add CITATION.cff
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update citation.cff version"
+          git push
+        fi
+
   publish:
+    needs: sync-citation
     runs-on: ubuntu-latest
 
     permissions:
