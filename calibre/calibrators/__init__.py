@@ -36,6 +36,7 @@ Examples
 from __future__ import annotations
 
 # Import all calibrators
+from .cdi_iso import CDIIsotonicCalibrator
 from .isotonic import IsotonicCalibrator
 from .nearly_isotonic import NearlyIsotonicCalibrator
 from .regularized import RegularizedIsotonicCalibrator
@@ -45,6 +46,7 @@ from .spline import SplineCalibrator
 
 # Define public API
 __all__ = [
+    "CDIIsotonicCalibrator",
     "IsotonicCalibrator",
     "NearlyIsotonicCalibrator",
     "SplineCalibrator",

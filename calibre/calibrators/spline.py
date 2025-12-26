@@ -31,23 +31,15 @@ class SplineCalibrator(BaseCalibrator):
 
     Parameters
     ----------
-    n_splines : int, default=10
+    n_splines
         Number of spline basis functions.
-    degree : int, default=3
+    degree
         Polynomial degree of spline basis functions.
-    cv : int, default=5
+    cv
         Number of cross-validation folds.
-    enable_diagnostics : bool, default=False
+    enable_diagnostics
         Whether to enable plateau diagnostics analysis.
 
-    Attributes
-    ----------
-    spline_ : SplineTransformer or None
-        Fitted spline transformer.
-    model_ : Ridge or None
-        Fitted linear model with non-negative coefficients.
-    fallback_ : IsotonicRegression or None
-        Fallback model if spline fitting fails.
 
     Examples
     --------
@@ -93,9 +85,9 @@ class SplineCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The training input samples.
-        y : array-like of shape (n_samples,)
+        y
             The target values.
 
         Notes
@@ -167,7 +159,7 @@ class SplineCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
 
         Returns

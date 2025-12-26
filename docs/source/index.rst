@@ -78,7 +78,6 @@ Documentation
    quickstart
    api/index
    examples/index
-   contributing
 
 Indices and tables
 ==================

@@ -48,6 +48,7 @@ dev = [
     "ruff>=0.7.0",
     "mypy>=1.0",
     "pre-commit>=3.0",
+    "pydoclint>=0.8.3",
 ]
 test = [
     "pytest>=7.0",
@@ -153,3 +154,13 @@ exclude_lines = [
 # Deptry configuration
 [tool.deptry]
 pep621_dev_dependency_groups = ["docs"]
+
+# Pydoclint configuration
+[tool.pydoclint]
+style = "numpy"
+arg-type-hints-in-signature = true
+arg-type-hints-in-docstring = false
+return-type-hints-in-signature = true
+return-type-hints-in-docstring = false
+check-return-types = false
+check-yield-types = false

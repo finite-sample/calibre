@@ -26,19 +26,8 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
     Parameters
     ----------
-    enable_diagnostics : bool, default=False
+    enable_diagnostics
         Whether to run plateau diagnostics after fitting.
-
-    Methods
-    -------
-    fit(X, y)
-        Fit the calibrator to training data.
-    transform(X)
-        Apply calibration to new data.
-    fit_transform(X, y)
-        Fit and then transform in one step.
-    get_diagnostics()
-        Get diagnostic results if available.
 
     Notes
     -----
@@ -69,7 +58,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
     array([0.667, 0.667, 0.667])
     """
 
-    def __init__(self, enable_diagnostics=False):
+    def __init__(self, enable_diagnostics: bool = False) -> None:
         self.enable_diagnostics = enable_diagnostics
         self.diagnostics_ = None
         self._fit_data_X = None
@@ -84,14 +73,14 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated (e.g., predicted probabilities).
-        y : array-like of shape (n_samples,), default=None
+        y
             The target values (e.g., true labels).
 
         Returns
         -------
-        self : BaseCalibrator
+        BaseCalibrator
             Returns self for method chaining.
         """
         # Store fit data for potential diagnostics
@@ -108,18 +97,21 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
     def _fit_impl(self, X: np.ndarray, y: np.ndarray | None = None) -> None:
         """Implement the actual fitting logic.
-        
+
         This abstract method must be implemented by subclasses to perform
         the calibration-specific fitting logic. The base fit() method handles
         data storage, diagnostics, and return value automatically.
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated (e.g., predicted probabilities).
-        y : array-like of shape (n_samples,), default=None
+        y
             The target values (e.g., true labels).
-            
+        Raises
+        ------
+        NotImplementedError
+            This method must be implemented by subclasses.
         Notes
         -----
         Subclasses should implement this method instead of overriding fit().
@@ -135,13 +127,12 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
 
         Returns
         -------
-        X_calibrated : array-like of shape (n_samples,)
-            Calibrated values.
+        Calibrated values.
 
         Raises
         ------
@@ -161,15 +152,14 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
-        y : array-like of shape (n_samples,), default=None
+        y
             The target values.
 
         Returns
         -------
-        X_calibrated : array-like of shape (n_samples,)
-            Calibrated values.
+        Calibrated values.
 
         Examples
         --------
@@ -237,7 +227,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         Returns
         -------
-        diagnostics : dict or None
+        dict | None
             Diagnostic results from plateau analysis, or None if diagnostics
             were not computed or are not available.
 
@@ -320,16 +310,15 @@ class MonotonicMixin:
 
         Parameters
         ----------
-        y : array-like of shape (n_samples,)
+        y
             Values to check for monotonicity.
-        strict : bool, default=False
+        strict
             If True, check for strictly increasing (no equal consecutive values).
             If False, check for non-decreasing (allows equal consecutive values).
 
         Returns
         -------
-        is_monotonic : bool
-            True if the array is monotonic according to the specified criteria.
+        True if the array is monotonic according to the specified criteria.
 
         Examples
         --------
@@ -370,15 +359,14 @@ class MonotonicMixin:
 
         Parameters
         ----------
-        y : array-like of shape (n_samples,)
+        y
             Values to make monotonic.
-        inplace : bool, default=False
+        inplace
             If True, modify the array in place. Otherwise, return a copy.
 
         Returns
         -------
-        y_monotonic : array-like of shape (n_samples,)
-            Monotonically increasing version of the input array.
+        Monotonically increasing version of the input array.
 
         Examples
         --------

@@ -183,27 +183,46 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
     Parameters
     ----------
-    thresholds : Optional[Iterable[float]]
+    thresholds
         Operating thresholds in [0,1] that matter economically. If None,
         uniform attention across the score range is assumed.
-    threshold_weights : Optional[Iterable[float]]
-        Nonnegative weights matching `thresholds`. If None, equal weights.
-    bandwidth : float
+    threshold_weights
+        Nonnegative weights matching thresholds. If None, equal weights.
+    bandwidth
         Half-width h of the triangular kernel around each threshold (in score units,
         after optional min-max normalization). Defaults to 0.05.
-    alpha : float
+    alpha
         Significance level for the two-proportion normal approximation used to
         gate minimum-slope enforcement (default 0.05 -> z≈1.96).
-    gamma : float
+    gamma
         Global multiplier in [0,1] for the minimum-slope budget phi_i (default 0.15).
-    window : int
+    window
         Number of adjacent unique-score points used on each side to form the
         left/right evidence blocks (default 25). Automatically clipped at edges.
-    normalize_scores : bool
+    normalize_scores
         If True (default), min-max normalize training scores to [0,1] for the
         economics kernel; the same affine scaling is applied at transform time.
-    clip_output : bool
+    clip_output
         If True (default), clip calibrated outputs to [0,1].
+
+    Attributes
+    ----------
+    thresholds
+        Operating thresholds in [0,1] that matter economically.
+    threshold_weights
+        Nonnegative weights matching thresholds.
+    bandwidth
+        Half-width of the triangular kernel around each threshold.
+    alpha
+        Significance level for the two-proportion normal approximation.
+    gamma
+        Global multiplier for the minimum-slope budget.
+    window
+        Number of adjacent unique-score points used on each side.
+    normalize_scores
+        Whether to min-max normalize training scores to [0,1].
+    clip_output
+        Whether to clip calibrated outputs to [0,1].
 
     Notes
     -----
@@ -245,17 +264,23 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
         Parameters
         ----------
-        scores : array-like of shape (n_samples,)
+        scores
             Raw model scores; will be sorted internally. If normalize_scores=True,
-            an affine min-max transform to [0,1] is learned and applied in `transform`.
-        y : array-like of shape (n_samples,)
+            an affine min-max transform to [0,1] is learned and applied in transform.
+        y
             Binary labels {0,1}.
-        sample_weight : array-like of shape (n_samples,), optional
+        sample_weight
             Nonnegative per-sample weights.
 
         Returns
         -------
-        self
+        Returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If scores and y have different lengths, y contains invalid values,
+            or sample_weight has invalid values.
         """
         s = np.asarray(scores, dtype=float).reshape(-1)
         y = np.asarray(y, dtype=float).reshape(-1)
@@ -345,12 +370,17 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
         Parameters
         ----------
-        scores : array-like of shape (n_samples,)
+        scores
+            Input scores to calibrate.
 
         Returns
         -------
-        p : ndarray of shape (n_samples,)
-            Calibrated probabilities in [0,1] (if clip_output=True).
+        Calibrated probabilities in [0,1] (if clip_output=True).
+
+        Raises
+        ------
+        RuntimeError
+            If called before fit().
         """
         if not self._fitted:
             raise RuntimeError("Call fit() before transform().")
@@ -415,9 +445,18 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
           - two-proportion SE across adjacent aggregated blocks in a sliding band,
           - gamma and alpha hyperparameters.
 
+        Parameters
+        ----------
+        x_scaled
+            Scaled unique scores, shape (m,).
+        y_bar
+            Average target values per unique score, shape (m,).
+        w_block
+            Weights per unique score (counts), shape (m,).
+
         Returns
         -------
-        L : ndarray of shape (m-1,)
+        Local bounds array of shape (m-1,).
         """
         m = x_scaled.size
         z = _z_value(self.alpha)

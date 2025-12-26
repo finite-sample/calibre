@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('../../'))
 project = 'Calibre'
 copyright = '2024, Gaurav Sood'
 author = 'Gaurav Sood'
-release = '0.3.0'
+release = '0.5.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -78,7 +78,16 @@ autodoc_default_options = {
 }
 
 autosummary_generate = True
-autodoc_typehints = 'description'
+autodoc_typehints = 'signature'
+autodoc_typehints_description_target = 'all'
+autodoc_type_aliases = {
+    'ArrayLike': 'array-like',
+    'DTypeLike': 'dtype-like',
+}
+
+typehints_fully_qualified = False
+typehints_use_signature = True
+typehints_use_rtype = False
 
 # -- Napoleon configuration -------------------------------------------------
 
@@ -86,6 +95,9 @@ napoleon_google_docstring = True
 napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = False
 napoleon_include_private_with_doc = False
+napoleon_use_param = False
+napoleon_use_rtype = False
+napoleon_preprocess_types = False
 
 # -- Intersphinx configuration ----------------------------------------------
 
@@ -134,30 +146,18 @@ html_sidebars = {
 
 # -- Options for nbsphinx ---------------------------------------------------
 
-nbsphinx_execute = 'always'  # Execute notebooks during build to show outputs
+nbsphinx_execute = 'never'
 nbsphinx_allow_errors = True
 nbsphinx_kernel_name = 'python3'
-
-# Notebook execution timeout (in case we change to auto-execute)
+nbsphinx_requirejs_path = ""
+nbsphinx_requirejs_options = {"paths": {"https://unpkg.com": "https://unpkg.com"}}
 nbsphinx_timeout = 120
-
-# Configure nbsphinx to handle both mime types
-nbsphinx_custom_formats = {
-    'text/x-rst': 'rst',
-    'text/restructuredtext': 'rst'
-}
-
-# Patch nbconvert to support the expected mime type
-import nbconvert
-original_get_template_names = nbconvert.RSTExporter.get_template_names
-
-def patched_get_template_names(self):
-    # Override to support text/restructuredtext mime type
-    if hasattr(self, 'output_mimetype') and self.output_mimetype == 'text/restructuredtext':
-        self.output_mimetype = 'text/x-rst'
-    return original_get_template_names(self)
-
-nbconvert.RSTExporter.get_template_names = patched_get_template_names
+nbsphinx_prolog = """
+.. note::
+   This notebook is not executed during documentation build.
+   Results shown are from previous runs.
+"""
+nbsphinx_codecell_lexer = 'none'
 
 
 # -- Options for LaTeX output -----------------------------------------------

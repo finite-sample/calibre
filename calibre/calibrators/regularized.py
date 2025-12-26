@@ -35,17 +35,11 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
     Parameters
     ----------
-    alpha : float, default=0.1
+    alpha
         Regularization strength. Higher values result in smoother curves.
-    enable_diagnostics : bool, default=False
+    enable_diagnostics
         Whether to enable plateau diagnostics analysis.
 
-    Attributes
-    ----------
-    X_ : ndarray of shape (n_samples,)
-        The training input samples.
-    y_ : ndarray of shape (n_samples,)
-        The target values.
 
     Examples
     --------
@@ -80,9 +74,9 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The training input samples.
-        y : array-like of shape (n_samples,)
+        y
             The target values.
 
         Notes
@@ -107,7 +101,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
 
         Returns

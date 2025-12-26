@@ -39,19 +39,18 @@ def plot_plateau_diagnostics(
 
     Parameters
     ----------
-    results : dict
+    results
         Results from IsotonicDiagnostics.analyze().
-    X : array-like of shape (n_samples,), optional
+    X
         Input features for plotting calibration curve.
-    y_calibrated : array-like of shape (n_samples,), optional
+    y_calibrated
         Calibrated predictions for plotting.
-    figsize : tuple, default=(12, 8)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
 
     Examples
     --------
@@ -282,17 +281,16 @@ def plot_stability_heatmap(
 
     Parameters
     ----------
-    stability_matrix : array-like of shape (n_plateaus, n_bootstraps)
+    stability_matrix
         Binary matrix indicating whether ties were preserved.
-    plateau_labels : list of str, optional
+    plateau_labels
         Labels for plateaus.
-    figsize : tuple, default=(8, 6)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
     """
     _check_matplotlib()
 
@@ -326,17 +324,16 @@ def plot_progressive_sampling(
 
     Parameters
     ----------
-    sample_sizes : list of int
+    sample_sizes
         Sample sizes tested.
-    diversities : list of float
+    diversities
         Corresponding diversity values.
-    figsize : tuple, default=(8, 6)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
     """
     _check_matplotlib()
 
@@ -399,19 +396,18 @@ def plot_calibration_comparison(
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Input features.
-    y_true : array-like of shape (n_samples,)
+    y_true
         True target values.
-    calibrators : dict
+    calibrators
         Dictionary mapping method names to fitted calibrator objects.
-    figsize : tuple, default=(12, 8)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
 
     Examples
     --------
@@ -550,15 +546,14 @@ def plot_mdd_analysis(
 
     Parameters
     ----------
-    results : dict
+    results
         Results from IsotonicDiagnostics.analyze().
-    figsize : tuple, default=(10, 6)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
     """
     _check_matplotlib()
 

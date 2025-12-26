@@ -244,7 +244,7 @@ class TestCalibratorErrorHandling:
 
     def test_mismatched_array_lengths(self):
         """Test error handling for mismatched array lengths."""
-        x_good = np.array([1, 2, 3, 4, 5])
+        np.array([1, 2, 3, 4, 5])
         y_good = np.array([1, 2, 3, 4, 5])
         x_bad = np.array([1, 2, 3])  # mismatched length
 

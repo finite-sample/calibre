@@ -15,6 +15,7 @@ from .base import BaseCalibrator, MonotonicMixin
 
 # Import all calibrators (including cvxpy-dependent ones)
 from .calibrators import (
+    CDIIsotonicCalibrator,
     IsotonicCalibrator,
     NearlyIsotonicCalibrator,
     RegularizedIsotonicCalibrator,
@@ -56,6 +57,7 @@ __all__ = [
     "BaseCalibrator",
     "MonotonicMixin",
     # Calibrators
+    "CDIIsotonicCalibrator",
     "IsotonicCalibrator",
     "NearlyIsotonicCalibrator",
     "SplineCalibrator",

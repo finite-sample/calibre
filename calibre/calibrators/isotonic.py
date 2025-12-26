@@ -28,23 +28,17 @@ class IsotonicCalibrator(BaseCalibrator):
 
     Parameters
     ----------
-    y_min : float, default=None
+    y_min
         Lower bound for the calibrated values.
-    y_max : float, default=None
+    y_max
         Upper bound for the calibrated values.
-    increasing : bool, default=True
+    increasing
         Whether the calibration function should be increasing.
-    out_of_bounds : {'nan', 'clip', 'raise'}, default='clip'
+    out_of_bounds
         How to handle out-of-bounds values in transform.
-    enable_diagnostics : bool, default=False
+        Options: 'nan', 'clip', 'raise'.
+    enable_diagnostics
         Whether to enable plateau diagnostics analysis.
-
-    Attributes
-    ----------
-    isotonic_ : IsotonicRegression
-        The fitted isotonic regression model.
-    diagnostics_ : dict or None
-        Diagnostic results (only available if enable_diagnostics=True).
 
     Examples
     --------
@@ -102,9 +96,9 @@ class IsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The training input samples (predicted probabilities).
-        y : array-like of shape (n_samples,)
+        y
             The target values (true labels).
 
         Notes
@@ -129,13 +123,12 @@ class IsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
 
         Returns
         -------
-        X_calibrated : array-like of shape (n_samples,)
-            Calibrated values.
+        Calibrated values.
 
         Raises
         ------

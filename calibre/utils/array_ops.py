@@ -10,15 +10,15 @@ from __future__ import annotations
 import numpy as np
 
 
-def sort_by_x(X, y):
+def sort_by_x(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Sort arrays by X values and return sort indices.
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Values to sort by.
-    y : array-like of shape (n_samples,)
+    y
         Values to sort along with X.
 
     Returns
@@ -53,17 +53,17 @@ def sort_by_x(X, y):
     return sort_idx, X_sorted, y_sorted
 
 
-def clip_to_range(X, lower=0.0, upper=1.0):
+def clip_to_range(X: np.ndarray, lower: float = 0.0, upper: float = 1.0) -> np.ndarray:
     """
     Clip array values to a specified range.
 
     Parameters
     ----------
-    X : array-like
+    X
         Array to clip.
-    lower : float, default=0.0
+    lower
         Lower bound.
-    upper : float, default=1.0
+    upper
         Upper bound.
 
     Returns
@@ -84,13 +84,13 @@ def clip_to_range(X, lower=0.0, upper=1.0):
     return np.clip(X, lower, upper)
 
 
-def ensure_1d(X):
+def ensure_1d(X: np.ndarray) -> np.ndarray:
     """
     Ensure array is 1-dimensional by raveling.
 
     Parameters
     ----------
-    X : array-like
+    X
         Array to ensure is 1D.
 
     Returns
@@ -111,15 +111,15 @@ def ensure_1d(X):
     return np.asarray(X).ravel()
 
 
-def restore_order(X_sorted, original_order):
+def restore_order(X_sorted: np.ndarray, original_order: np.ndarray) -> np.ndarray:
     """
     Restore original order of a sorted array.
 
     Parameters
     ----------
-    X_sorted : array-like
+    X_sorted
         Sorted array.
-    original_order : array-like
+    original_order
         Original sort indices from sort_by_x.
 
     Returns
@@ -150,15 +150,15 @@ def restore_order(X_sorted, original_order):
     return X_restored
 
 
-def find_unique_sorted(X, tolerance=1e-10):
+def find_unique_sorted(X: np.ndarray, tolerance: float = 1e-10) -> tuple[np.ndarray, np.ndarray]:
     """
     Find unique values in a sorted array with tolerance.
 
     Parameters
     ----------
-    X : array-like
+    X
         Sorted array to find unique values in.
-    tolerance : float, default=1e-10
+    tolerance
         Tolerance for considering values equal.
 
     Returns
@@ -196,17 +196,17 @@ def find_unique_sorted(X, tolerance=1e-10):
     return unique_values, unique_indices
 
 
-def group_by_value(X, y, tolerance=1e-10):
+def group_by_value(X: np.ndarray, y: np.ndarray, tolerance: float = 1e-10) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """
     Group y values by unique X values.
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Values to group by (must be sorted).
-    y : array-like of shape (n_samples,)
+    y
         Values to group.
-    tolerance : float, default=1e-10
+    tolerance
         Tolerance for considering X values equal.
 
     Returns
@@ -246,22 +246,22 @@ def group_by_value(X, y, tolerance=1e-10):
 
 
 def interpolate_monotonic(
-    X_train, y_train, X_test, bounds_error=False, fill_value=None
-):
+    X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, bounds_error: bool = False, fill_value: float | None = None
+) -> np.ndarray:
     """
     Interpolate monotonic function at new points.
 
     Parameters
     ----------
-    X_train : array-like of shape (n_samples,)
+    X_train
         Training X values (must be sorted).
-    y_train : array-like of shape (n_samples,)
+    y_train
         Training y values (should be monotonic).
-    X_test : array-like of shape (n_test,)
+    X_test
         Test X values to interpolate at.
-    bounds_error : bool, default=False
+    bounds_error
         Whether to raise error for out-of-bounds values.
-    fill_value : float or tuple, optional
+    fill_value
         Value(s) to use for out-of-bounds points.
         If None, uses (y_train[0], y_train[-1]).
 

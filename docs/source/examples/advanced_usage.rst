@@ -187,7 +187,7 @@ Adaptive Calibration Selection
    print(f"\\nBest calibrator: {best_name} (MCE: {best_score:.4f})")
 
 Temperature Scaling Integration
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Combining with temperature scaling for neural networks:
 
@@ -362,7 +362,7 @@ Calibration for Specific Domains
 --------------------------------
 
 Time Series Calibration
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -414,7 +414,7 @@ Time Series Calibration
    print(f"Time-series calibrated MCE: {mean_calibration_error(y_test, y_pred_ts_cal):.4f}")
 
 High-Stakes Decision Making
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 

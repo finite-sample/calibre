@@ -149,8 +149,8 @@ def test_edge_cases():
         pass
 
     # Single value
-    X_single = np.array([0.5])
-    y_single = np.array([1])
+    np.array([0.5])
+    np.array([1])
     y_cal_single = np.array([0.5])
 
     plateaus = detect_plateaus(y_cal_single, min_width=2)

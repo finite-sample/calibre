@@ -172,7 +172,7 @@ Plotting Calibration Curves
    plt.show()
 
 Distribution Plots
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -253,7 +253,7 @@ Avoiding Overfitting in Calibration
    calibrator.fit(y_pred, y_test)  # Better approach
 
 Handling Edge Cases
-~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 

@@ -30,22 +30,16 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
     Parameters
     ----------
-    lam : float, default=1.0
+    lam
         Regularization parameter controlling the strength of monotonicity constraint.
         Higher values enforce stricter monotonicity.
-    method : {'cvx', 'path'}, default='cvx'
+    method
         Method to use for solving the optimization problem:
         - 'cvx': Uses convex optimization with CVXPY
         - 'path': Uses a path algorithm similar to the original nearly-isotonic paper
-    enable_diagnostics : bool, default=False
+    enable_diagnostics
         Whether to enable plateau diagnostics analysis.
 
-    Attributes
-    ----------
-    X_ : ndarray of shape (n_samples,)
-        The training input samples.
-    y_ : ndarray of shape (n_samples,)
-        The target values.
 
     Notes
     -----
@@ -95,9 +89,9 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The training input samples.
-        y : array-like of shape (n_samples,)
+        y
             The target values.
 
         Notes
@@ -114,7 +108,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
 
         Returns
@@ -144,7 +138,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : ndarray of shape (n_samples,)
+        X
             Input values to calibrate.
 
         Returns
@@ -205,7 +199,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : ndarray of shape (n_samples,)
+        X
             Input values to calibrate.
 
         Returns

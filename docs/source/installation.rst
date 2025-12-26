@@ -4,7 +4,7 @@ Installation
 Requirements
 ------------
 
-Calibre requires Python 3.10 or later.
+Calibre requires Python 3.11 or later.
 
 Installing from PyPI
 ---------------------

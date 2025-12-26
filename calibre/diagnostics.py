@@ -30,15 +30,15 @@ def run_plateau_diagnostics(
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Original predicted probabilities.
-    y : array-like of shape (n_samples,)
+    y
         True labels.
-    y_calibrated : array-like of shape (n_samples,)
+    y_calibrated
         Calibrated probabilities.
-    n_bootstraps : int, default=100
+    n_bootstraps
         Kept for API compatibility, currently unused.
-    random_state : int, optional
+    random_state
         Kept for API compatibility, currently unused.
 
     Returns
@@ -116,9 +116,9 @@ def detect_plateaus(
 
     Parameters
     ----------
-    y_calibrated : array-like of shape (n_samples,)
+    y_calibrated
         Sorted calibrated probabilities.
-    min_width : int, default=2
+    min_width
         Minimum number of consecutive identical values to count as a plateau.
 
     Returns
@@ -173,17 +173,17 @@ def analyze_plateau_simple(
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Sorted input predictions.
-    y_calibrated : array-like of shape (n_samples,)
+    y_calibrated
         Sorted calibrated predictions.
-    start_idx : int
+    start_idx
         Start index of plateau (inclusive).
-    end_idx : int
+    end_idx
         End index of plateau (inclusive).
-    value : float
+    value
         The constant value of the plateau.
-    plateau_id : int
+    plateau_id
         Unique identifier for this plateau.
 
     Returns
@@ -226,7 +226,7 @@ def analyze_plateau_simple(
 def diversity_learning_curve(
     X: np.ndarray,
     y: np.ndarray,
-    calibrator=None,
+    calibrator: Any = None,
     sample_sizes: list[int] | None = None,
     n_trials: int = 10,
     random_state: int | None = None,
@@ -240,18 +240,18 @@ def diversity_learning_curve(
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Input features (predicted probabilities).
-    y : array-like of shape (n_samples,)
+    y
         True binary labels.
-    calibrator : BaseCalibrator, optional
+    calibrator
         Calibrator to test. If None, uses IsotonicCalibrator.
-    sample_sizes : list of int, optional
+    sample_sizes
         Sample sizes to test. If None, uses default range covering
         10% to 100% of available data.
-    n_trials : int, default=10
+    n_trials
         Number of random trials per sample size for averaging.
-    random_state : int, optional
+    random_state
         Random state for reproducibility.
 
     Returns
@@ -261,6 +261,11 @@ def diversity_learning_curve(
     diversities : list of float
         Average diversity at each sample size, where diversity is
         the fraction of unique calibrated values.
+
+    Raises
+    ------
+    ValueError
+        If X and y have different lengths.
 
     Notes
     -----

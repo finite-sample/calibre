@@ -34,30 +34,24 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
     Parameters
     ----------
-    window_length : int or None, default=None
+    window_length
         Window length for Savitzky-Golay filter. Should be odd.
         If None, window_length is set to max(5, len(X)//10)
-    poly_order : int, default=3
+    poly_order
         Polynomial order for the Savitzky-Golay filter.
         Must be less than window_length.
-    interp_method : str, default='linear'
+    interp_method
         Interpolation method to use ('linear', 'cubic', etc.)
-    adaptive : bool, default=False
+    adaptive
         Whether to use adaptive window sizes based on local density.
-    min_window : int, default=5
+    min_window
         Minimum window length when using adaptive=True.
-    max_window : int or None, default=None
+    max_window
         Maximum window length when using adaptive=True.
         If None, max_window is set to len(X)//5.
-    enable_diagnostics : bool, default=False
+    enable_diagnostics
         Whether to enable plateau diagnostics analysis.
 
-    Attributes
-    ----------
-    X_ : ndarray of shape (n_samples,)
-        The training input samples.
-    y_ : ndarray of shape (n_samples,)
-        The target values.
 
     Examples
     --------
@@ -102,9 +96,9 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The training input samples.
-        y : array-like of shape (n_samples,)
+        y
             The target values.
 
         Notes
@@ -134,7 +128,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
 
         Returns

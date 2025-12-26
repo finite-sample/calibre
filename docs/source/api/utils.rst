@@ -43,7 +43,7 @@ Input Validation
        print(f"Validation error: {e}")
 
 Sorting Operations
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 

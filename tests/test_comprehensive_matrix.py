@@ -462,7 +462,7 @@ class TestMatrix:
 
         if len(results) >= 2:
             # Higher lambda should generally reduce violations
-            lambdas_sorted, violations_sorted = zip(*sorted(results))
+            lambdas_sorted, violations_sorted = zip(*sorted(results), strict=False)
 
             # Check general trend (allow some noise)
             if len(results) >= 3:

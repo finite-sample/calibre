@@ -1,5 +1,5 @@
 Performance Benchmarks
-====================
+======================
 
 This section provides performance comparisons and benchmarks for different calibration methods.
 
@@ -85,7 +85,7 @@ Performance Summary Table
      - Visualization
 
 Detailed Performance Analysis
-----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Calibration Error Comparison
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -193,7 +193,7 @@ Calibration Error Comparison
              f"{ece_mean:.3f}±{ece_std:.3f}    {time_mean:.1f}±{time_std:.1f}")
 
 Scalability Analysis
-~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -251,7 +251,7 @@ Scalability Analysis
    scalability_results = scalability_benchmark()
 
 Dataset-Specific Performance
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Performance on Different Data Types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -320,10 +320,10 @@ Performance on Different Data Types
    dataset_results = dataset_specific_benchmark()
 
 Robustness Analysis
-------------------
+~~~~~~~~~~~~~~~~~~~
 
 Noise Sensitivity
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -382,7 +382,7 @@ Noise Sensitivity
    noise_results = noise_sensitivity_test()
 
 Memory Usage Analysis
---------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -455,7 +455,7 @@ Memory Usage Analysis
    memory_results = memory_usage_benchmark()
 
 Benchmark Reproduction
----------------------
+~~~~~~~~~~~~~~~~~~~~~~
 
 To reproduce these benchmarks:
 

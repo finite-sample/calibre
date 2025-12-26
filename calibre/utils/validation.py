@@ -7,10 +7,11 @@ to ensure they meet the requirements for calibration.
 
 from __future__ import annotations
 
+import numpy as np
 from sklearn.utils import check_array
 
 
-def check_arrays(X, y):
+def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Check and validate input arrays for calibration.
 
@@ -19,17 +20,17 @@ def check_arrays(X, y):
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         The input predictions/probabilities.
-    y : array-like of shape (n_samples,)
+    y
         The target values/labels.
 
     Returns
     -------
-    X : ndarray of shape (n_samples,)
-        Validated and flattened X array.
-    y : ndarray of shape (n_samples,)
-        Validated and flattened y array.
+    tuple[np.ndarray, np.ndarray]
+        Tuple of (validated_X, validated_y).
+        validated_X
+        validated_y
 
     Raises
     ------
@@ -69,21 +70,20 @@ def check_arrays(X, y):
     return X, y
 
 
-def check_array_1d(X, name="X"):
+def check_array_1d(X: np.ndarray, name: str = "X") -> np.ndarray:
     """
     Check that an array is 1-dimensional.
 
     Parameters
     ----------
-    X : array-like
+    X
         The array to check.
-    name : str, default='X'
+    name
         Name of the array for error messages.
 
     Returns
     -------
-    X : ndarray of shape (n_samples,)
-        Validated 1D array.
+    Validated 1D array.
 
     Raises
     ------
@@ -109,15 +109,15 @@ def check_array_1d(X, name="X"):
     return X
 
 
-def check_fitted(calibrator, attributes=None):
+def check_fitted(calibrator: object, attributes: list[str] | None = None) -> None:
     """
     Check if a calibrator has been fitted.
 
     Parameters
     ----------
-    calibrator : object
+    calibrator
         The calibrator to check.
-    attributes : list of str, optional
+    attributes
         List of attribute names that should exist if fitted.
         If None, checks for common fitted attributes.
 
@@ -151,13 +151,13 @@ def check_fitted(calibrator, attributes=None):
         )
 
 
-def check_consistent_length(*arrays):
+def check_consistent_length(*arrays: np.ndarray) -> None:
     """
     Check that all arrays have consistent first dimension.
 
     Parameters
     ----------
-    *arrays : array-like
+    *arrays
         Arrays to check for consistent length.
 
     Raises
@@ -189,13 +189,13 @@ def check_consistent_length(*arrays):
         )
 
 
-def validate_parameters(**params):
+def validate_parameters(**params: object) -> None:
     """
     Validate common calibrator parameters.
 
     Parameters
     ----------
-    **params : dict
+    **params
         Parameter names and values to validate.
 
     Raises
@@ -216,7 +216,7 @@ def validate_parameters(**params):
     """
     for name, value in params.items():
         if name in ["alpha", "lam"] and value is not None:
-            if value < 0:
+            if not isinstance(value, (int, float)) or value < 0:
                 raise ValueError(
                     f"Parameter '{name}' must be non-negative, got {value}"
                 )
@@ -234,7 +234,7 @@ def validate_parameters(**params):
                 )
 
         elif name == "percentile" and value is not None:
-            if not 0 <= value <= 100:
+            if not isinstance(value, (int, float)) or not 0 <= value <= 100:
                 raise ValueError(
                     f"Parameter 'percentile' must be in [0, 100], got {value}"
                 )

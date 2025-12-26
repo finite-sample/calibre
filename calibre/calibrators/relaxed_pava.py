@@ -28,21 +28,14 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
     Parameters
     ----------
-    percentile : float, default=10
+    percentile
         Percentile of absolute differences to use as threshold.
         Lower values enforce stricter monotonicity.
-    adaptive : bool, default=True
+    adaptive
         Whether to use the adaptive implementation (recommended) or the
         block-merging implementation.
-    enable_diagnostics : bool, default=False
+    enable_diagnostics
         Whether to enable plateau diagnostics analysis.
-
-    Attributes
-    ----------
-    X_ : ndarray of shape (n_samples,)
-        The training input samples.
-    y_ : ndarray of shape (n_samples,)
-        The target values.
 
     Examples
     --------
@@ -79,9 +72,9 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The training input samples.
-        y : array-like of shape (n_samples,)
+        y
             The target values.
 
         Notes
@@ -106,13 +99,12 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples,)
+        X
             The values to be calibrated.
 
         Returns
         -------
-        X_calibrated : array-like of shape (n_samples,)
-            Calibrated values.
+        Calibrated values.
         """
         X = np.asarray(X).ravel()
 
