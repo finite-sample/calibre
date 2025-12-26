@@ -242,10 +242,11 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 - Python 3.10+ required
 - Development dependencies defined in `[project.optional-dependencies.dev]`
 
-## Benchmarking
-- **examples/benchmark.ipynb**: Jupyter notebook with performance benchmarks comparing different calibration methods
-- Contains visual comparisons and quantitative metrics for each calibrator
-- Located in `examples/` directory (moved from root)
+## Interactive Examples
+- **docs/source/notebooks/**: Jupyter notebooks with comprehensive examples and benchmarks
+- Four focused notebooks covering getting started, validation, diagnostics, and performance comparison
+- Executable via nbsphinx integration in documentation
+- Located in `docs/source/notebooks/` (migrated from root examples/)
 
 ## CI/CD Configuration
 - GitHub Actions workflow in `.github/workflows/ci.yml`
