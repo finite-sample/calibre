@@ -8,6 +8,23 @@
 
 **Calibre** provides advanced probability calibration techniques that go beyond traditional isotonic regression. It offers multiple methods to balance monotonicity and granularity preservation, giving you fine control over your model's probability estimates.
 
+While techniques like isotonic regression have been standard for this task, they come with significant limitations:
+
+1. Loss of granularity: Traditional isotonic regression often collapses many distinct probability values into a small number of unique values, which can be problematic for decision-making.
+2. Rigid monotonicity: Perfect monotonicity might not always be necessary or beneficial; small violations might be acceptable if they better preserve the information content of the original predictions.
+
+Calibre addresses these limitations by implementing a suite of advanced calibration techniques that provide more nuanced control over model probability calibration. Its methods are designed to preserve granularity while still favoring a generally monotonic trend.
+
+| Method | Description | Key Strength | Use When |
+|--------|-------------|--------------|----------|
+| **IsotonicCalibrator** | Standard isotonic regression with diagnostic support | Fast, monotonic guarantee | You need strict monotonicity |
+| **NearlyIsotonicCalibrator** | Allows controlled monotonicity violations | Preserves granularity | You want to balance monotonicity vs information |
+| **SplineCalibrator** | Smooth calibration using I-splines | Smooth, differentiable | You need smooth probability curves |
+| **RelaxedPAVACalibrator** | Ignores small violations below threshold | Fast, practical | You want to ignore noise-level violations |
+| **RegularizedIsotonicCalibrator** | L2 regularized isotonic regression | Reduces overfitting | You have limited calibration data |
+| **SmoothedIsotonicCalibrator** | Post-smoothing of isotonic output | Reduces staircase effect | You want smooth output from isotonic |
+| **CDIIsotonicCalibrator** | Cost & data-informed isotonic (research) | Decision-aware | You have specific decision thresholds |
+
 ## 🚀 Quick Start
 
 ```bash
@@ -28,19 +45,7 @@ cal.fit(y_pred, y_true)
 y_calibrated = cal.transform(y_pred)
 ```
 
-## 📊 Available Calibrators
-
-| Method | Description | Key Strength | Use When |
-|--------|-------------|--------------|----------|
-| **IsotonicCalibrator** | Standard isotonic regression with diagnostic support | Fast, monotonic guarantee | You need strict monotonicity |
-| **NearlyIsotonicCalibrator** | Allows controlled monotonicity violations | Preserves granularity | You want to balance monotonicity vs information |
-| **SplineCalibrator** | Smooth calibration using I-splines | Smooth, differentiable | You need smooth probability curves |
-| **RelaxedPAVACalibrator** | Ignores small violations below threshold | Fast, practical | You want to ignore noise-level violations |
-| **RegularizedIsotonicCalibrator** | L2 regularized isotonic regression | Reduces overfitting | You have limited calibration data |
-| **SmoothedIsotonicCalibrator** | Post-smoothing of isotonic output | Reduces staircase effect | You want smooth output from isotonic |
-| **CDIIsotonicCalibrator** | Cost & data-informed isotonic (research) | Decision-aware | You have specific decision thresholds |
-
-## 💡 Usage Examples
+## Usage Examples
 
 ### Compare Different Methods
 
@@ -114,14 +119,6 @@ graph TD
     D -->|Yes| G[SplineCalibrator]
     D -->|No| H[NearlyIsotonicCalibrator]
 ```
-
-**Decision Guide:**
-
-1. **Default choice**: Start with `IsotonicCalibrator(enable_diagnostics=True)`
-2. **If plateaus detected as "limited-data"**: Switch to `NearlyIsotonicCalibrator` or `RegularizedIsotonicCalibrator`
-3. **For smooth visualization**: Use `SplineCalibrator` or `SmoothedIsotonicCalibrator`
-4. **For fast, practical use**: Try `RelaxedPAVACalibrator`
-5. **For decision-critical applications**: Consider `CDIIsotonicCalibrator` with your thresholds
 
 ## 📈 Evaluation Metrics
 
