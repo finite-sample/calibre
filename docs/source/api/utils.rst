@@ -1,30 +1,25 @@
-Utility Functions
+Utility Functions  
 =================
 
-This module provides utility functions for data processing and validation.
+This module provides utility functions for data validation and array operations.
 
 Data Validation
 ---------------
 
-Array Checking
-~~~~~~~~~~~~~~
+.. autofunction:: calibre.utils.check_arrays
 
-.. autofunction:: calibre.check_arrays
+.. autofunction:: calibre.utils.check_array_1d
 
-Data Processing
----------------
+.. autofunction:: calibre.utils.check_consistent_length
 
-Sorting Utilities
-~~~~~~~~~~~~~~~~~
+Array Operations
+----------------
 
-.. autofunction:: calibre.sort_by_x
+.. autofunction:: calibre.utils.sort_by_x
 
-Binning Operations
-~~~~~~~~~~~~~~~~~~
+.. autofunction:: calibre.utils.clip_to_range
 
-.. autofunction:: calibre.create_bins
-
-.. autofunction:: calibre.bin_data
+.. autofunction:: calibre.utils.ensure_1d
 
 Usage Examples
 --------------
@@ -66,46 +61,42 @@ Sorting Operations
    print(f"Sorted y: {y_sorted}")
    print(f"Sort indices: {sort_indices}")
 
-Creating Bins
-~~~~~~~~~~~~~
-
-.. code-block:: python
-
-   from calibre.utils import create_bins, bin_data
-   import numpy as np
-   
-   # Create uniform bins
-   X = np.random.uniform(0, 1, 1000)
-   bins_uniform = create_bins(X, n_bins=10, strategy='uniform')
-   print(f"Uniform bins: {bins_uniform}")
-   
-   # Create quantile bins
-   bins_quantile = create_bins(X, n_bins=10, strategy='quantile')
-   print(f"Quantile bins: {bins_quantile}")
-   
-   # Assign data to bins
-   bin_indices, bin_counts = bin_data(X, bins_uniform)
-   print(f"Bin counts: {bin_counts}")
-
-Advanced Binning
+Array Processing
 ~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
-   # Custom bin range
-   bins_custom = create_bins(
-       X, 
-       n_bins=5, 
-       strategy='uniform',
-       x_min=0.2,  # Custom range
-       x_max=0.8
-   )
+   from calibre.utils import ensure_1d, clip_to_range
+   import numpy as np
    
-   # Bin with custom bins
-   bin_indices, bin_counts = bin_data(X, bins_custom)
+   # Ensure array is 1D
+   arr_2d = np.array([[1], [2], [3]])
+   arr_1d = ensure_1d(arr_2d)
+   print(f"1D array: {arr_1d}")
    
-   # Analyze bin distribution
-   for i, count in enumerate(bin_counts):
-       bin_start = bins_custom[i]
-       bin_end = bins_custom[i + 1]
-       print(f"Bin [{bin_start:.2f}, {bin_end:.2f}): {count} samples")
+   # Clip values to valid range
+   values = np.array([-0.1, 0.5, 1.2])
+   clipped = clip_to_range(values, 0.0, 1.0)
+   print(f"Clipped: {clipped}")
+
+Note
+~~~~
+
+These utility functions are primarily for internal use within calibration algorithms. 
+For typical calibration workflows, use the main calibrator classes directly:
+
+.. code-block:: python
+
+   from calibre import IsotonicCalibrator, expected_calibration_error
+   import numpy as np
+   
+   # This is the recommended approach for users
+   X = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
+   y = np.array([0, 0, 1, 1, 1])
+   
+   cal = IsotonicCalibrator()
+   cal.fit(X, y)
+   X_calibrated = cal.transform(X)
+   
+   ece = expected_calibration_error(y, X_calibrated)
+   print(f"ECE: {ece:.4f}")

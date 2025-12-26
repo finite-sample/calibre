@@ -97,8 +97,8 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         self.min_window = min_window
         self.max_window = max_window
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> SmoothedIsotonicCalibrator:
-        """Fit the smoothed isotonic regression model.
+    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+        """Implement the smoothed isotonic regression fitting logic.
 
         Parameters
         ----------
@@ -107,10 +107,10 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         y : array-like of shape (n_samples,)
             The target values.
 
-        Returns
-        -------
-        self : SmoothedIsotonicCalibrator
-            Returns self for method chaining.
+        Notes
+        -----
+        This method implements the actual fitting logic. Data storage,
+        diagnostics, and return value are handled by the base class fit() method.
         """
         X, y = check_arrays(X, y)
 
@@ -128,13 +128,6 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         self.X_ = X
         self.y_ = y
-
-        # Store fit data and run diagnostics if enabled
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._run_diagnostics()
-
-        return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply smoothed isotonic calibration to new data.

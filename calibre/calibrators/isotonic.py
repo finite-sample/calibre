@@ -96,9 +96,9 @@ class IsotonicCalibrator(BaseCalibrator):
 
         self.isotonic_: IsotonicRegression | None = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> IsotonicCalibrator:
+    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
         """
-        Fit the isotonic regression model.
+        Implement the isotonic regression fitting logic.
 
         Parameters
         ----------
@@ -107,10 +107,10 @@ class IsotonicCalibrator(BaseCalibrator):
         y : array-like of shape (n_samples,)
             The target values (true labels).
 
-        Returns
-        -------
-        self : IsotonicCalibrator
-            Returns self for method chaining.
+        Notes
+        -----
+        This method implements the actual fitting logic. Data storage,
+        diagnostics, and return value are handled by the base class fit() method.
         """
         X, y = check_arrays(X, y)
 
@@ -122,13 +122,6 @@ class IsotonicCalibrator(BaseCalibrator):
             out_of_bounds=self.out_of_bounds,
         )
         self.isotonic_.fit(X, y)
-
-        # Store fit data and run diagnostics if enabled (from base class)
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._run_diagnostics()
-
-        return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """

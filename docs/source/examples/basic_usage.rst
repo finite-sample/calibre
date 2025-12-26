@@ -18,7 +18,7 @@ Here's a complete example showing how to train a model, calibrate its prediction
    from sklearn.calibration import calibration_curve
    
    from calibre import (
-       NearlyIsotonicRegression,
+       NearlyIsotonicCalibrator,
        mean_calibration_error,
        expected_calibration_error,
        unique_value_counts
@@ -46,7 +46,7 @@ Here's a complete example showing how to train a model, calibrate its prediction
    y_pred_uncal = model.predict_proba(X_test)[:, 1]
    
    # Apply calibration
-   calibrator = NearlyIsotonicRegression(lam=1.0, method='path')
+   calibrator = NearlyIsotonicCalibrator(lam=1.0, method='path')
    calibrator.fit(y_pred_uncal, y_test)
    y_pred_cal = calibrator.transform(y_pred_uncal)
    
@@ -67,57 +67,7 @@ Here's a complete example showing how to train a model, calibrate its prediction
    print(f"Unique values: {counts_before['n_unique_y_pred']} → {counts_after['n_unique_y_pred']}")
    print(f"Preservation ratio: {counts_after['unique_value_ratio']:.3f}")
 
-Comparing Calibration Methods
------------------------------
-
-This example compares different calibration methods on the same dataset:
-
-.. code-block:: python
-
-   from calibre import (
-       NearlyIsotonicRegression,
-       ISplineCalibrator, 
-       RelaxedPAVA,
-       RegularizedIsotonicRegression,
-       SmoothedIsotonicRegression
-   )
-   
-   # Define calibrators to compare
-   calibrators = {
-       'Nearly Isotonic (strict)': NearlyIsotonicRegression(lam=10.0, method='path'),
-       'Nearly Isotonic (relaxed)': NearlyIsotonicRegression(lam=0.1, method='path'),
-       'I-Spline': ISplineCalibrator(n_splines=10, degree=3, cv=3),
-       'Relaxed PAVA': RelaxedPAVA(percentile=10, adaptive=True),
-       'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.1),
-       'Smoothed Isotonic': SmoothedIsotonicRegression(window_length=7, poly_order=3)
-   }
-   
-   # Compare calibrators
-   results = {}
-   for name, calibrator in calibrators.items():
-       # Fit calibrator
-       calibrator.fit(y_pred_uncal, y_test)
-       y_cal = calibrator.transform(y_pred_uncal)
-       
-       # Calculate metrics
-       mce = mean_calibration_error(y_test, y_cal)
-       ece = expected_calibration_error(y_test, y_cal, n_bins=10)
-       counts = unique_value_counts(y_cal, y_orig=y_pred_uncal)
-       
-       results[name] = {
-           'mce': mce,
-           'ece': ece,
-           'unique_values': counts['n_unique_y_pred'],
-           'preservation_ratio': counts['unique_value_ratio']
-       }
-   
-   # Display results
-   print("\\nComparison of Calibration Methods:")
-   print(f"{'Method':<25} {'MCE':<8} {'ECE':<8} {'Unique':<8} {'Preserve':<8}")
-   print("-" * 65)
-   for name, metrics in results.items():
-       print(f"{name:<25} {metrics['mce']:<8.4f} {metrics['ece']:<8.4f} "
-             f"{metrics['unique_values']:<8} {metrics['preservation_ratio']:<8.3f}")
+**For comprehensive method comparisons, see the Performance Comparison notebook.**
 
 Handling Different Data Types
 -----------------------------
@@ -147,7 +97,7 @@ Working with Imbalanced Data
    y_pred = model.predict_proba(X_test)[:, 1]
    
    # Calibrate with method suitable for imbalanced data
-   calibrator = RelaxedPAVA(percentile=5, adaptive=True)  # Lower percentile for imbalanced data
+   calibrator = RelaxedPAVACalibrator(percentile=5, adaptive=True)  # Lower percentile for imbalanced data
    calibrator.fit(y_pred, y_test)
    y_cal = calibrator.transform(y_pred)
    
@@ -168,8 +118,8 @@ Working with Small Datasets
    
    # Use methods that work well with small datasets
    calibrators_small = {
-       'I-Spline (small)': ISplineCalibrator(n_splines=5, degree=2, cv=3),
-       'Relaxed PAVA': RelaxedPAVA(percentile=20, adaptive=False),
+       'I-Spline (small)': SplineCalibrator(n_splines=5, degree=2, cv=3),
+       'Relaxed PAVA': RelaxedPAVACalibrator(percentile=20, adaptive=False),
        'Regularized': RegularizedIsotonicRegression(alpha=1.0)  # Higher regularization
    }
    
@@ -277,7 +227,7 @@ Cross-Validation for Calibration
    
    # Perform cross-validated calibration
    y_true_cv, y_pred_uncal_cv, y_pred_cal_cv = cross_validated_calibration(
-       model, NearlyIsotonicRegression(lam=1.0), X, y
+       model, NearlyIsotonicCalibrator(lam=1.0), X, y
    )
    
    print("Cross-validated results:")

@@ -6,7 +6,10 @@ This section covers advanced calibration techniques and specialized use cases.
 Multi-Class Calibration
 -----------------------
 
-While Calibre focuses on binary calibration, you can extend it to multi-class problems:
+.. note::
+   **Important**: Calibre is designed for binary calibration. This example shows how to extend binary calibration methods to multi-class problems using a One-vs-Rest approach. This is a user implementation pattern, not native multi-class support.
+
+While Calibre focuses on binary calibration, you can extend it to multi-class problems using a One-vs-Rest strategy:
 
 .. code-block:: python
 
@@ -14,7 +17,7 @@ While Calibre focuses on binary calibration, you can extend it to multi-class pr
    from sklearn.datasets import make_classification
    from sklearn.ensemble import RandomForestClassifier
    from sklearn.model_selection import train_test_split
-   from calibre import NearlyIsotonicRegression
+   from calibre import NearlyIsotonicCalibrator
    
    # Generate multi-class dataset
    X, y = make_classification(
@@ -36,6 +39,7 @@ While Calibre focuses on binary calibration, you can extend it to multi-class pr
    y_pred_proba = model.predict_proba(X_test)
    
    # Calibrate each class separately using One-vs-Rest approach
+   # NOTE: This is a user implementation - not native Calibre functionality
    calibrators = {}
    y_pred_cal = np.zeros_like(y_pred_proba)
    
@@ -45,7 +49,7 @@ While Calibre focuses on binary calibration, you can extend it to multi-class pr
        y_pred_binary = y_pred_proba[:, class_idx]
        
        # Fit calibrator for this class
-       calibrator = NearlyIsotonicRegression(lam=1.0, method='path')
+       calibrator = NearlyIsotonicCalibrator(lam=1.0, method='path')
        calibrator.fit(y_pred_binary, y_binary)
        
        # Store calibrator and get calibrated predictions
@@ -65,15 +69,18 @@ Custom Calibration Pipelines
 Creating Calibration Ensembles
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+This example shows how to create a custom ensemble class using Calibre's calibrators:
+
 .. code-block:: python
 
    from calibre import (
-       NearlyIsotonicRegression,
-       ISplineCalibrator,
-       RelaxedPAVA,
+       NearlyIsotonicCalibrator,
+       SplineCalibrator,
+       RelaxedPAVACalibrator,
        mean_calibration_error
    )
    
+   # Custom ensemble class - not part of Calibre library
    class CalibrationEnsemble:
        """Ensemble of calibration methods."""
        
@@ -104,9 +111,9 @@ Creating Calibration Ensembles
    
    # Create ensemble
    calibrators = [
-       NearlyIsotonicRegression(lam=1.0, method='path'),
-       ISplineCalibrator(n_splines=10, degree=3, cv=3),
-       RelaxedPAVA(percentile=10, adaptive=True)
+       NearlyIsotonicCalibrator(lam=1.0, method='path'),
+       SplineCalibrator(n_splines=10, degree=3, cv=3),
+       RelaxedPAVACalibrator(percentile=10, adaptive=True)
    ]
    
    ensemble = CalibrationEnsemble(calibrators, weights=[0.4, 0.3, 0.3])
@@ -166,11 +173,11 @@ Adaptive Calibration Selection
    
    # Test different calibrators
    calibrators = {
-       'Nearly Isotonic (strict)': NearlyIsotonicRegression(lam=10.0),
-       'Nearly Isotonic (moderate)': NearlyIsotonicRegression(lam=1.0),
-       'Nearly Isotonic (relaxed)': NearlyIsotonicRegression(lam=0.1),
-       'I-Spline': ISplineCalibrator(n_splines=10),
-       'Relaxed PAVA': RelaxedPAVA(percentile=10)
+       'Nearly Isotonic (strict)': NearlyIsotonicCalibrator(lam=10.0),
+       'Nearly Isotonic (moderate)': NearlyIsotonicCalibrator(lam=1.0),
+       'Nearly Isotonic (relaxed)': NearlyIsotonicCalibrator(lam=0.1),
+       'I-Spline': SplineCalibrator(n_splines=10),
+       'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10)
    }
    
    best_cal, best_name, best_score = select_best_calibrator(
@@ -230,7 +237,7 @@ Combining with temperature scaling for neural networks:
            temp_scaled = torch.sigmoid(temp_model(test_logits_tensor)).numpy().ravel()
        
        # Apply isotonic calibration on top of temperature scaling
-       calibrator = NearlyIsotonicRegression(lam=1.0)
+       calibrator = NearlyIsotonicCalibrator(lam=1.0)
        
        # Fit on temperature-scaled training predictions
        train_temp_scaled = torch.sigmoid(temp_model(logits_tensor)).detach().numpy().ravel()
@@ -331,7 +338,7 @@ Adaptive calibration for changing data distributions:
    
    # Example usage
    adaptive_cal = AdaptiveCalibrator(
-       NearlyIsotonicRegression(lam=1.0),
+       NearlyIsotonicCalibrator(lam=1.0),
        window_size=500,
        retrain_threshold=0.02
    )
@@ -381,7 +388,7 @@ Time Series Calibration
                X_recent = y_pred[mask]
                y_recent = y_true[mask]
                
-               calibrator = NearlyIsotonicRegression(lam=1.0)
+               calibrator = NearlyIsotonicCalibrator(lam=1.0)
                calibrator.fit(X_recent, y_recent)
                
                # Calibrate current prediction
@@ -415,7 +422,7 @@ High-Stakes Decision Making
        """Conservative calibration that errs on the side of caution."""
        
        # Use stricter calibration for high-stakes scenarios
-       calibrator = NearlyIsotonicRegression(lam=50.0, method='cvx')  # Very strict
+       calibrator = NearlyIsotonicCalibrator(lam=50.0, method='cvx')  # Very strict
        calibrator.fit(y_pred, y_true)
        y_cal = calibrator.transform(y_pred)
        

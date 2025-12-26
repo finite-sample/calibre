@@ -21,9 +21,9 @@ Calibre addresses these limitations by implementing a suite of advanced calibrat
 - **Regularized isotonic regression:** Adds L2 regularization to standard isotonic regression for smoother calibration curves while maintaining monotonicity.
 - **Locally smoothed isotonic:** Applies Savitzky-Golay filtering to isotonic regression results to reduce the "staircase effect" while preserving monotonicity.
 
-### Benchmark
+### Interactive Examples
 
-The notebook has [benchmark results](examples/benchmark.ipynb).
+See [interactive examples](https://finite-sample.github.io/calibre/examples/index.html) and [performance comparison](https://finite-sample.github.io/calibre/notebooks/04_performance_comparison.html) in the documentation.
 
 ## Installation
 

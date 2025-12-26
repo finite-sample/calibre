@@ -45,7 +45,7 @@ Basic usage:
 .. code-block:: python
 
    import numpy as np
-   from calibre import NearlyIsotonicRegression
+   from calibre import NearlyIsotonicCalibrator
    
    # Example data: model predictions and true binary outcomes
    np.random.seed(42)
@@ -53,9 +53,19 @@ Basic usage:
    y_true = np.random.binomial(1, y_pred, 1000)
    
    # Calibrate with nearly isotonic regression
-   calibrator = NearlyIsotonicRegression(lam=1.0, method='cvx')
+   calibrator = NearlyIsotonicCalibrator(lam=1.0)
    calibrator.fit(y_pred, y_true)
    y_calibrated = calibrator.transform(y_pred)
+
+Interactive Examples
+--------------------
+
+🚀 **Start here**: :doc:`examples/index` provides hands-on Jupyter notebooks covering:
+
+- **Getting Started**: Basic workflows and method selection
+- **Validation & Evaluation**: Comprehensive quality assessment
+- **Diagnostics & Troubleshooting**: Advanced plateau analysis
+- **Performance Comparison**: Systematic method benchmarking
 
 Documentation
 -------------

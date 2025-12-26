@@ -102,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `plot_mdd_analysis()`: Minimum detectable difference visualization
 
 - **📚 Interactive Demo**: Complete tutorial and best practices guide
-  - `examples/plateau_diagnostics_demo.ipynb`: Comprehensive tutorial with practical examples
+  - Interactive notebooks with comprehensive tutorials and practical examples
   - Decision framework for choosing between strict and soft calibration methods
   - Real-world scenarios and interpretation guidance
   - Performance comparison across different calibration approaches

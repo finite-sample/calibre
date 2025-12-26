@@ -78,6 +78,10 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
     def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> BaseCalibrator:
         """Fit the calibrator.
 
+        This method implements the template method pattern: it handles
+        data storage and diagnostics, while delegating the actual fitting
+        logic to the abstract _fit_impl() method that subclasses must implement.
+
         Parameters
         ----------
         X : array-like of shape (n_samples,)
@@ -89,17 +93,41 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         -------
         self : BaseCalibrator
             Returns self for method chaining.
-
-        Raises
-        ------
-        NotImplementedError
-            This method must be implemented by subclasses.
         """
         # Store fit data for potential diagnostics
         self._fit_data_X = X
         self._fit_data_y = y
+
+        # Delegate actual fitting to subclass implementation
+        self._fit_impl(X, y)
+
+        # Run diagnostics if enabled
+        self._run_diagnostics()
+
+        return self
+
+    def _fit_impl(self, X: np.ndarray, y: np.ndarray | None = None) -> None:
+        """Implement the actual fitting logic.
+        
+        This abstract method must be implemented by subclasses to perform
+        the calibration-specific fitting logic. The base fit() method handles
+        data storage, diagnostics, and return value automatically.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples,)
+            The values to be calibrated (e.g., predicted probabilities).
+        y : array-like of shape (n_samples,), default=None
+            The target values (e.g., true labels).
+            
+        Notes
+        -----
+        Subclasses should implement this method instead of overriding fit().
+        The fit() method in the base class ensures consistent behavior
+        for diagnostics and data storage.
+        """
         raise NotImplementedError(
-            f"{self.__class__.__name__} must implement the fit() method"
+            f"{self.__class__.__name__} must implement the _fit_impl() method"
         )
 
     def transform(self, X: np.ndarray) -> np.ndarray:

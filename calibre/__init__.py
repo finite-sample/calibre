@@ -26,6 +26,22 @@ from .calibrators import (
 # Import diagnostic functions
 from .diagnostics import detect_plateaus, run_plateau_diagnostics
 
+# Import all metrics functions directly for convenient access
+from .metrics import (
+    binned_calibration_error,
+    brier_score,
+    calibration_curve,
+    calibration_diversity_index,
+    correlation_metrics,
+    expected_calibration_error,
+    maximum_calibration_error,
+    mean_calibration_error,
+    plateau_quality_score,
+    progressive_sampling_diversity,
+    tie_preservation_score,
+    unique_value_counts,
+)
+
 # Get version from pyproject.toml - single source of truth
 try:
     import importlib.metadata
@@ -49,6 +65,19 @@ __all__ = [
     # Diagnostic functions
     "run_plateau_diagnostics",
     "detect_plateaus",
+    # Metrics functions
+    "binned_calibration_error",
+    "brier_score",
+    "calibration_curve",
+    "calibration_diversity_index",
+    "correlation_metrics",
+    "expected_calibration_error",
+    "maximum_calibration_error",
+    "mean_calibration_error",
+    "plateau_quality_score",
+    "progressive_sampling_diversity",
+    "tie_preservation_score",
+    "unique_value_counts",
     # Modules
     "metrics",
 ]

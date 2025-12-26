@@ -88,8 +88,8 @@ class SplineCalibrator(BaseCalibrator):
         self.degree = degree
         self.cv = cv
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> SplineCalibrator:
-        """Fit the I-Spline calibration model.
+    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+        """Implement the I-Spline calibration fitting logic.
 
         Parameters
         ----------
@@ -98,10 +98,10 @@ class SplineCalibrator(BaseCalibrator):
         y : array-like of shape (n_samples,)
             The target values.
 
-        Returns
-        -------
-        self : SplineCalibrator
-            Returns self for method chaining.
+        Notes
+        -----
+        This method implements the actual fitting logic. Data storage,
+        diagnostics, and return value are handled by the base class fit() method.
         """
         X, y = check_arrays(X, y)
 
@@ -161,14 +161,6 @@ class SplineCalibrator(BaseCalibrator):
         else:
             self.spline_, self.model_ = best_model
             self.fallback_ = None
-
-        # Run diagnostics if enabled
-        # Store fit data and run diagnostics if enabled
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._run_diagnostics()
-
-        return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply I-Spline calibration to new data.

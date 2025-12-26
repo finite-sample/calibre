@@ -90,8 +90,8 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         self.lam = lam
         self.method = method
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> NearlyIsotonicCalibrator:
-        """Fit the nearly-isotonic regression model.
+    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+        """Implement the nearly-isotonic regression fitting logic.
 
         Parameters
         ----------
@@ -100,21 +100,14 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         y : array-like of shape (n_samples,)
             The target values.
 
-        Returns
-        -------
-        self : NearlyIsotonicCalibrator
-            Returns self for method chaining.
+        Notes
+        -----
+        This method implements the actual fitting logic. Data storage,
+        diagnostics, and return value are handled by the base class fit() method.
         """
         X, y = check_arrays(X, y)
         self.X_ = X
         self.y_ = y
-
-        # Store fit data and run diagnostics if enabled
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._run_diagnostics()
-
-        return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply nearly-isotonic calibration to new data.

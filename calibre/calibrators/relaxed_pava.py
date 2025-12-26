@@ -74,8 +74,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         self.percentile = percentile
         self.adaptive = adaptive
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> RelaxedPAVACalibrator:
-        """Fit the relaxed PAVA model.
+    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+        """Implement the relaxed PAVA fitting logic.
 
         Parameters
         ----------
@@ -84,10 +84,10 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         y : array-like of shape (n_samples,)
             The target values.
 
-        Returns
-        -------
-        self : RelaxedPAVACalibrator
-            Returns self for method chaining.
+        Notes
+        -----
+        This method implements the actual fitting logic. Data storage,
+        diagnostics, and return value are handled by the base class fit() method.
         """
         X, y = check_arrays(X, y)
 
@@ -100,14 +100,6 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
         self.X_ = X
         self.y_ = y
-
-        # Run diagnostics if enabled
-        # Store fit data and run diagnostics if enabled
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._run_diagnostics()
-
-        return self
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply relaxed PAVA calibration to new data.

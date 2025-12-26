@@ -3,17 +3,17 @@ Performance Benchmarks
 
 This section provides performance comparisons and benchmarks for different calibration methods.
 
-Benchmark Notebook
-------------------
+Interactive Performance Notebook
+---------------------------------
 
-The most comprehensive benchmarks are available in the interactive Jupyter notebook:
+The most comprehensive benchmarks are available in our interactive Jupyter notebook:
 
-- **Location**: ``examples/benchmark.ipynb`` in the repository
-- **Content**: Visual comparisons, quantitative metrics, performance analysis
-- **Usage**: Clone the repository and run the notebook locally
+- **Location**: :doc:`../notebooks/04_performance_comparison` in the documentation
+- **Content**: Systematic comparison across all calibration methods
+- **Features**: Visual comparisons, quantitative metrics, computational efficiency analysis
 
-Accessing the Benchmark Notebook
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Accessing the Performance Notebook
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: bash
 
@@ -25,7 +25,9 @@ Accessing the Benchmark Notebook
    pip install -e ".[dev]"
    
    # Start Jupyter
-   jupyter notebook examples/benchmark.ipynb
+   jupyter notebook docs/source/notebooks/04_performance_comparison.ipynb
+
+Or view it online in the documentation: :doc:`../notebooks/04_performance_comparison`
 
 Method Comparison Summary
 -------------------------
@@ -97,9 +99,9 @@ Calibration Error Comparison
    from sklearn.model_selection import train_test_split
    
    from calibre import (
-       NearlyIsotonicRegression,
-       ISplineCalibrator,
-       RelaxedPAVA,
+       NearlyIsotonicCalibrator,
+       SplineCalibrator,
+       RelaxedPAVACalibrator,
        RegularizedIsotonicRegression,
        SmoothedIsotonicRegression,
        mean_calibration_error,
@@ -110,11 +112,11 @@ Calibration Error Comparison
        """Run comprehensive benchmark across multiple datasets."""
        
        calibrators = {
-           'Nearly Isotonic (λ=10)': NearlyIsotonicRegression(lam=10.0, method='path'),
-           'Nearly Isotonic (λ=1)': NearlyIsotonicRegression(lam=1.0, method='path'),
-           'Nearly Isotonic (λ=0.1)': NearlyIsotonicRegression(lam=0.1, method='path'),
-           'I-Spline': ISplineCalibrator(n_splines=10, degree=3, cv=3),
-           'Relaxed PAVA': RelaxedPAVA(percentile=10, adaptive=True),
+           'Nearly Isotonic (λ=10)': NearlyIsotonicCalibrator(lam=10.0, method='path'),
+           'Nearly Isotonic (λ=1)': NearlyIsotonicCalibrator(lam=1.0, method='path'),
+           'Nearly Isotonic (λ=0.1)': NearlyIsotonicCalibrator(lam=0.1, method='path'),
+           'I-Spline': SplineCalibrator(n_splines=10, degree=3, cv=3),
+           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10, adaptive=True),
            'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.1),
            'Smoothed Isotonic': SmoothedIsotonicRegression(window_length=7, poly_order=3)
        }
@@ -200,8 +202,8 @@ Scalability Analysis
        
        dataset_sizes = [500, 1000, 2000, 5000, 10000]
        methods = {
-           'Nearly Isotonic': NearlyIsotonicRegression(lam=1.0, method='path'),
-           'Relaxed PAVA': RelaxedPAVA(percentile=10),
+           'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0, method='path'),
+           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
            'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.1)
        }
        
@@ -275,9 +277,9 @@ Performance on Different Data Types
        }
        
        calibrators = {
-           'Nearly Isotonic': NearlyIsotonicRegression(lam=1.0),
-           'Relaxed PAVA': RelaxedPAVA(percentile=10),
-           'I-Spline': ISplineCalibrator(n_splines=8, cv=3)
+           'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
+           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
+           'I-Spline': SplineCalibrator(n_splines=8, cv=3)
        }
        
        results = {}
@@ -330,8 +332,8 @@ Noise Sensitivity
        
        noise_levels = [0.0, 0.05, 0.1, 0.2, 0.3]
        calibrators = {
-           'Nearly Isotonic': NearlyIsotonicRegression(lam=1.0),
-           'Relaxed PAVA': RelaxedPAVA(percentile=15),  # Slightly higher for noise
+           'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
+           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=15),  # Slightly higher for noise
            'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.5)
        }
        
@@ -403,9 +405,9 @@ Memory Usage Analysis
        y_pred = model.predict_proba(X_test)[:, 1]
        
        calibrators = {
-           'Nearly Isotonic (CVX)': NearlyIsotonicRegression(lam=1.0, method='cvx'),
-           'Nearly Isotonic (Path)': NearlyIsotonicRegression(lam=1.0, method='path'),
-           'Relaxed PAVA': RelaxedPAVA(percentile=10),
+           'Nearly Isotonic (CVX)': NearlyIsotonicCalibrator(lam=1.0, method='cvx'),
+           'Nearly Isotonic (Path)': NearlyIsotonicCalibrator(lam=1.0, method='path'),
+           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
            'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.1)
        }
        
@@ -463,14 +465,14 @@ To reproduce these benchmarks:
 
       pip install -e ".[dev]"
 
-2. **Run the interactive benchmark notebook**:
+2. **Run the interactive performance comparison notebook**:
 
    .. code-block:: bash
 
-      jupyter notebook examples/benchmark.ipynb
+      jupyter notebook docs/source/notebooks/04_performance_comparison.ipynb
 
 3. **Execute individual benchmark functions** from this documentation
 
 4. **Customize benchmarks** for your specific datasets and use cases
 
-The benchmark notebook provides additional visualizations, interactive plots, and more detailed analysis that complements the examples shown here.
+Our interactive notebooks provide comprehensive visualizations, systematic comparisons, and detailed analysis. See :doc:`../notebooks/04_performance_comparison` for the most current benchmarks, and :doc:`index` for all available examples.

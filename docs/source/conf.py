@@ -134,8 +134,30 @@ html_sidebars = {
 
 # -- Options for nbsphinx ---------------------------------------------------
 
-nbsphinx_execute = 'never'  # Don't execute notebooks during build
+nbsphinx_execute = 'always'  # Execute notebooks during build to show outputs
 nbsphinx_allow_errors = True
+nbsphinx_kernel_name = 'python3'
+
+# Notebook execution timeout (in case we change to auto-execute)
+nbsphinx_timeout = 120
+
+# Configure nbsphinx to handle both mime types
+nbsphinx_custom_formats = {
+    'text/x-rst': 'rst',
+    'text/restructuredtext': 'rst'
+}
+
+# Patch nbconvert to support the expected mime type
+import nbconvert
+original_get_template_names = nbconvert.RSTExporter.get_template_names
+
+def patched_get_template_names(self):
+    # Override to support text/restructuredtext mime type
+    if hasattr(self, 'output_mimetype') and self.output_mimetype == 'text/restructuredtext':
+        self.output_mimetype = 'text/x-rst'
+    return original_get_template_names(self)
+
+nbconvert.RSTExporter.get_template_names = patched_get_template_names
 
 
 # -- Options for LaTeX output -----------------------------------------------

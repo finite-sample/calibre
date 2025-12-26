@@ -733,3 +733,19 @@ def progressive_sampling_diversity(
         diversities.append(np.mean(trial_diversities))
 
     return sample_sizes, diversities
+
+
+__all__ = [
+    "mean_calibration_error",
+    "binned_calibration_error",
+    "expected_calibration_error",
+    "maximum_calibration_error",
+    "brier_score",
+    "correlation_metrics",
+    "unique_value_counts",
+    "calibration_curve",
+    "tie_preservation_score",
+    "plateau_quality_score",
+    "calibration_diversity_index",
+    "progressive_sampling_diversity",
+]

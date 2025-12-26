@@ -14,42 +14,50 @@ Base Classes
 Calibration Algorithms
 ----------------------
 
-Nearly Isotonic Regression
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: calibre.NearlyIsotonicRegression
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-I-Spline Calibrator
+Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: calibre.ISplineCalibrator
+.. autoclass:: calibre.IsotonicCalibrator
    :members:
    :undoc-members:
    :show-inheritance:
 
-Relaxed PAVA
-~~~~~~~~~~~~
+Nearly Isotonic Calibrator
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: calibre.RelaxedPAVA
+.. autoclass:: calibre.NearlyIsotonicCalibrator
    :members:
    :undoc-members:
    :show-inheritance:
 
-Regularized Isotonic Regression
+Spline Calibrator
+~~~~~~~~~~~~~~~~~
+
+.. autoclass:: calibre.SplineCalibrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Relaxed PAVA Calibrator
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autoclass:: calibre.RelaxedPAVACalibrator
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Regularized Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: calibre.RegularizedIsotonicRegression
+.. autoclass:: calibre.RegularizedIsotonicCalibrator
    :members:
    :undoc-members:
    :show-inheritance:
 
-Smoothed Isotonic Regression
+Smoothed Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: calibre.SmoothedIsotonicRegression
+.. autoclass:: calibre.SmoothedIsotonicCalibrator
    :members:
    :undoc-members:
    :show-inheritance:
@@ -62,7 +70,7 @@ Basic Example
 
 .. code-block:: python
 
-   from calibre import NearlyIsotonicRegression
+   from calibre import IsotonicCalibrator
    import numpy as np
    
    # Generate example data
@@ -71,7 +79,7 @@ Basic Example
    y = np.random.binomial(1, X, 1000)
    
    # Fit calibrator
-   calibrator = NearlyIsotonicRegression(lam=1.0)
+   calibrator = IsotonicCalibrator()
    calibrator.fit(X, y)
    
    # Transform predictions
@@ -84,18 +92,20 @@ Comparing Methods
 .. code-block:: python
 
    from calibre import (
-       NearlyIsotonicRegression,
-       ISplineCalibrator,
-       RelaxedPAVA,
-       RegularizedIsotonicRegression
+       IsotonicCalibrator,
+       NearlyIsotonicCalibrator,
+       SplineCalibrator,
+       RelaxedPAVACalibrator,
+       RegularizedIsotonicCalibrator
    )
    
    # Initialize different calibrators
    calibrators = {
-       'Nearly Isotonic': NearlyIsotonicRegression(lam=1.0),
-       'I-Spline': ISplineCalibrator(n_splines=10),
-       'Relaxed PAVA': RelaxedPAVA(percentile=10),
-       'Regularized': RegularizedIsotonicRegression(alpha=0.1)
+       'Isotonic': IsotonicCalibrator(),
+       'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
+       'Spline': SplineCalibrator(n_splines=10),
+       'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
+       'Regularized': RegularizedIsotonicCalibrator(alpha=0.1)
    }
    
    # Fit and compare
@@ -104,3 +114,5 @@ Comparing Methods
        cal.fit(X, y)
        y_cal = cal.transform(X_new)
        results[name] = y_cal
+       
+   print(f"Calibrated {len(X_new)} predictions using {len(calibrators)} methods")
