@@ -167,7 +167,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
             prob.solve(solver=cp.OSQP, polishing=True)
 
             # Check if solution is found and is optimal
-            if prob.status in ["optimal", "optimal_inaccurate"]:
+            if prob.status in ["optimal", "optimal_inaccurate"] and beta.value is not None:
                 # Create interpolation function based on sorted values
                 cal_func = interp1d(
                     X_sorted,
@@ -178,7 +178,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
                 )
 
                 # Apply interpolation to get values at X points
-                return np.clip(cal_func(X), 0, 1)
+                return np.asarray(np.clip(cal_func(X), 0, 1))
 
         except Exception as e:
             logger.warning(f"Optimization failed: {e}")
@@ -187,7 +187,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         logger.warning("Falling back to standard isotonic regression")
         ir = IsotonicRegression(out_of_bounds="clip")
         ir.fit(self.X_, self.y_)
-        return ir.transform(X)
+        return np.asarray(ir.transform(X))
 
     def _transform_path(self, X: np.ndarray) -> np.ndarray:
         """Implement nearly-isotonic regression using a path algorithm.
@@ -280,4 +280,4 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         )
 
         # Apply interpolation to get values at X points
-        return np.clip(cal_func(X), 0, 1)
+        return np.asarray(np.clip(cal_func(X), 0, 1))

@@ -246,7 +246,7 @@ def group_by_value(X: np.ndarray, y: np.ndarray, tolerance: float = 1e-10) -> tu
 
 
 def interpolate_monotonic(
-    X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, bounds_error: bool = False, fill_value: float | None = None
+    X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, bounds_error: bool = False, fill_value: float | tuple[float, float] | None = None
 ) -> np.ndarray:
     """
     Interpolate monotonic function at new points.
@@ -287,7 +287,7 @@ def interpolate_monotonic(
     X_test = np.asarray(X_test)
 
     if fill_value is None:
-        fill_value = (y_train[0], y_train[-1])
+        fill_value = (float(y_train[0]), float(y_train[-1]))
 
     # Use numpy interp (fast and efficient)
     y_test = np.interp(X_test, X_train, y_train)
@@ -302,7 +302,7 @@ def interpolate_monotonic(
         y_test = np.where(X_test < X_train[0], lower_fill, y_test)
         y_test = np.where(X_test > X_train[-1], upper_fill, y_test)
 
-    return y_test
+    return np.asarray(y_test)
 
 
 __all__ = [

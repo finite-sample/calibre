@@ -19,7 +19,7 @@ except ImportError:
     HAS_MATPLOTLIB = False
 
 
-def _check_matplotlib():
+def _check_matplotlib() -> None:
     """Check if matplotlib is available."""
     if not HAS_MATPLOTLIB:
         raise ImportError(
@@ -160,7 +160,6 @@ def plot_plateau_diagnostics(
 
     # Plot 3: Tie stability scores
     ax3 = axes[1, 0]
-    plateau_ids = [p["plateau_id"] + 1 for p in results["plateaus"]]
     tie_stabilities = [
         p["tie_stability"]
         for p in results["plateaus"]
@@ -168,7 +167,7 @@ def plot_plateau_diagnostics(
     ]
 
     if tie_stabilities:
-        bars = ax3.bar(
+        ax3.bar(
             range(len(tie_stabilities)),
             tie_stabilities,
             color=[
@@ -213,7 +212,7 @@ def plot_plateau_diagnostics(
             valid_plateaus.append(p["plateau_id"] + 1)
 
     if conditional_aucs:
-        bars = ax4.bar(
+        ax4.bar(
             range(len(conditional_aucs)),
             conditional_aucs,
             color=[
@@ -226,7 +225,7 @@ def plot_plateau_diagnostics(
         if any(ci is not None for ci in auc_cis):
             yerr_lower = []
             yerr_upper = []
-            for i, (auc, ci) in enumerate(zip(conditional_aucs, auc_cis)):
+            for auc, ci in zip(conditional_aucs, auc_cis, strict=True):
                 if ci is not None:
                     yerr_lower.append(auc - ci[0])
                     yerr_upper.append(ci[1] - auc)
@@ -358,7 +357,7 @@ def plot_progressive_sampling(
                 transform=ax.transAxes,
                 va="top",
                 ha="left",
-                bbox=dict(boxstyle="round", facecolor="orange", alpha=0.7),
+                bbox={"boxstyle": "round", "facecolor": "orange", "alpha": 0.7},
             )
         elif slope < -0.001:
             ax.text(
@@ -368,7 +367,7 @@ def plot_progressive_sampling(
                 transform=ax.transAxes,
                 va="top",
                 ha="left",
-                bbox=dict(boxstyle="round", facecolor="red", alpha=0.7),
+                bbox={"boxstyle": "round", "facecolor": "red", "alpha": 0.7},
             )
         else:
             ax.text(
@@ -378,7 +377,7 @@ def plot_progressive_sampling(
                 transform=ax.transAxes,
                 va="top",
                 ha="left",
-                bbox=dict(boxstyle="round", facecolor="green", alpha=0.7),
+                bbox={"boxstyle": "round", "facecolor": "green", "alpha": 0.7},
             )
 
     plt.tight_layout()
@@ -430,7 +429,7 @@ def plot_calibration_comparison(
     sort_idx = np.argsort(X)
     X_sorted = X[sort_idx]
 
-    colors = plt.cm.Set1(np.linspace(0, 1, len(calibrators)))
+    colors = plt.cm.get_cmap("Set1")(np.linspace(0, 1, len(calibrators)))
 
     # Plot 1: Calibration curves
     ax1 = axes[0, 0]
@@ -463,7 +462,7 @@ def plot_calibration_comparison(
             continue
 
     if diversities:
-        bars = ax2.bar(
+        ax2.bar(
             range(len(diversities)), diversities, color=colors[: len(diversities)]
         )
         ax2.set_xlabel("Method")
@@ -490,7 +489,7 @@ def plot_calibration_comparison(
             continue
 
     if errors:
-        bars = ax3.bar(range(len(errors)), errors, color=colors[: len(errors)])
+        ax3.bar(range(len(errors)), errors, color=colors[: len(errors)])
         ax3.set_xlabel("Method")
         ax3.set_ylabel("Mean Calibration Error")
         ax3.set_title("Calibration Error Comparison")
@@ -501,7 +500,7 @@ def plot_calibration_comparison(
     # Plot 4: Efficient frontier (error vs diversity)
     ax4 = axes[1, 1]
     if diversities and errors and len(diversities) == len(errors):
-        scatter = ax4.scatter(
+        ax4.scatter(
             diversities,
             errors,
             c=range(len(diversities)),
@@ -574,7 +573,6 @@ def plot_mdd_analysis(
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
     fig.suptitle("Minimum Detectable Difference Analysis", fontsize=14)
 
-    plateau_ids = [p["plateau_id"] + 1 for p in results["plateaus"]]
     mdd_left = [p["mdd_left"] for p in results["plateaus"] if p["mdd_left"] is not None]
     mdd_right = [
         p["mdd_right"] for p in results["plateaus"] if p["mdd_right"] is not None

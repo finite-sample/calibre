@@ -124,7 +124,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         )
 
         # Apply interpolation to get values at X points
-        return np.clip(cal_func(X), 0, 1)
+        return np.asarray(np.clip(cal_func(X), 0, 1))
 
     def _relaxed_pava_adaptive(self) -> np.ndarray:
         """Implement relaxed PAVA with adaptive threshold."""
@@ -153,7 +153,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
         # Iteratively pool adjacent violators that exceed the relaxation threshold
         max_iterations = min(n, 100)  # Prevent infinite loops
-        for iteration in range(max_iterations):
+        for _iteration in range(max_iterations):
             changed = False
             for i in range(n - 1):
                 # Check if monotonicity is violated by more than the threshold

@@ -60,11 +60,11 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
     def __init__(self, enable_diagnostics: bool = False) -> None:
         self.enable_diagnostics = enable_diagnostics
-        self.diagnostics_ = None
-        self._fit_data_X = None
-        self._fit_data_y = None
+        self.diagnostics_: dict | None = None
+        self._fit_data_X: np.ndarray | None = None
+        self._fit_data_y: np.ndarray | None = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> BaseCalibrator:
+    def fit(self, X: np.ndarray, y: np.ndarray) -> BaseCalibrator:
         """Fit the calibrator.
 
         This method implements the template method pattern: it handles
@@ -95,7 +95,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         return self
 
-    def _fit_impl(self, X: np.ndarray, y: np.ndarray | None = None) -> None:
+    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
         """Implement the actual fitting logic.
 
         This abstract method must be implemented by subclasses to perform
@@ -143,7 +143,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             f"{self.__class__.__name__} must implement the transform() method"
         )
 
-    def fit_transform(self, X: np.ndarray, y: np.ndarray | None = None) -> np.ndarray:
+    def fit_transform(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Fit the calibrator and then transform the data.
 
         This is a convenience method that combines fit() and transform()
@@ -346,9 +346,9 @@ class MonotonicMixin:
         diffs = np.diff(y)
 
         if strict:
-            return np.all(diffs > 0)
+            return bool(np.all(diffs > 0))
         else:
-            return np.all(diffs >= 0)
+            return bool(np.all(diffs >= 0))
 
     @staticmethod
     def enforce_monotonicity(y: np.ndarray, inplace: bool = False) -> np.ndarray:

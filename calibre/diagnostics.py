@@ -8,6 +8,7 @@ particularly detecting plateaus (flat regions) and identifying potential data qu
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 
@@ -19,7 +20,7 @@ def run_plateau_diagnostics(
     y: np.ndarray,
     y_calibrated: np.ndarray,
     n_bootstraps: int = 100,  # Kept for API compatibility but unused
-    random_state: int = None,  # Kept for API compatibility but unused
+    random_state: int | None = None,  # Kept for API compatibility but unused
 ) -> dict:
     """
     Detect and analyze plateaus (flat regions) in calibration curves.
@@ -369,7 +370,7 @@ def diversity_learning_curve(
                 continue
 
         if trial_diversities:
-            diversities.append(np.mean(trial_diversities))
+            diversities.append(float(np.mean(trial_diversities)))
         else:
             diversities.append(0.0)
 

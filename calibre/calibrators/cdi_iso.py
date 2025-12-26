@@ -60,7 +60,7 @@ def _triangular_kernel(dist: np.ndarray, h: float) -> np.ndarray:
     """Triangular kernel K(d; h) = max(0, 1 - d/h) for d >= 0."""
     if h <= 0:
         # Degenerates to a point mass: weight only exact matches at zero distance
-        return (dist == 0).astype(float)
+        return np.asarray((dist == 0).astype(float))
     w = 1.0 - dist / float(h)
     w[w < 0.0] = 0.0
     return w
@@ -114,22 +114,22 @@ def _inv_std_normal_cdf(p: float) -> float:
 
     if p < plow:
         q = np.sqrt(-2 * np.log(p))
-        return (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / (
+        return float((((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / (
             (((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1
-        )
+        ))
     elif p <= phigh:
         q = p - 0.5
         r = q * q
-        return (
+        return float(
             (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
             * q
             / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
         )
     else:
         q = np.sqrt(-2 * np.log(1 - p))
-        return -(
+        return float(-(
             ((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]
-        ) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+        ) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1))
 
 
 def _z_value(alpha: float) -> float:
@@ -308,7 +308,6 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         uniq_vals, idx_first, counts = np.unique(
             s_sorted, return_index=True, return_counts=True
         )
-        idx_edges = np.r_[idx_first, s_sorted.size]  # segment boundaries
 
         sum_w = np.add.reduceat(w_sorted, idx_first)
         sum_yw = np.add.reduceat(y_sorted * w_sorted, idx_first)
@@ -412,7 +411,9 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
     def breakpoints_(self) -> tuple[np.ndarray, np.ndarray] | None:
         """Return (unique_scores, calibrated_values) on the training grid."""
-        return None if not self._fitted else (self._x_unique, self._z_fit)
+        if not self._fitted or self._x_unique is None or self._z_fit is None:
+            return None
+        return (self._x_unique, self._z_fit)
 
     # --------------------------- internals ---------------------------------- #
 
@@ -551,4 +552,4 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         maxw = float(np.max(w)) if w.size > 0 else 0.0
         if maxw > 0:
             w = w / maxw
-        return w.astype(float)
+        return np.asarray(w.astype(float))

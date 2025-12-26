@@ -150,7 +150,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
             fill_value=(np.min(y_smoothed), np.max(y_smoothed)),
         )
 
-        return np.clip(cal_func(X), 0, 1)
+        return np.asarray(np.clip(cal_func(X), 0, 1))
 
     def _transform_fixed(self) -> np.ndarray:
         """Implement smoothed isotonic regression with fixed window size."""
@@ -190,7 +190,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         y_result = np.empty_like(y_smoothed)
         y_result[order] = y_smoothed
-        return np.clip(y_result, 0, 1)
+        return np.asarray(np.clip(y_result, 0, 1))
 
     def _transform_adaptive(self) -> np.ndarray:
         """Implement smoothed isotonic regression with adaptive window size."""
@@ -215,7 +215,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         x_range = X_sorted[-1] - X_sorted[0]
         if x_range <= 0:
-            return np.clip(y_iso, 0, 1)
+            return np.asarray(np.clip(y_iso, 0, 1))
         x_norm = (X_sorted - X_sorted[0]) / x_range
 
         for i in range(n):
@@ -233,7 +233,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         y_result = np.empty_like(y_smoothed)
         y_result[order] = y_smoothed
-        return np.clip(y_result, 0, 1)
+        return np.asarray(np.clip(y_result, 0, 1))
 
     def _find_optimal_window_size(
         self, distances: np.ndarray, min_window: int, max_window: int, n: int
@@ -255,7 +255,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         start_idx = max(0, i - half_window)
         end_idx = min(n, i + half_window + 1)
         if end_idx - start_idx < 5:
-            return y_iso[i]
+            return float(y_iso[i])
 
         x_local = X_sorted[start_idx:end_idx]
         y_local = y_iso[start_idx:end_idx]
@@ -263,14 +263,14 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         if window_len % 2 == 0:
             window_len -= 1
         if window_len < 5:
-            return y_iso[i]
+            return float(y_iso[i])
 
         poly_ord = min(self.poly_order, window_len - 1)
         try:
             y_local_smooth = savgol_filter(y_local, window_len, poly_ord)
             local_idx = i - start_idx
             if 0 <= local_idx < len(y_local_smooth):
-                return y_local_smooth[local_idx]
+                return float(y_local_smooth[local_idx])
         except Exception as e:
             logger.debug(f"Local smoothing failed for point {i}: {e}")
-        return y_iso[i]
+        return float(y_iso[i])

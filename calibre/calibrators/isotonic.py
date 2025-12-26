@@ -139,4 +139,4 @@ class IsotonicCalibrator(BaseCalibrator):
             raise ValueError("Model must be fitted before transform")
 
         X = np.asarray(X).ravel()
-        return self.isotonic_.transform(X)
+        return np.asarray(self.isotonic_.transform(X))

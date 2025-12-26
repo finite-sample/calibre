@@ -166,15 +166,23 @@ class SplineCalibrator(BaseCalibrator):
         -------
         X_calibrated : array-like of shape (n_samples,)
             Calibrated values.
+
+        Raises
+        ------
+        ValueError
+            If model has not been fitted before transform.
         """
         X = np.asarray(X).ravel()
         X_2d = X.reshape(-1, 1)
 
         if self.fallback_ is not None:
-            return self.fallback_.transform(X)
+            return np.asarray(self.fallback_.transform(X))
+
+        if self.spline_ is None or self.model_ is None:
+            raise ValueError("Model must be fitted before transform")
 
         X_spline = self.spline_.transform(X_2d)
         predictions = self.model_.predict(X_spline)
 
         # Ensure predictions are within [0, 1] bounds
-        return np.clip(predictions, 0, 1)
+        return np.asarray(np.clip(predictions, 0, 1))

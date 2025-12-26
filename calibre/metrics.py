@@ -48,7 +48,7 @@ def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
         raise ValueError("y_true and y_pred should have the same shape")
 
     # Simple mean absolute difference between predictions and outcomes
-    return np.mean(np.abs(y_pred - y_true))
+    return float(np.mean(np.abs(y_pred - y_true)))
 
 
 def binned_calibration_error(
@@ -161,7 +161,7 @@ def binned_calibration_error(
             "bin_true_means": np.array(bin_true_means),
         }
     else:
-        return bce
+        return float(bce)
 
 
 def expected_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10) -> float:
@@ -327,7 +327,7 @@ def brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
-    return brier_score_loss(y_true, y_pred)
+    return float(brier_score_loss(y_true, y_pred))
 
 
 def correlation_metrics(y_true: np.ndarray, y_pred: np.ndarray, x: np.ndarray | None = None, y_orig: np.ndarray | None = None) -> dict:
@@ -406,13 +406,13 @@ def unique_value_counts(y_pred: np.ndarray, y_orig: np.ndarray | None = None, pr
     """
     y_pred = check_array(y_pred, ensure_2d=False)
 
-    results = {"n_unique_y_pred": len(np.unique(np.round(y_pred, precision)))}
+    results: dict[str, int | float] = {"n_unique_y_pred": len(np.unique(np.round(y_pred, precision)))}
 
     if y_orig is not None:
         y_orig = check_array(y_orig, ensure_2d=False)
         results["n_unique_y_orig"] = len(np.unique(np.round(y_orig, precision)))
-        results["unique_value_ratio"] = results["n_unique_y_pred"] / max(
-            1, results["n_unique_y_orig"]
+        results["unique_value_ratio"] = float(results["n_unique_y_pred"]) / max(
+            1, int(results["n_unique_y_orig"])
         )
 
     return results
@@ -606,7 +606,7 @@ def plateau_quality_score(
     >>> 0 <= score <= 1
     True
     """
-    from .utils import extract_plateaus
+    from .diagnostics import detect_plateaus
 
     X = check_array(X, ensure_2d=False)
     y = check_array(y, ensure_2d=False)
@@ -617,19 +617,18 @@ def plateau_quality_score(
 
     # Sort by X
     sort_idx = np.argsort(X)
-    X_sorted = X[sort_idx]
     y_sorted = y[sort_idx]
     y_cal_sorted = y_calibrated[sort_idx]
 
     # Extract plateaus
-    plateaus = extract_plateaus(X_sorted, y_cal_sorted)
+    plateaus = detect_plateaus(y_cal_sorted)
 
     if not plateaus:
         return 1.0  # No plateaus is good
 
     scores = []
 
-    for start_idx, end_idx, value in plateaus:
+    for start_idx, end_idx, _value in plateaus:
         # Check if plateau represents genuine flatness
         plateau_y = y_sorted[start_idx : end_idx + 1]
         plateau_var = np.var(plateau_y)
@@ -760,7 +759,7 @@ def progressive_sampling_diversity(
     for size in sample_sizes:
         trial_diversities = []
 
-        for trial in range(n_trials):
+        for _trial in range(n_trials):
             # Random subsample
             indices = rng.choice(n_total, size=size, replace=False)
             X_sub = X[indices]
@@ -775,7 +774,7 @@ def progressive_sampling_diversity(
             diversity = calibration_diversity_index(y_cal)
             trial_diversities.append(diversity)
 
-        diversities.append(np.mean(trial_diversities))
+        diversities.append(float(np.mean(trial_diversities)))
 
     return sample_sizes, diversities
 
