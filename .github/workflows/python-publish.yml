@@ -27,14 +27,14 @@ jobs:
     - name: Sync citation
       uses: gojiplus/citation-sync@main
       with:
-        citation_path: CITATION.cff
+        citation_path: citation.cff
         package_path: pyproject.toml
     
     - name: Commit and push if changed
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add CITATION.cff
+        git add citation.cff
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else

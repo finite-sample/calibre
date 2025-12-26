@@ -49,8 +49,8 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     (3,) (3,)
     """
     # Use sklearn's check_array for initial validation
-    X = check_array(X, ensure_2d=False, force_all_finite="allow-nan")
-    y = check_array(y, ensure_2d=False, force_all_finite="allow-nan")
+    X = check_array(X, ensure_2d=False, ensure_all_finite="allow-nan")
+    y = check_array(y, ensure_2d=False, ensure_all_finite="allow-nan")
 
     # Ensure 1D arrays
     X = X.ravel()

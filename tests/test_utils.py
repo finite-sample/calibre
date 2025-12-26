@@ -76,7 +76,7 @@ class TestCheckArrays:
         assert y_valid[0] == 1
 
     def test_nan_values(self):
-        """Test with NaN values (should be allowed with force_all_finite='allow-nan')."""
+        """Test with NaN values (should be allowed with ensure_all_finite='allow-nan')."""
         X = [0.1, np.nan, 0.5]
         y = [0, 1, 1]
 

@@ -38,7 +38,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync --extra docs
+        uv sync --all-extras  # Install all dependencies including base package for notebook execution
     
     - name: Build documentation
       run: |

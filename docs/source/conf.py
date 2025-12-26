@@ -146,16 +146,16 @@ html_sidebars = {
 
 # -- Options for nbsphinx ---------------------------------------------------
 
-nbsphinx_execute = 'never'
+nbsphinx_execute = 'auto'  # Execute notebooks that don't have outputs
 nbsphinx_allow_errors = True
 nbsphinx_kernel_name = 'python3'
 nbsphinx_requirejs_path = ""
 nbsphinx_requirejs_options = {"paths": {"https://unpkg.com": "https://unpkg.com"}}
-nbsphinx_timeout = 120
+nbsphinx_timeout = 300  # 5 minutes per notebook
 nbsphinx_prolog = """
 .. note::
-   This notebook is not executed during documentation build.
-   Results shown are from previous runs.
+   This notebook is executed during documentation build to show live results.
+   You can also run it interactively on `Binder <https://mybinder.org/v2/gh/finite-sample/calibre/main?labpath=docs/source/notebooks>`_.
 """
 nbsphinx_codecell_lexer = 'none'
 
