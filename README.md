@@ -1,4 +1,4 @@
-# Calibre: Advanced Probability Calibration for Machine Learning
+## Calibre: Advanced Probability Calibration
 
 [![PyPI version](https://img.shields.io/pypi/v/calibre.svg)](https://pypi.org/project/calibre/)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
