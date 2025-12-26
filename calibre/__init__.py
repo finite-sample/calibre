@@ -44,13 +44,9 @@ from .metrics import (
 )
 
 # Get version from pyproject.toml - single source of truth
-try:
-    import importlib.metadata
+import importlib.metadata
 
-    __version__ = importlib.metadata.version("calibre")
-except importlib.metadata.PackageNotFoundError:
-    # Fallback for development/editable installs
-    __version__ = "0.6.0-dev"
+__version__ = importlib.metadata.version("calibre")
 
 __all__ = [
     # Base classes
