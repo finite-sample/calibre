@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Calibre is a Python package for advanced probability calibration techniques in machine learning. It provides alternative calibration methods to traditional isotonic regression that better preserve probability granularity while maintaining monotonicity constraints.
 
-**Current Version**: 0.4.0 (major architectural overhaul)
+**Current Version**: 0.6.0 (code quality and type safety improvements)
 
 ### Import Structure
 ```python

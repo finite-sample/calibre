@@ -205,25 +205,6 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
     clip_output
         If True (default), clip calibrated outputs to [0,1].
 
-    Attributes
-    ----------
-    thresholds
-        Operating thresholds in [0,1] that matter economically.
-    threshold_weights
-        Nonnegative weights matching thresholds.
-    bandwidth
-        Half-width of the triangular kernel around each threshold.
-    alpha
-        Significance level for the two-proportion normal approximation.
-    gamma
-        Global multiplier for the minimum-slope budget.
-    window
-        Number of adjacent unique-score points used on each side.
-    normalize_scores
-        Whether to min-max normalize training scores to [0,1].
-    clip_output
-        Whether to clip calibrated outputs to [0,1].
-
     Notes
     -----
     - Builds local bounds L_i = phi_i - epsilon_i on sorted unique training scores.

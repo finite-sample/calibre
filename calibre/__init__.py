@@ -50,7 +50,7 @@ try:
     __version__ = importlib.metadata.version("calibre")
 except importlib.metadata.PackageNotFoundError:
     # Fallback for development/editable installs
-    __version__ = "0.5.0-dev"
+    __version__ = "0.6.0-dev"
 
 __all__ = [
     # Base classes

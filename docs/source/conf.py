@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.abspath('../../'))
 project = 'Calibre'
 copyright = '2024, Gaurav Sood'
 author = 'Gaurav Sood'
-release = '0.5.0'
+release = '0.6.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
