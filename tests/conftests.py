@@ -2,7 +2,6 @@
 Configuration for pytest to properly collect only our tests.
 """
 
-import os
 import sys
 from pathlib import Path
 

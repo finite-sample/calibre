@@ -1,0 +1,209 @@
+\documentclass[10pt,twocolumn]{article}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{natbib}
+\usepackage{subcaption}
+
+% Theorem environments
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}{Definition}
+
+\title{\Large \textbf{Economics-Guided Diagnostics and Adaptive Calibration:\\
+Cost- and Data-Informed Isotonic Regression with Linear-Time Solvers}}
+
+\author{
+Anonymous Author(s)\\
+\textit{Institution}\\
+\texttt{email@domain.edu}
+}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\textbf{Decisions have costs.} In thresholded prediction, miscalibration and loss of discrimination from stepwise calibrators (e.g., isotonic regression) translate into utility losses for the decision-maker. We adopt a decision-economic view: select and tune the calibrator that lowers expected deployment cost by balancing proper-score reliability against discrimination near the operating threshold \citep{elkan2001foundations,vickers2006dca}.
+
+We present: (i) a practical \emph{diagnostic suite} (global bootstrap tie stability, within-plateau concordance, minimum detectable difference, and progressive-sampling diversity) with a simple decision rule that classifies plateaus as \emph{supported}, \emph{limited-data}, or \emph{inconclusive}; (ii) two adaptive calibrators—\textbf{Relaxed PAVA} (an $\epsilon$-monotone variant solved by a cumulative-shift reduction) and \textbf{density-aware smoothed isotonic} (local smoothing with monotone projection); and (iii) a \emph{formal}, convex \textbf{cost- and data-informed isotonic} calibrator (CDI-ISO) that enforces economically weighted, variance-aware \emph{local minimum-slope} constraints and solves in $O(n)$ via a single isotonic projection \citep{barlow1972order,robertson1988order}. We implement these ideas in a scikit-learn–compatible library and evaluate on 15 datasets; scripts and decision-curve analyses are provided as artifacts.
+\end{abstract}
+
+\section{Introduction}
+
+A classifier is calibrated if predicted probabilities match empirical frequencies \citep{degroot1983comparison}. Calibration affects downstream decisions in medicine and other high-stakes settings \citep{niculescu2005predicting,jiang2012calibrating}. Isotonic regression \citep{zadrozny2002transforming} is attractive because it is flexible and enforces monotonicity, but the piecewise-constant fit often induces \emph{plateaus}. Some plateaus reflect true flatness; others are artifacts of limited data.
+
+\paragraph{Economic motivation.} Threshold choices are cost-sensitive: different false-positive/false-negative costs induce different operating points \citep{elkan2001foundations}. Decision-curve analysis (\emph{DCA}) summarizes utility as net benefit vs.\ threshold, with weight $t/(1-t)$ encoding threshold odds \citep{vickers2006dca}. In this view, calibration is economically instrumental: reliability near the operating threshold reduces decision loss, while avoidable plateaus can destroy discrimination where it matters.
+
+\paragraph{Goal.} Disambiguate plateaus and adapt the calibrator accordingly—keep a plateau when supported by data; otherwise, buy back granularity in a way that (i) respects sampling uncertainty and (ii) increases decision utility at relevant thresholds.
+
+\subsection{Contributions (organized by one lens)}
+We structure everything around a single objective: \emph{reduce decision cost without gratuitously destroying discrimination.}
+\begin{itemize}
+\item \textbf{Diagnostics $\rightarrow$ action.} A practical suite—\emph{global} bootstrap tie stability (resample entire calibration data), \emph{within-plateau concordance} (WPC; a Wilcoxon/Mann–Whitney–style concordance inside the tied region), \emph{minimum detectable difference} (two-proportion power near plateau boundaries), and \emph{progressive-sampling} diversity—drives a simple decision rule: plateaus are labeled \emph{supported}, \emph{limited-data}, or \emph{inconclusive} (Sec.~\ref{sec:diagnostics}).
+\item \textbf{Algorithms and efficiency.} (a) \emph{Relaxed PAVA} with local slack and a cumulative-shift reduction to a single weighted isotonic projection (inherits $O(n)$ complexity for a total order \citep{barlow1972order,robertson1988order}); (b) \emph{density-aware smoothed isotonic}: kNN/quantile windows, local smoothing, and a final monotone projection \citep{ramsay1998estimating,meyer2008inference,jiang2011smooth} (Secs.~\ref{sec:relaxed_pava}, \ref{sec:smoothing}).
+\item \textbf{Formal cost- and data-informed calibration.} \emph{CDI-ISO}: a convex projection with \emph{local minimum-slope} constraints that are evidence-gated and economically weighted, solved exactly by one isotonic pass (Sec.~\ref{sec:cdi_iso}). This unifies standard isotone \citep{zadrozny2002transforming}, relaxed isotone (cf.\ penalty-based \citealp{tibshirani2011nearly} and ENIR \citealp{naeini2016enir}), and minimum-slope isotone in a single formulation.
+\item \textbf{Evaluation and artifacts.} We report proper scores (Brier, NLL) \citep{brier1950verification,gneiting2007strictly}, ECE with bias/sensitivity checks \citep{nixon2019measuring,roelofs2022ece}, tie metrics, and decision curves (\citealp{vickers2006dca}; see also alternative cost visualizations \citealp{drummond2006costcurves,hand2009hmeasure}). Scripts and configs reproduce all results.
+\end{itemize}
+
+\section{Background and Related Work}
+\label{sec:related}
+
+\paragraph{Post-hoc calibration.} Platt/logistic \citep{platt1999probabilistic}, beta calibration \citep{kull2017beta}, and temperature/matrix/vector scaling for deep nets \citep{guo2017calibration} are common parametric approaches. Nonparametric methods include histogram binning \citep{zadrozny2001obtaining} and isotonic regression \citep{zadrozny2002transforming}. Nearly-isotonic relaxes monotonicity via penalties \citep{tibshirani2011nearly}; ENIR ensembles near-isotonic fits \citep{naeini2016enir}. Smooth monotone fits include monotone splines \citep{ramsay1998estimating,meyer2008inference} and smooth isotonic calibration \citep{jiang2011smooth}.
+
+\paragraph{Evaluation.} We use Brier/NLL (proper scores) \citep{brier1950verification,gneiting2007strictly}, ECE with recommended sensitivity/debiasing \citep{nixon2019measuring,roelofs2022ece}, and decision-aware evaluation via DCA \citep{vickers2006dca}. Cost-sensitive learning commonly adjusts thresholds or class weights \citep{elkan2001foundations}; our methods adjust the calibration \emph{mapping} locally when data support tie-breaking near economically relevant thresholds.
+
+\section{Economic/Decision Framework}
+\label{sec:econ}
+
+Let raw scores be $s$, calibrator $g(s)\in[0,1]$, and $\pi(s)=\mathbb{P}(y{=}1\mid s)$ the (unknown) truth. Thresholding at $t$ gives decision $a\in\{0,1\}$. DCA summarizes \emph{net benefit} as
+\[
+\mathrm{NB}(t) \;=\; \mathrm{TPR}(t)\,\pi \;-\; \mathrm{FPR}(t)\,(1-\pi)\,\frac{t}{1-t},
+\]
+where $\frac{t}{1-t}$ is threshold odds \citep{vickers2006dca}. We also track a composite selection criterion
+\[
+\mathcal{J}(g;\lambda,\mathcal{T}) = \mathbb{E}[S(y,g(s))] + \lambda\,\mathbb{E}_{t\sim\mathcal{T}}[\mathrm{DiscLoss}_t(g)],
+\]
+with $S$ a proper score \citep{gneiting2007strictly} and $\mathrm{DiscLoss}_t$ a tie/ranking penalty localized near $t$ (e.g., $1-\mathrm{WPC}$ inside a plateau covering $t$). We use $\mathcal{J}$ for \emph{model selection}; we do not claim Bayes-risk optimality.
+
+\section{Plateau Diagnostics}
+\label{sec:diagnostics}
+
+Let $(s_i,y_i)$ be calibration data (sorted by $s_i$) with $\hat p_i=g(s_i)$.
+
+\begin{definition}[Plateau]
+A plateau is a maximal index interval $P=[i_s,i_e]$ with $\hat p_{i_s}=\cdots=\hat p_{i_e}$. We summarize $P$ by its score span $[s_{\min},s_{\max}]$, size $|P|$, and label variance.
+\end{definition}
+
+\paragraph{Global bootstrap tie stability.} Resample the \emph{entire} calibration set (optionally stratified by score quantiles), refit $g^{(b)}$, and evaluate $g^{(b)}$ at the observed scores in $[s_{\min},s_{\max}]$. Stability $\tau$ is the fraction of bootstraps with empirical range $<\epsilon$ over that span (ties are stable if they persist under global refits).
+
+\paragraph{Within-plateau concordance (WPC).} With $P_+$ and $P_-$ the positives/negatives in $P$,
+\[
+\mathrm{WPC}_P=\frac{1}{|P_+||P_-|}\!\sum_{i\in P_+}\sum_{j\in P_-}\mathbf{1}\{s_i>s_j\},
+\]
+and a Wilcoxon/Mann–Whitney test against $0.5$ (ties scored $0.5$) provides a $p$-value for residual ranking.
+
+\paragraph{Minimum detectable difference (MDD).} At $P$’s boundaries, a two-proportion power calculation estimates the minimum $\Delta=\mu_1-\mu_0$ detectable at level $\alpha$; large MDD implies low power to distinguish flatness from slope.
+
+\paragraph{Progressive-sampling diversity.} Fit isotonic on subsamples of size $n$; track tie rate (or a precision-defined unique-value ratio). Increasing curves suggest additional data would reduce plateaus.
+
+\paragraph{Decision rule.} \emph{Supported}: high $\tau$, WPC $\approx 0.5$, small MDD. \emph{Limited-data}: low $\tau$ or WPC far from $0.5$ or large MDD. \emph{Inconclusive}: otherwise. Thresholds are tuned on held-out validation to avoid optimism.
+
+\section{Relaxed PAVA (local slack with $O(n)$ reduction)}
+\label{sec:relaxed_pava}
+
+Standard PAVA solves $\min_{z_1\le\cdots\le z_n}\sum_i w_i(y_i-z_i)^2$ in $O(n)$ time on a total order \citep{ayer1955empirical,barlow1972order,robertson1988order}. We allow bounded local violations by imposing adjacent-difference lower bounds
+\[
+z_{i+1}-z_i \;\ge\; L_i,\qquad L_i \le 0,
+\]
+with data-adaptive $L_i$ from adjacent \emph{block-mean} differences: either a percentile rule on $|m_{k+1}-m_k|$, or a variance-aware bound
+\[
+L_i = -\,z_\alpha\sqrt{\hat p(1-\hat p)\Big(\tfrac{1}{n_i}+\tfrac{1}{n_{i+1}}\Big)},
+\]
+where $\hat p$ is the pooled rate of neighboring blocks and $n_i$ their sizes (normal approximation; same scale used in many binomial CI derivations). A cumulative shift $R_{i+1}=R_i+L_i$ reduces this to a single weighted isotonic projection on $y'_i=y_i-R_i$, with solution $z^\star_i=u^\star_i+R_i$; clipping to $[0,1]$ preserves monotonicity because clipping is non-decreasing \citep{barlow1972order,robertson1988order}.
+
+\section{CDI-ISO: Cost- and Data-Informed Isotonic}
+\label{sec:cdi_iso}
+
+We encode \emph{economically weighted, variance-aware minimum slope} near operating thresholds and allow variance-aware relaxation elsewhere.
+
+\subsection{Optimization problem}
+Let $\Delta_i=z_{i+1}-z_i$. We solve the convex projection
+\begin{equation}
+\label{eq:cdi}
+\min_{z\in\mathbb{R}^n}\sum_{i=1}^n w_i(y_i - z_i)^2
+\quad\text{s.t.}\quad \Delta_i \ge L_i \quad (i=1,\dots,n{-}1),
+\end{equation}
+with local lower bounds $L_i=\phi_i-\varepsilon_i$. Here $\phi_i\ge 0$ is an \emph{economically weighted minimum slope} near relevant thresholds; $\varepsilon_i\ge 0$ is a \emph{variance-aware relaxation} elsewhere.
+
+\subsection{Constructing $L_i$ from data and costs}
+Let $\bar s_i=(s_i+s_{i+1})/2$ and define economics weights
+\[
+w^{\mathrm{econ}}_i \;=\; \mathbb{E}_{t\sim\mathcal{T}}[\,K_h(|\bar s_i-t|)\,],
+\]
+with a triangular kernel $K_h$ (half-width $h$) concentrating mass near thresholds of interest (from cost ratios or DCA \citealp{elkan2001foundations,vickers2006dca}). For data evidence, compute a lower confidence bound for adjacent block differences using the pooled standard error
+\[
+\Delta^{\mathrm{LCB}}_i=\big(\hat p_{i+1}-\hat p_i\big)-z_\alpha\sqrt{\hat p(1-\hat p)\Big(\tfrac{1}{n_i}+\tfrac{1}{n_{i+1}}\Big)}.
+\]
+(Alternatively, Wilson-style binomial intervals can be used—see \emph{optional} reference note in the appendix.) Define
+\[
+\phi_i=\gamma\,w^{\mathrm{econ}}_i\,[\Delta^{\mathrm{LCB}}_i]_+,\qquad
+\varepsilon_i=(1-w^{\mathrm{econ}}_i)\,z_\alpha\sqrt{\hat p(1-\hat p)\Big(\tfrac{1}{n_i}+\tfrac{1}{n_{i+1}}\Big)},
+\]
+with $\gamma\in[0,1]$ setting a slope budget; if $\Delta^{\mathrm{LCB}}_i\le 0$ we set $\phi_i=0$ (no forced slope without evidence).
+
+\subsection{Linear-time solver via cumulative shifts}
+\begin{proposition}[Shift-to-PAVA equivalence]
+\label{prop:shift}
+Let $R_1{=}0$, $R_{i+1}{=}R_i{+}L_i$, and define $u_i=z_i-R_i$, $y'_i=y_i-R_i$. Then \eqref{eq:cdi} is equivalent to a single weighted isotonic projection
+\[
+u^\star=\arg\min_{u_1\le\cdots\le u_n}\sum_i w_i(y'_i-u_i)^2,\quad
+z^\star_i=u^\star_i+R_i,
+\]
+which solves in $O(n)$ time on a total order \citep{barlow1972order,robertson1988order}. Clipping $z^\star$ to $[0,1]$ preserves monotonicity.
+\end{proposition}
+
+\paragraph{Interpretation.} CDI-ISO unifies standard isotone ($L_i=0$), relaxed isotone ($L_i\le 0$), and minimum-slope isotone ($L_i\ge 0$) in one formulation. We adjust the \emph{mapping} locally when both data and economics support tie-breaking; we do not claim Bayes-risk optimality.
+
+\section{Density-Aware Smoothed Isotonic}
+\label{sec:smoothing}
+
+We smooth locally then project to the monotone cone: (1) choose a kNN/quantile window $W_i$ around $s_i$; (2) apply local regression to obtain $\tilde y_i$ (clip to $[0,1]$); (3) run a monotone projection (PAVA) on $\tilde y$ to obtain $\hat y^{\,\text{smooth}}=\Pi_{\text{mono}}(\tilde y)$ \citep{ramsay1998estimating,meyer2008inference,jiang2011smooth}. CDI-ISO can replace the final projection when minimum-slope constraints are desired.
+
+\section{Theory: Scope and Guarantees}
+\label{sec:theory}
+
+\paragraph{Diagnostic power near a plateau.} Let boundary means be $\mu_0,\mu_1$ with $\Delta=\mu_1-\mu_0$. A Hoeffding-style calculation yields that detecting $\Delta>0$ with error $\le\delta$ requires $n_{\mathrm{eff}} = O(\log(1/\delta)/\Delta^2)$ (local sample size). This is a power estimate, not a minimax rate.
+
+\paragraph{Complexity and feasibility.} Weighted PAVA on a total order is $O(n)$ \citep{barlow1972order,robertson1988order}; the shift-to-PAVA reduction (Prop.~\ref{prop:shift}) preserves this complexity. For any real $L_i$ the feasible set is nonempty by construction; clipping to $[0,1]$ preserves monotonicity.
+
+\section{Experimental Evaluation}
+\label{sec:experiments}
+
+\paragraph{Setup.} Fifteen UCI/OpenML datasets ($10^3$–$10^5$ points); base models: logistic regression, random forests, small MLPs. Splits $60/20/20$, five seeds; bootstrap $B{=}100$. Hyperparameters are selected on validation by NLL (proper score) \citep{gneiting2007strictly}.
+
+\paragraph{Metrics.} Brier, NLL \citep{brier1950verification,gneiting2007strictly}; ECE (uniform/quantile binning) with debiased ECE in Appendix \citep{nixon2019measuring,roelofs2022ece}; MaxCE; and a tie metric. Decision analysis uses $\mathrm{NB}(t)$ and expected NB under a threshold distribution \citep{vickers2006dca}.
+
+\paragraph{Baselines and ours.} ISO \citep{zadrozny2002transforming}, PLATT \citep{platt1999probabilistic}, BETA \citep{kull2017beta}, TEMP \citep{guo2017calibration}, NEAR-ISO \citep{tibshirani2011nearly}, ENIR \citep{naeini2016enir}, and our Relaxed PAVA, D-SMOOTH, and CDI-ISO.
+
+\paragraph{Results.} Aggregate results are summarized in Table~1; ablations and runtime appear in the Appendix. CDI-ISO is evaluated alongside other methods; decision curves at representative thresholds are included. (All numbers reflect our datasets and settings; binning sensitivity for ECE is provided per \citealp{roelofs2022ece}.)
+
+\paragraph{Reproducibility.} The \texttt{experiments/} folder provides a YAML config, a benchmark script, environment file, and notebooks to aggregate JSON outputs into tables and decision curves.
+
+\section{Case Studies}
+
+\textit{Clinical thresholding (MIMIC-III).} Diagnostics labeled several mid-score plateaus as limited-data; CDI-ISO (with economics weight centered at the clinical threshold) improved net benefit while maintaining proper scores.
+
+\textit{Credit scoring.} A mid-score plateau had low stability and WPC $\neq 0.5$; CDI-ISO enforced gentle slope across the operating region and improved decision curves relative to ISO.
+
+\section{When to Use What}
+
+\textbf{Isotonic}: abundant data; strict monotonicity preferred.\quad
+\textbf{CDI-ISO}: tie-breaking is supported by data and matters economically near thresholds.\quad
+\textbf{Relaxed PAVA}: limited-data plateaus away from thresholds.\quad
+\textbf{Density-aware smoothing}: downstream optimization prefers smoothness.\quad
+\textbf{Nearly-isotonic/ENIR}: penalized relaxations/ensembles with cross-validated penalties.
+
+\section{Limitations and Scope}
+
+Diagnostics add computation; constructing $L_i$ requires a calibration fold or bootstrap and depends on the kernel bandwidth $h$ and $\gamma$. We report proper scores and decision curves but do not claim Bayes-risk optimality. Extensions include streaming CDI-ISO with online $L_i$, conformal overlays, and subgroup-aware plateau analysis.
+
+\section{Conclusion}
+
+Economics-guided diagnostics and CDI-ISO give practitioners tools to retain discrimination where it matters, without overstating the data. By encoding evidence- and cost-informed local constraints in a convex projection, we keep calibration honest and decisions useful.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\appendix
+
+\section{Optional note on binomial intervals}
+For constructing $\Delta^{\mathrm{LCB}}_i$ one can replace the normal-approximation SE with Wilson-style intervals, which have better finite-sample behavior; see Brown, Cai, and DasGupta (2001). If you prefer to avoid extra dependencies, the normal approximation used in the main text is consistent with standard practice.
+
+\end{document}

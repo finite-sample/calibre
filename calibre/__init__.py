@@ -1,19 +1,36 @@
 """
-Calibre: Advanced probability calibration methods for machine learning
+Calibre: Model Probability Calibration Library
+
+This library provides various methods for calibrating probability predictions
+from machine learning models to improve their reliability.
 """
 
-from .calibration import (
-    BaseCalibrator,
-    IsotonicRegressionWithDiagnostics,
-    ISplineCalibrator,
-    NearlyIsotonicRegression,
-    RegularizedIsotonicRegression,
-    RelaxedPAVA,
-    SmoothedIsotonicRegression,
+from __future__ import annotations
+
+# Get version from pyproject.toml - single source of truth
+import importlib.metadata
+
+# Import modules (users can do: from calibre import metrics)
+from . import metrics
+
+# Import base classes
+from .base import BaseCalibrator, MonotonicMixin
+
+# Import all calibrators (including cvxpy-dependent ones)
+from .calibrators import (
+    CDIIsotonicCalibrator,
+    IsotonicCalibrator,
+    NearlyIsotonicCalibrator,
+    RegularizedIsotonicCalibrator,
+    RelaxedPAVACalibrator,
+    SmoothedIsotonicCalibrator,
+    SplineCalibrator,
 )
 
-# Import diagnostic functionality
-from .diagnostics import IsotonicDiagnostics, PlateauAnalyzer, analyze_plateaus
+# Import diagnostic functions
+from .diagnostics import detect_plateaus, run_plateau_diagnostics
+
+# Import all metrics functions directly for convenient access
 from .metrics import (
     binned_calibration_error,
     brier_score,
@@ -28,52 +45,37 @@ from .metrics import (
     tie_preservation_score,
     unique_value_counts,
 )
-from .utils import (
-    bin_data,
-    bootstrap_resample,
-    check_arrays,
-    compute_delong_ci,
-    create_bins,
-    extract_plateaus,
-    minimum_detectable_difference,
-    sort_by_x,
-)
+
+__version__ = importlib.metadata.version("calibre")
 
 __all__ = [
-    # Calibrators
+    # Base classes
     "BaseCalibrator",
-    "IsotonicRegressionWithDiagnostics",
-    "NearlyIsotonicRegression",
-    "ISplineCalibrator",
-    "RelaxedPAVA",
-    "RegularizedIsotonicRegression",
-    "SmoothedIsotonicRegression",
-    # Diagnostics
-    "IsotonicDiagnostics",
-    "PlateauAnalyzer",
-    "analyze_plateaus",
-    # Metrics
-    "mean_calibration_error",
+    "MonotonicMixin",
+    # Calibrators
+    "CDIIsotonicCalibrator",
+    "IsotonicCalibrator",
+    "NearlyIsotonicCalibrator",
+    "SplineCalibrator",
+    "RelaxedPAVACalibrator",
+    "RegularizedIsotonicCalibrator",
+    "SmoothedIsotonicCalibrator",
+    # Diagnostic functions
+    "run_plateau_diagnostics",
+    "detect_plateaus",
+    # Metrics functions
     "binned_calibration_error",
-    "expected_calibration_error",
-    "maximum_calibration_error",
     "brier_score",
     "calibration_curve",
-    "correlation_metrics",
-    "unique_value_counts",
-    "tie_preservation_score",
-    "plateau_quality_score",
     "calibration_diversity_index",
+    "correlation_metrics",
+    "expected_calibration_error",
+    "maximum_calibration_error",
+    "mean_calibration_error",
+    "plateau_quality_score",
     "progressive_sampling_diversity",
-    # Utility functions
-    "check_arrays",
-    "sort_by_x",
-    "create_bins",
-    "bin_data",
-    "extract_plateaus",
-    "bootstrap_resample",
-    "compute_delong_ci",
-    "minimum_detectable_difference",
+    "tie_preservation_score",
+    "unique_value_counts",
+    # Modules
+    "metrics",
 ]
-
-__version__ = "0.4.0"

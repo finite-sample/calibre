@@ -1,352 +1,213 @@
-## Calibre: Advanced Calibration Models
+## Calibre: Advanced Probability Calibration
 
-[![CI](https://github.com/gojiplus/calibre/workflows/CI/badge.svg)](https://github.com/gojiplus/calibre/actions/workflows/ci.yml)
-[![Documentation](https://img.shields.io/badge/docs-github.io-blue)](https://finite-sample.github.io/calibre/)
 [![PyPI version](https://img.shields.io/pypi/v/calibre.svg)](https://pypi.org/project/calibre/)
-[![PyPI Downloads](https://static.pepy.tech/badge/calibre)](https://pepy.tech/projects/calibre)
-[![Python Versions](https://img.shields.io/pypi/pyversions/calibre.svg)](https://pypi.org/project/calibre/)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![CI](https://github.com/finite-sample/calibre/workflows/CI/badge.svg)](https://github.com/finite-sample/calibre/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-stable-green.svg)](https://finite-sample.github.io/calibre/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Calibration is a critical step in deploying machine learning models. While techniques like isotonic regression have been standard for this task, they come with significant limitations:
+**Calibre** provides advanced probability calibration techniques that go beyond traditional isotonic regression. It offers multiple methods to balance monotonicity and granularity preservation, giving you fine control over your model's probability estimates.
 
-1. **Loss of granularity**: Traditional isotonic regression often collapses many distinct probability values into a small number of unique values, which can be problematic  for decision-making.
+While techniques like isotonic regression have been standard for this task, they come with significant limitations:
 
-2. **Rigid monotonicity**: Perfect monotonicity might not always be necessary or beneficial; small violations might be acceptable if they better preserve the information content of the original predictions.
+1. Loss of granularity: Traditional isotonic regression often collapses many distinct probability values into a small number of unique values, which can be problematic for decision-making.
+2. Rigid monotonicity: Perfect monotonicity might not always be necessary or beneficial; small violations might be acceptable if they better preserve the information content of the original predictions.
 
 Calibre addresses these limitations by implementing a suite of advanced calibration techniques that provide more nuanced control over model probability calibration. Its methods are designed to preserve granularity while still favoring a generally monotonic trend.
 
-- **Nearly-isotonic regression**: Allows controlled violations of monotonicity to better preserve data granularity
-- **I-spline calibration**: Uses monotonic splines for smooth calibration functions
-- **Relaxed PAVA**: Ignores "small" violations based on percentile thresholds in the data
-- **Regularized isotonic regression:** Adds L2 regularization to standard isotonic regression for smoother calibration curves while maintaining monotonicity.
-- **Locally smoothed isotonic:** Applies Savitzky-Golay filtering to isotonic regression results to reduce the "staircase effect" while preserving monotonicity.
-- **Adaptive smoothed isotonic:** Uses variable-sized smoothing windows based on data density to provide better detail in dense regions and smoother curves in sparse regions.
+| Method | Description | Key Strength | Use When |
+|--------|-------------|--------------|----------|
+| **IsotonicCalibrator** | Standard isotonic regression with diagnostic support | Fast, monotonic guarantee | You need strict monotonicity |
+| **NearlyIsotonicCalibrator** | Allows controlled monotonicity violations | Preserves granularity | You want to balance monotonicity vs information |
+| **SplineCalibrator** | Smooth calibration using I-splines | Smooth, differentiable | You need smooth probability curves |
+| **RelaxedPAVACalibrator** | Ignores small violations below threshold | Fast, practical | You want to ignore noise-level violations |
+| **RegularizedIsotonicCalibrator** | L2 regularized isotonic regression | Reduces overfitting | You have limited calibration data |
+| **SmoothedIsotonicCalibrator** | Post-smoothing of isotonic output | Reduces staircase effect | You want smooth output from isotonic |
+| **CDIIsotonicCalibrator** | Cost & data-informed isotonic (research) | Decision-aware | You have specific decision thresholds |
 
-### Benchmark
-
-The notebook has [benchmark results](examples/benchmark.ipynb).
-
-## Installation
+## 🚀 Quick Start
 
 ```bash
 pip install calibre
 ```
 
-## Usage Examples
-
-### Nearly Isotonic Regression with CVXPY
-
 ```python
+from calibre import IsotonicCalibrator
 import numpy as np
-from calibre import NearlyIsotonicRegression
 
-# Example data: model predictions and true binary outcomes
-np.random.seed(42)
-y_pred = np.sort(np.random.uniform(0, 1, 1000))  # Model probability predictions
-y_true = np.random.binomial(1, y_pred, 1000)     # True binary outcomes
+# Your model's probability predictions and true labels
+y_pred = np.array([0.2, 0.3, 0.4, 0.6, 0.7, 0.8])
+y_true = np.array([0, 0, 0, 1, 1, 1])
 
-# Calibrate with different lambda values
-cal_strict = NearlyIsotonicRegression(lam=10.0, method='cvx')
-cal_strict.fit(y_pred, y_true)
-y_calibrated_strict = cal_strict.transform(y_pred)
-
-cal_relaxed = NearlyIsotonicRegression(lam=0.1, method='cvx')
-cal_relaxed.fit(y_pred, y_true)
-y_calibrated_relaxed = cal_relaxed.transform(y_pred)
-
-# Now y_calibrated_relaxed will preserve more unique values
-# while y_calibrated_strict will be more strictly monotonic
-```
-
-### I-Spline Calibration
-
-```python
-from calibre import ISplineCalibrator
-
-# Smooth calibration using I-splines with cross-validation
-cal_ispline = ISplineCalibrator(n_splines=10, degree=3, cv=5)
-cal_ispline.fit(y_pred, y_true)
-y_calibrated_ispline = cal_ispline.transform(y_pred)
-```
-
-### Relaxed PAVA
-
-```python
-from calibre import RelaxedPAVA
-
-# Calibrate allowing small violations (threshold at 10th percentile)
-cal_relaxed_pava = RelaxedPAVA(percentile=10, adaptive=True)
-cal_relaxed_pava.fit(y_pred, y_true)
-y_calibrated_relaxed = cal_relaxed_pava.transform(y_pred)
-
-# This preserves more structure than standard isotonic regression
-# while still correcting larger violations of monotonicity
-```
-
-### Regularized Isotonic
-
-```python
-from calibre import RegularizedIsotonicRegression
-
-# Calibrate with L2 regularization
-cal_reg_iso = RegularizedIsotonicRegression(alpha=0.1)
-cal_reg_iso.fit(y_pred, y_true)
-y_calibrated_reg = cal_reg_iso.transform(y_pred)
-```
-
-### Locally Smoothed Isotonic
-
-```python
-from calibre import SmoothedIsotonicRegression
-
-# Apply local smoothing to reduce the "staircase" effect
-cal_smoothed = SmoothedIsotonicRegression(window_length=7, poly_order=3, interp_method='linear')
-cal_smoothed.fit(y_pred, y_true)
-y_calibrated_smooth = cal_smoothed.transform(y_pred)
-```
-
-### 🔬 Plateau Diagnostics (New in v0.4.0)
-
-Distinguish between **noise-based flattening** (good) and **limited-data flattening** (bad) in isotonic regression:
-
-```python
-from calibre import IsotonicRegressionWithDiagnostics, analyze_plateaus
-
-# Automatic diagnostics with isotonic regression
-cal = IsotonicRegressionWithDiagnostics(enable_diagnostics=True)
+# Calibrate probabilities
+cal = IsotonicCalibrator()
 cal.fit(y_pred, y_true)
 y_calibrated = cal.transform(y_pred)
-
-# Get human-readable diagnostic summary
-print(cal.plateau_summary())
-
-# Advanced analysis with test data
-from sklearn.model_selection import train_test_split
-X_train, X_test, y_train, y_test = train_test_split(y_pred, y_true, test_size=0.3)
-
-results = analyze_plateaus(X_train, y_train, X_test, y_test, n_bootstraps=100)
-print(f"Found {results['n_plateaus']} plateau(s)")
-print(f"Classifications: {results['classification_counts']}")
 ```
 
-**Key Diagnostic Methods:**
-- **Bootstrap Tie Stability**: Measures plateau consistency across resamples
-- **Conditional AUC**: Tests discrimination ability among tied pairs
-- **Minimum Detectable Difference**: Statistical power analysis at boundaries
-- **Progressive Sampling**: How diversity changes with sample size
-- **Local Slope Testing**: Uses smooth fits to test genuine flatness
+## Usage Examples
 
-**Plateau Classifications:**
-- **Supported**: High stability + low conditional AUC + flat slope → genuine plateaus
-- **Limited-data**: Low stability + high conditional AUC + positive slope → artifacts
-- **Inconclusive**: Mixed evidence requiring further investigation
+### Compare Different Methods
 
 ```python
-# Advanced diagnostic metrics
 from calibre import (
-    tie_preservation_score,
-    plateau_quality_score, 
-    calibration_diversity_index,
-    progressive_sampling_diversity
+    IsotonicCalibrator,
+    NearlyIsotonicCalibrator, 
+    SplineCalibrator
+)
+import numpy as np
+
+# Generate example data
+np.random.seed(42)
+n = 1000
+X = np.random.uniform(0, 1, n)
+y = np.random.binomial(1, X, n)
+
+# Try different calibrators
+calibrators = {
+    'Isotonic': IsotonicCalibrator(),
+    'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
+    'Spline': SplineCalibrator(n_splines=10)
+}
+
+for name, cal in calibrators.items():
+    cal.fit(X, y)
+    y_cal = cal.transform(X)
+    n_unique = len(np.unique(y_cal))
+    print(f"{name}: {n_unique} unique values")
+```
+
+### Diagnostic-Enabled Calibration
+
+```python
+from calibre import IsotonicCalibrator
+
+# Enable automatic plateau diagnostics
+cal = IsotonicCalibrator(enable_diagnostics=True)
+cal.fit(X, y)
+
+# Check if calibration has problematic plateaus
+if cal.has_diagnostics():
+    print(cal.diagnostic_summary())
+    # Output: "2 plateaus detected: 1 supported, 1 limited-data"
+```
+
+### Fine-Tuning Monotonicity
+
+```python
+from calibre import NearlyIsotonicCalibrator
+
+# Strict monotonicity (λ=10)
+cal_strict = NearlyIsotonicCalibrator(lam=10.0)
+
+# Relaxed monotonicity (λ=0.1) 
+cal_relaxed = NearlyIsotonicCalibrator(lam=0.1)
+
+# The relaxed version preserves more granularity
+# while strict version ensures stronger monotonicity
+```
+
+## 🎯 Choosing the Right Method
+
+```mermaid
+graph TD
+    A[Start] --> B{Need strict<br/>monotonicity?}
+    B -->|Yes| C{Have enough<br/>data?}
+    B -->|No| D{Want smooth<br/>function?}
+    C -->|Yes| E[IsotonicCalibrator]
+    C -->|No| F[RegularizedIsotonicCalibrator]
+    D -->|Yes| G[SplineCalibrator]
+    D -->|No| H[NearlyIsotonicCalibrator]
+```
+
+## 📈 Evaluation Metrics
+
+```python
+from calibre.metrics import (
+    expected_calibration_error,
+    brier_score,
+    calibration_diversity_index
 )
 
-# Measure tie preservation quality
-tie_score = tie_preservation_score(y_pred, y_calibrated)
-
-# Overall plateau quality
-quality = plateau_quality_score(y_pred, y_true, y_calibrated)
-
-# Granularity preservation
+# Measure calibration quality
+ece = expected_calibration_error(y_true, y_calibrated)
+bs = brier_score(y_true, y_calibrated)
 diversity = calibration_diversity_index(y_calibrated)
 
-# Sample size analysis
-sizes, diversities = progressive_sampling_diversity(y_pred, y_true)
+print(f"ECE: {ece:.4f}, Brier: {bs:.4f}, Diversity: {diversity:.4f}")
 ```
 
-### Evaluating Calibration Quality
-
-```python
-from calibre import (
-    mean_calibration_error, 
-    binned_calibration_error, 
-    correlation_metrics,
-    unique_value_counts
-)
-
-# Calculate error metrics
-mce = mean_calibration_error(y_true, y_calibrated_strict)
-bce = binned_calibration_error(y_true, y_calibrated_strict, n_bins=10)
-
-# Check correlations
-corr = correlation_metrics(y_true, y_calibrated_strict, y_orig=y_pred)
-print(f"Correlation with true values: {corr['spearman_corr_to_y_true']:.4f}")
-print(f"Correlation with original predictions: {corr['spearman_corr_orig_to_calib']:.4f}")
-
-# Check granularity preservation
-counts = unique_value_counts(y_calibrated_strict, y_orig=y_pred)
-print(f"Original unique values: {counts['n_unique_y_orig']}")
-print(f"Calibrated unique values: {counts['n_unique_y_pred']}")
-print(f"Preservation ratio: {counts['unique_value_ratio']:.2f}")
-```
-
-### Evaluation Metrics
-
-#### `mean_calibration_error(y_true, y_pred)`
-Calculates the mean calibration error.
-
-#### `binned_calibration_error(y_true, y_pred, x=None, n_bins=10, strategy='uniform', return_details=False)`
-Calculates binned calibration error using uniform or quantile binning strategies.
-
-#### `expected_calibration_error(y_true, y_pred, n_bins=10)`
-Calculates the Expected Calibration Error (ECE), a weighted average of calibration errors across bins.
-
-#### `maximum_calibration_error(y_true, y_pred, n_bins=10)`
-Calculates the Maximum Calibration Error (MCE), the worst-case calibration error across all bins.
-
-#### `calibration_curve(y_true, y_pred, n_bins=10, strategy='uniform')`
-Generates calibration curve data points for plotting reliability diagrams.
-
-#### `correlation_metrics(y_true, y_pred, x=None, y_orig=None)`
-Calculates Spearman's correlation metrics.
-
-#### `unique_value_counts(y_pred, y_orig=None, precision=6)`
-Counts unique values in predictions to assess granularity preservation.
-
-## When to Use Which Method
-
-### Calibration Methods
-
-- **NearlyIsotonicRegression (method='cvx')**: When you want precise control over the monotonicity/granularity trade-off and can afford the computational cost of convex optimization.
-
-- **NearlyIsotonicRegression (method='path')**: When you need an efficient algorithm for larger datasets that still provides control over monotonicity.
-
-- **ISplineCalibrator**: When you want a smooth calibration function rather than a step function, particularly for visualization and interpretation.
-
-- **RelaxedPAVA**: When you want a simple, efficient approach that ignores "small" violations while correcting larger ones.
-
-- **RegularizedIsotonicRegression**: When you need smoother calibration curves with L2 regularization to prevent overfitting.
-
-- **SmoothedIsotonicRegression**: When you want to reduce the "staircase effect" of standard isotonic regression while preserving monotonicity.
+## 🔬 Advanced Features
 
 ### Plateau Diagnostics
 
-- **IsotonicRegressionWithDiagnostics**: Always use when applying isotonic regression to automatically detect and classify plateaus.
+Calibre can automatically detect and classify plateaus in calibration curves:
 
-- **analyze_plateaus()**: Use for comprehensive plateau analysis when you have separate test data and want detailed diagnostic reports.
+```python
+from calibre import run_plateau_diagnostics
 
-- **Diagnostic Metrics**: Use `tie_preservation_score()`, `plateau_quality_score()`, and `progressive_sampling_diversity()` to quantitatively assess calibration quality beyond traditional error metrics.
+# Analyze plateaus in your calibration
+results = run_plateau_diagnostics(X_train, y_train, y_calibrated)
 
-**Decision Framework:**
-1. **Run diagnostics first** with `IsotonicRegressionWithDiagnostics`
-2. **If limited-data plateaus detected**: Consider `NearlyIsotonicRegression`, `RegularizedIsotonicRegression`, or collecting more calibration data
-3. **If supported plateaus**: Standard isotonic regression is appropriate
-4. **If inconclusive**: Cross-validate between strict and soft methods
+for plateau in results:
+    print(f"Plateau at [{plateau['start']:.2f}, {plateau['end']:.2f}]: "
+          f"{plateau['classification']} (confidence: {plateau['confidence']:.2f})")
+```
 
-## References
+### Metrics Overview
 
-1. Nearly-Isotonic Regression
-Tibshirani, R. J., Hoefling, H., & Tibshirani, R. (2011).
-Technometrics, 53(1), 54–61.
-DOI:10.1198/TECH.2010.09281
+- **Calibration Errors**: `mean_calibration_error`, `expected_calibration_error`, `maximum_calibration_error`
+- **Overall Performance**: `brier_score`, `calibration_curve`
+- **Granularity Preservation**: `calibration_diversity_index`, `unique_value_counts`
+- **Diagnostic Metrics**: `plateau_quality_score`, `tie_preservation_score`
 
-2. A path algorithm for the fused lasso signal approximator.
-Hoefling, H. (2010).
-Journal of Computational and Graphical Statistics, 19(4), 984–1006.
-DOI:10.1198/jcgs.2010.09208
+## 📚 Documentation & Resources
 
-## Development
+- 📖 **[Full Documentation](https://finite-sample.github.io/calibre/)**
+- 📊 **[Interactive Examples](https://finite-sample.github.io/calibre/examples/)**
+- 🔬 **[Performance Comparison](https://finite-sample.github.io/calibre/notebooks/04_performance_comparison.html)**
+- 📝 **[API Reference](https://finite-sample.github.io/calibre/api/)**
 
-### Prerequisites
+## 🛠️ Installation
 
-- Python 3.10+
-- pip
+### Requirements
+- Python 3.11+
+- NumPy, SciPy, scikit-learn
+- CVXPY (for NearlyIsotonicCalibrator)
 
-### Setup Development Environment
+### Development Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/gojiplus/calibre.git
+git clone https://github.com/finite-sample/calibre.git
 cd calibre
-
-# Install in development mode with all dependencies
 pip install -e ".[dev]"
 ```
 
-### Running Tests
+## 📄 License
 
-```bash
-# Run all tests
-pytest
+MIT License - see [LICENSE](LICENSE) file for details.
 
-# Run tests with coverage
-pytest --cov=calibre --cov-report=html
+## 🤝 Contributing
 
-# Run specific test file
-pytest tests/test_calibration.py
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
-# Run tests in verbose mode
-pytest -xvs tests/
+## 📖 Citation
+
+If you use Calibre in your research, please cite:
+
+```bibtex
+@software{calibre2024,
+  title = {Calibre: Advanced Probability Calibration for Machine Learning},
+  author = {Sood, Gaurav},
+  year = {2024},
+  url = {https://github.com/finite-sample/calibre}
+}
 ```
 
-**Note**: Some tests may be skipped when calibrators reach their mathematical limits (e.g., strict monotonicity requirements, granularity preservation thresholds). This is expected behavior and indicates where each algorithm has inherent limitations rather than test failures. Typically 6-8 tests are skipped out of ~140 total tests.
+## 🔗 See Also
 
-### Code Quality
-
-```bash
-# Format code with Black
-black calibre/ tests/
-
-# Sort imports
-isort calibre/ tests/
-
-# Lint code  
-flake8 calibre/ tests/
-```
-
-### Building Documentation
-
-```bash
-# Build Sphinx documentation
-cd docs
-make html
-
-# View documentation locally
-open build/html/index.html  # macOS
-# or navigate to docs/build/html/index.html in your browser
-
-# Install documentation dependencies
-pip install -e ".[docs]"
-```
-
-**📖 Live Documentation**: https://finite-sample.github.io/calibre/
-
-### Continuous Integration
-
-This project uses GitHub Actions for CI/CD:
-
-- **Tests**: Run on Python 3.10, 3.11, 3.12 on Ubuntu (primary), with Python 3.11 on macOS and Windows
-- **Code Quality**: Black, isort, and flake8 checks (informational)
-- **Coverage**: Automated coverage reporting via Codecov
-- **Package Building**: Validates package can be built and installed
-
-The main requirement is that tests pass. Code quality checks are informational to help maintain consistency.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-### Guidelines
-
-1. Fork the repository and create a feature branch
-2. Add tests for any new functionality  
-3. Ensure tests pass: `pytest tests/`
-4. Run code formatting: `black calibre/ tests/` and `isort calibre/ tests/`
-5. Update documentation as needed
-6. Submit a pull request with a clear description of changes
-
-## License
-
-MIT
+- [Probability Calibration in scikit-learn](https://scikit-learn.org/stable/modules/calibration.html)
+- [Papers on Nearly Isotonic Regression](https://doi.org/10.1198/TECH.2010.09281)
 
 ## 🔗 Adjacent Repositories
 

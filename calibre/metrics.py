@@ -2,7 +2,7 @@
 Evaluation metrics for calibration.
 """
 
-from typing import List, Optional, Tuple
+from __future__ import annotations
 
 import numpy as np
 from scipy.stats import spearmanr
@@ -11,21 +11,26 @@ from sklearn.metrics import brier_score_loss
 from sklearn.utils import check_array
 
 
-def mean_calibration_error(y_true, y_pred):
+def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     Calculate the mean calibration error.
 
     Parameters
     ----------
-    y_true : array-like of shape (n_samples,)
+    y_true
         Ground truth values (0 or 1 for binary classification).
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted probabilities.
 
     Returns
     -------
     mce : float
         Mean calibration error.
+
+    Raises
+    ------
+    ValueError
+        If arrays have different shapes.
 
     Examples
     --------
@@ -43,30 +48,30 @@ def mean_calibration_error(y_true, y_pred):
         raise ValueError("y_true and y_pred should have the same shape")
 
     # Simple mean absolute difference between predictions and outcomes
-    return np.mean(np.abs(y_pred - y_true))
+    return float(np.mean(np.abs(y_pred - y_true)))
 
 
 def binned_calibration_error(
-    y_true, y_pred, x=None, n_bins=10, strategy="uniform", return_details=False
-):
+    y_true: np.ndarray, y_pred: np.ndarray, x: np.ndarray | None = None, n_bins: int = 10, strategy: str = "uniform", return_details: bool = False
+) -> float | dict:
     """
     Calculate binned calibration error.
 
     Parameters
     ----------
-    y_true : array-like of shape (n_samples,)
+    y_true
         Ground truth values.
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted values.
-    x : array-like of shape (n_samples,), optional
+    x
         Input features for binning. If None, y_pred is used for binning.
-    n_bins : int, default=10
+    n_bins
         Number of bins.
-    strategy : {'uniform', 'quantile'}, default='uniform'
+    strategy
         Strategy for binning:
         - 'uniform': Bins with uniform widths.
         - 'quantile': Bins with approximately equal counts.
-    return_details : bool, default=False
+    return_details
         If True, return bin details (bin centers, counts, mean predictions, mean truths).
 
     Returns
@@ -74,6 +79,11 @@ def binned_calibration_error(
     bce : float or dict
         Binned calibration error. If return_details is True, returns a dictionary
         with BCE and bin details.
+
+    Raises
+    ------
+    ValueError
+        If arrays have different lengths or unknown binning strategy.
 
     Examples
     --------
@@ -151,10 +161,10 @@ def binned_calibration_error(
             "bin_true_means": np.array(bin_true_means),
         }
     else:
-        return bce
+        return float(bce)
 
 
-def expected_calibration_error(y_true, y_pred, n_bins=10):
+def expected_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10) -> float:
     """
     Calculate Expected Calibration Error (ECE).
 
@@ -163,17 +173,22 @@ def expected_calibration_error(y_true, y_pred, n_bins=10):
 
     Parameters
     ----------
-    y_true : array-like of shape (n_samples,)
+    y_true
         Ground truth values (0 or 1 for binary classification).
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted probabilities.
-    n_bins : int, default=10
+    n_bins
         Number of bins for discretizing predictions.
 
     Returns
     -------
     ece : float
         Expected Calibration Error.
+
+    Raises
+    ------
+    ValueError
+        If arrays have different lengths.
 
     Examples
     --------
@@ -212,7 +227,7 @@ def expected_calibration_error(y_true, y_pred, n_bins=10):
     return ece
 
 
-def maximum_calibration_error(y_true, y_pred, n_bins=10):
+def maximum_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10) -> float:
     """
     Calculate Maximum Calibration Error (MCE).
 
@@ -221,17 +236,22 @@ def maximum_calibration_error(y_true, y_pred, n_bins=10):
 
     Parameters
     ----------
-    y_true : array-like of shape (n_samples,)
+    y_true
         Ground truth values (0 or 1 for binary classification).
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted probabilities.
-    n_bins : int, default=10
+    n_bins
         Number of bins for discretizing predictions.
 
     Returns
     -------
     mce : float
         Maximum Calibration Error.
+
+    Raises
+    ------
+    ValueError
+        If arrays have different lengths.
 
     Examples
     --------
@@ -269,7 +289,7 @@ def maximum_calibration_error(y_true, y_pred, n_bins=10):
     return max_error
 
 
-def brier_score(y_true, y_pred):
+def brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
     Calculate the Brier score.
 
@@ -278,15 +298,20 @@ def brier_score(y_true, y_pred):
 
     Parameters
     ----------
-    y_true : array-like of shape (n_samples,)
+    y_true
         Ground truth values (0 or 1 for binary classification).
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted probabilities.
 
     Returns
     -------
     score : float
         Brier score (lower is better).
+
+    Raises
+    ------
+    ValueError
+        If arrays have different lengths.
 
     Examples
     --------
@@ -302,22 +327,22 @@ def brier_score(y_true, y_pred):
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
-    return brier_score_loss(y_true, y_pred)
+    return float(brier_score_loss(y_true, y_pred))
 
 
-def correlation_metrics(y_true, y_pred, x=None, y_orig=None):
+def correlation_metrics(y_true: np.ndarray, y_pred: np.ndarray, x: np.ndarray | None = None, y_orig: np.ndarray | None = None) -> dict:
     """
     Calculate correlation metrics between various signals.
 
     Parameters
     ----------
-    y_true : array-like of shape (n_samples,)
+    y_true
         Ground truth values.
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted/calibrated values.
-    x : array-like of shape (n_samples,), optional
+    x
         Input features.
-    y_orig : array-like of shape (n_samples,), optional
+    y_orig
         Original uncalibrated predictions.
 
     Returns
@@ -353,17 +378,17 @@ def correlation_metrics(y_true, y_pred, x=None, y_orig=None):
     return results
 
 
-def unique_value_counts(y_pred, y_orig=None, precision=6):
+def unique_value_counts(y_pred: np.ndarray, y_orig: np.ndarray | None = None, precision: int = 6) -> dict:
     """
     Count unique values in predictions.
 
     Parameters
     ----------
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted/calibrated values.
-    y_orig : array-like of shape (n_samples,), optional
+    y_orig
         Original uncalibrated predictions.
-    precision : int, default=6
+    precision
         Decimal precision for rounding.
 
     Returns
@@ -381,31 +406,31 @@ def unique_value_counts(y_pred, y_orig=None, precision=6):
     """
     y_pred = check_array(y_pred, ensure_2d=False)
 
-    results = {"n_unique_y_pred": len(np.unique(np.round(y_pred, precision)))}
+    results: dict[str, int | float] = {"n_unique_y_pred": len(np.unique(np.round(y_pred, precision)))}
 
     if y_orig is not None:
         y_orig = check_array(y_orig, ensure_2d=False)
         results["n_unique_y_orig"] = len(np.unique(np.round(y_orig, precision)))
-        results["unique_value_ratio"] = results["n_unique_y_pred"] / max(
-            1, results["n_unique_y_orig"]
+        results["unique_value_ratio"] = float(results["n_unique_y_pred"]) / max(
+            1, int(results["n_unique_y_orig"])
         )
 
     return results
 
 
-def calibration_curve(y_true, y_pred, n_bins=10, strategy="uniform"):
+def calibration_curve(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10, strategy: str = "uniform") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the calibration curve for binary classification.
 
     Parameters
     ----------
-    y_true : array-like of shape (n_samples,)
+    y_true
         Ground truth values (0 or 1 for binary classification).
-    y_pred : array-like of shape (n_samples,)
+    y_pred
         Predicted probabilities.
-    n_bins : int, default=10
+    n_bins
         Number of bins for discretizing predictions.
-    strategy : {'uniform', 'quantile'}, default='uniform'
+    strategy
         Strategy for binning:
         - 'uniform': Bins with uniform widths.
         - 'quantile': Bins with approximately equal counts.
@@ -418,6 +443,11 @@ def calibration_curve(y_true, y_pred, n_bins=10, strategy="uniform"):
         The mean predicted probability in each bin.
     counts : ndarray of shape (n_bins,)
         The number of samples in each bin.
+
+    Raises
+    ------
+    ValueError
+        If arrays have different lengths or unknown binning strategy.
 
     Examples
     --------
@@ -467,12 +497,17 @@ def tie_preservation_score(
 
     Parameters
     ----------
-    y_original : array-like of shape (n_samples,)
+    y_original
         Original predicted probabilities before calibration.
-    y_calibrated : array-like of shape (n_samples,)
+    y_calibrated
         Calibrated probabilities.
-    tolerance : float, default=1e-10
+    tolerance
         Tolerance for considering values as tied.
+
+    Raises
+    ------
+    ValueError
+        If arrays have different lengths.
 
     Returns
     -------
@@ -543,12 +578,17 @@ def plateau_quality_score(
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Input features.
-    y : array-like of shape (n_samples,)
+    y
         True target values.
-    y_calibrated : array-like of shape (n_samples,)
+    y_calibrated
         Calibrated predictions.
+
+    Raises
+    ------
+    ValueError
+        If arrays have different lengths.
 
     Returns
     -------
@@ -566,7 +606,7 @@ def plateau_quality_score(
     >>> 0 <= score <= 1
     True
     """
-    from .utils import extract_plateaus
+    from .diagnostics import detect_plateaus
 
     X = check_array(X, ensure_2d=False)
     y = check_array(y, ensure_2d=False)
@@ -577,19 +617,18 @@ def plateau_quality_score(
 
     # Sort by X
     sort_idx = np.argsort(X)
-    X_sorted = X[sort_idx]
     y_sorted = y[sort_idx]
     y_cal_sorted = y_calibrated[sort_idx]
 
     # Extract plateaus
-    plateaus = extract_plateaus(X_sorted, y_cal_sorted)
+    plateaus = detect_plateaus(y_cal_sorted)
 
     if not plateaus:
         return 1.0  # No plateaus is good
 
     scores = []
 
-    for start_idx, end_idx, value in plateaus:
+    for start_idx, end_idx, _value in plateaus:
         # Check if plateau represents genuine flatness
         plateau_y = y_sorted[start_idx : end_idx + 1]
         plateau_var = np.var(plateau_y)
@@ -608,16 +647,16 @@ def plateau_quality_score(
 
 
 def calibration_diversity_index(
-    y_calibrated: np.ndarray, reference_diversity: Optional[float] = None
+    y_calibrated: np.ndarray, reference_diversity: float | None = None
 ) -> float:
     """
     Measure granularity preservation in calibrated predictions.
 
     Parameters
     ----------
-    y_calibrated : array-like of shape (n_samples,)
+    y_calibrated
         Calibrated predictions.
-    reference_diversity : float, optional
+    reference_diversity
         Reference diversity to compare against (e.g., diversity of original predictions).
         If None, returns absolute diversity.
 
@@ -654,25 +693,30 @@ def calibration_diversity_index(
 def progressive_sampling_diversity(
     X: np.ndarray,
     y: np.ndarray,
-    sample_sizes: Optional[List[int]] = None,
+    sample_sizes: list[int] | None = None,
     n_trials: int = 10,
-    random_state: Optional[int] = None,
-) -> Tuple[List[int], List[float]]:
+    random_state: int | None = None,
+) -> tuple[list[int], list[float]]:
     """
     Compute diversity vs sample size curve for progressive sampling analysis.
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Input features.
-    y : array-like of shape (n_samples,)
+    y
         Target values.
-    sample_sizes : list of int, optional
+    sample_sizes
         Sample sizes to test. If None, uses default range.
-    n_trials : int, default=10
+    n_trials
         Number of trials per sample size.
-    random_state : int, optional
+    random_state
         Random state for reproducibility.
+
+    Raises
+    ------
+    ValueError
+        If X and y have different lengths.
 
     Returns
     -------
@@ -715,7 +759,7 @@ def progressive_sampling_diversity(
     for size in sample_sizes:
         trial_diversities = []
 
-        for trial in range(n_trials):
+        for _trial in range(n_trials):
             # Random subsample
             indices = rng.choice(n_total, size=size, replace=False)
             X_sub = X[indices]
@@ -730,6 +774,22 @@ def progressive_sampling_diversity(
             diversity = calibration_diversity_index(y_cal)
             trial_diversities.append(diversity)
 
-        diversities.append(np.mean(trial_diversities))
+        diversities.append(float(np.mean(trial_diversities)))
 
     return sample_sizes, diversities
+
+
+__all__ = [
+    "mean_calibration_error",
+    "binned_calibration_error",
+    "expected_calibration_error",
+    "maximum_calibration_error",
+    "brier_score",
+    "correlation_metrics",
+    "unique_value_counts",
+    "calibration_curve",
+    "tie_preservation_score",
+    "plateau_quality_score",
+    "calibration_diversity_index",
+    "progressive_sampling_diversity",
+]

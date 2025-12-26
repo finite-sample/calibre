@@ -12,29 +12,55 @@ on:
         description: 'Likely Test'
         required: false
         default: 'Manual build'
+
 jobs:
+  sync-citation:
+    name: Sync citation.cff with package version
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Sync citation
+      uses: gojiplus/citation-sync@main
+      with:
+        citation-path: citation.cff
+        pyproject-path: pyproject.toml
+    
+    - name: Commit and push if changed
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add citation.cff
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Update citation.cff version"
+          git push
+        fi
+
   publish:
+    needs: sync-citation
     runs-on: ubuntu-latest
 
     permissions:
       id-token: write  # required for trusted publishing
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.4
         with:
-          python-version: '3.11'
-
-      - name: Install build & publish tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install build twine
+          version: "0.9.13"
+          python-version: '3.12'
 
       - name: Build package
         run: |
-          python -m build
+          uv build
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1

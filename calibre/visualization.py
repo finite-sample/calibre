@@ -5,23 +5,21 @@ This module provides plotting functions to visualize plateau analysis results
 and compare different calibration methods.
 """
 
-from typing import Any, Dict, List, Optional, Tuple
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 
 try:
-    import matplotlib.patches as patches
     import matplotlib.pyplot as plt
-    from matplotlib.colors import ListedColormap
 
     HAS_MATPLOTLIB = True
 except ImportError:
     HAS_MATPLOTLIB = False
 
-from .utils import extract_plateaus
 
-
-def _check_matplotlib():
+def _check_matplotlib() -> None:
     """Check if matplotlib is available."""
     if not HAS_MATPLOTLIB:
         raise ImportError(
@@ -31,29 +29,28 @@ def _check_matplotlib():
 
 
 def plot_plateau_diagnostics(
-    results: Dict[str, Any],
-    X: Optional[np.ndarray] = None,
-    y_calibrated: Optional[np.ndarray] = None,
-    figsize: Tuple[float, float] = (12, 8),
+    results: dict[str, Any],
+    X: np.ndarray | None = None,
+    y_calibrated: np.ndarray | None = None,
+    figsize: tuple[float, float] = (12, 8),
 ) -> plt.Figure:
     """
     Plot comprehensive plateau diagnostic results.
 
     Parameters
     ----------
-    results : dict
+    results
         Results from IsotonicDiagnostics.analyze().
-    X : array-like of shape (n_samples,), optional
+    X
         Input features for plotting calibration curve.
-    y_calibrated : array-like of shape (n_samples,), optional
+    y_calibrated
         Calibrated predictions for plotting.
-    figsize : tuple, default=(12, 8)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
 
     Examples
     --------
@@ -106,7 +103,7 @@ def plot_plateau_diagnostics(
                 xmax=(x_range[1] - X.min()) / (X.max() - X.min()),
                 alpha=0.3,
                 color=color,
-                label=f'Plateau {i+1} ({plateau["classification"]})',
+                label=f"Plateau {i + 1} ({plateau['classification']})",
             )
 
         ax1.set_xlabel("Input Score")
@@ -163,7 +160,6 @@ def plot_plateau_diagnostics(
 
     # Plot 3: Tie stability scores
     ax3 = axes[1, 0]
-    plateau_ids = [p["plateau_id"] + 1 for p in results["plateaus"]]
     tie_stabilities = [
         p["tie_stability"]
         for p in results["plateaus"]
@@ -171,7 +167,7 @@ def plot_plateau_diagnostics(
     ]
 
     if tie_stabilities:
-        bars = ax3.bar(
+        ax3.bar(
             range(len(tie_stabilities)),
             tie_stabilities,
             color=[
@@ -183,7 +179,7 @@ def plot_plateau_diagnostics(
         ax3.set_ylabel("Tie Stability")
         ax3.set_title("Bootstrap Tie Stability")
         ax3.set_xticks(range(len(tie_stabilities)))
-        ax3.set_xticklabels([f"P{i+1}" for i in range(len(tie_stabilities))])
+        ax3.set_xticklabels([f"P{i + 1}" for i in range(len(tie_stabilities))])
         ax3.axhline(
             y=0.7, color="green", linestyle="--", alpha=0.5, label="High stability"
         )
@@ -216,7 +212,7 @@ def plot_plateau_diagnostics(
             valid_plateaus.append(p["plateau_id"] + 1)
 
     if conditional_aucs:
-        bars = ax4.bar(
+        ax4.bar(
             range(len(conditional_aucs)),
             conditional_aucs,
             color=[
@@ -229,7 +225,7 @@ def plot_plateau_diagnostics(
         if any(ci is not None for ci in auc_cis):
             yerr_lower = []
             yerr_upper = []
-            for i, (auc, ci) in enumerate(zip(conditional_aucs, auc_cis)):
+            for auc, ci in zip(conditional_aucs, auc_cis, strict=True):
                 if ci is not None:
                     yerr_lower.append(auc - ci[0])
                     yerr_upper.append(ci[1] - auc)
@@ -276,25 +272,24 @@ def plot_plateau_diagnostics(
 
 def plot_stability_heatmap(
     stability_matrix: np.ndarray,
-    plateau_labels: Optional[List[str]] = None,
-    figsize: Tuple[float, float] = (8, 6),
+    plateau_labels: list[str] | None = None,
+    figsize: tuple[float, float] = (8, 6),
 ) -> plt.Figure:
     """
     Plot a heatmap of tie stability across bootstrap resamples.
 
     Parameters
     ----------
-    stability_matrix : array-like of shape (n_plateaus, n_bootstraps)
+    stability_matrix
         Binary matrix indicating whether ties were preserved.
-    plateau_labels : list of str, optional
+    plateau_labels
         Labels for plateaus.
-    figsize : tuple, default=(8, 6)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
     """
     _check_matplotlib()
 
@@ -319,26 +314,25 @@ def plot_stability_heatmap(
 
 
 def plot_progressive_sampling(
-    sample_sizes: List[int],
-    diversities: List[float],
-    figsize: Tuple[float, float] = (8, 6),
+    sample_sizes: list[int],
+    diversities: list[float],
+    figsize: tuple[float, float] = (8, 6),
 ) -> plt.Figure:
     """
     Plot diversity vs sample size curve.
 
     Parameters
     ----------
-    sample_sizes : list of int
+    sample_sizes
         Sample sizes tested.
-    diversities : list of float
+    diversities
         Corresponding diversity values.
-    figsize : tuple, default=(8, 6)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
     """
     _check_matplotlib()
 
@@ -363,7 +357,7 @@ def plot_progressive_sampling(
                 transform=ax.transAxes,
                 va="top",
                 ha="left",
-                bbox=dict(boxstyle="round", facecolor="orange", alpha=0.7),
+                bbox={"boxstyle": "round", "facecolor": "orange", "alpha": 0.7},
             )
         elif slope < -0.001:
             ax.text(
@@ -373,7 +367,7 @@ def plot_progressive_sampling(
                 transform=ax.transAxes,
                 va="top",
                 ha="left",
-                bbox=dict(boxstyle="round", facecolor="red", alpha=0.7),
+                bbox={"boxstyle": "round", "facecolor": "red", "alpha": 0.7},
             )
         else:
             ax.text(
@@ -383,7 +377,7 @@ def plot_progressive_sampling(
                 transform=ax.transAxes,
                 va="top",
                 ha="left",
-                bbox=dict(boxstyle="round", facecolor="green", alpha=0.7),
+                bbox={"boxstyle": "round", "facecolor": "green", "alpha": 0.7},
             )
 
     plt.tight_layout()
@@ -393,27 +387,26 @@ def plot_progressive_sampling(
 def plot_calibration_comparison(
     X: np.ndarray,
     y_true: np.ndarray,
-    calibrators: Dict[str, Any],
-    figsize: Tuple[float, float] = (12, 8),
+    calibrators: dict[str, Any],
+    figsize: tuple[float, float] = (12, 8),
 ) -> plt.Figure:
     """
     Compare calibration curves from different methods.
 
     Parameters
     ----------
-    X : array-like of shape (n_samples,)
+    X
         Input features.
-    y_true : array-like of shape (n_samples,)
+    y_true
         True target values.
-    calibrators : dict
+    calibrators
         Dictionary mapping method names to fitted calibrator objects.
-    figsize : tuple, default=(12, 8)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
 
     Examples
     --------
@@ -436,7 +429,7 @@ def plot_calibration_comparison(
     sort_idx = np.argsort(X)
     X_sorted = X[sort_idx]
 
-    colors = plt.cm.Set1(np.linspace(0, 1, len(calibrators)))
+    colors = plt.cm.get_cmap("Set1")(np.linspace(0, 1, len(calibrators)))
 
     # Plot 1: Calibration curves
     ax1 = axes[0, 0]
@@ -469,7 +462,7 @@ def plot_calibration_comparison(
             continue
 
     if diversities:
-        bars = ax2.bar(
+        ax2.bar(
             range(len(diversities)), diversities, color=colors[: len(diversities)]
         )
         ax2.set_xlabel("Method")
@@ -496,7 +489,7 @@ def plot_calibration_comparison(
             continue
 
     if errors:
-        bars = ax3.bar(range(len(errors)), errors, color=colors[: len(errors)])
+        ax3.bar(range(len(errors)), errors, color=colors[: len(errors)])
         ax3.set_xlabel("Method")
         ax3.set_ylabel("Mean Calibration Error")
         ax3.set_title("Calibration Error Comparison")
@@ -507,7 +500,7 @@ def plot_calibration_comparison(
     # Plot 4: Efficient frontier (error vs diversity)
     ax4 = axes[1, 1]
     if diversities and errors and len(diversities) == len(errors):
-        scatter = ax4.scatter(
+        ax4.scatter(
             diversities,
             errors,
             c=range(len(diversities)),
@@ -545,22 +538,21 @@ def plot_calibration_comparison(
 
 
 def plot_mdd_analysis(
-    results: Dict[str, Any], figsize: Tuple[float, float] = (10, 6)
+    results: dict[str, Any], figsize: tuple[float, float] = (10, 6)
 ) -> plt.Figure:
     """
     Plot minimum detectable difference analysis for plateaus.
 
     Parameters
     ----------
-    results : dict
+    results
         Results from IsotonicDiagnostics.analyze().
-    figsize : tuple, default=(10, 6)
+    figsize
         Figure size.
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        The created figure.
+    The created figure.
     """
     _check_matplotlib()
 
@@ -581,7 +573,6 @@ def plot_mdd_analysis(
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=figsize)
     fig.suptitle("Minimum Detectable Difference Analysis", fontsize=14)
 
-    plateau_ids = [p["plateau_id"] + 1 for p in results["plateaus"]]
     mdd_left = [p["mdd_left"] for p in results["plateaus"] if p["mdd_left"] is not None]
     mdd_right = [
         p["mdd_right"] for p in results["plateaus"] if p["mdd_right"] is not None
@@ -598,7 +589,7 @@ def plot_mdd_analysis(
         ax1.set_ylabel("MDD")
         ax1.set_title("Left Boundary MDD")
         ax1.set_xticks(range(len(mdd_left_finite)))
-        ax1.set_xticklabels([f"P{i+1}" for i in range(len(mdd_left_finite))])
+        ax1.set_xticklabels([f"P{i + 1}" for i in range(len(mdd_left_finite))])
         ax1.grid(True, alpha=0.3)
     else:
         ax1.text(
@@ -618,7 +609,7 @@ def plot_mdd_analysis(
         ax2.set_ylabel("MDD")
         ax2.set_title("Right Boundary MDD")
         ax2.set_xticks(range(len(mdd_right_finite)))
-        ax2.set_xticklabels([f"P{i+1}" for i in range(len(mdd_right_finite))])
+        ax2.set_xticklabels([f"P{i + 1}" for i in range(len(mdd_right_finite))])
         ax2.grid(True, alpha=0.3)
     else:
         ax2.text(

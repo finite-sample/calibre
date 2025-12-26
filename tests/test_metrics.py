@@ -304,7 +304,7 @@ class TestEdgeCases:
         y_true = np.array([])
         y_pred = np.array([])
 
-        # Most functions should handle empty arrays gracefully or raise appropriate errors
+        # Most functions should handle empty arrays gracefully or raise errors
         with pytest.raises((ValueError, IndexError)):
             mean_calibration_error(y_true, y_pred)
 
