@@ -31,6 +31,11 @@ jobs:
         version: "0.9.13"
         python-version: '3.11'
     
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y pandoc
+    
     - name: Install dependencies
       run: |
         uv sync --extra docs
