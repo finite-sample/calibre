@@ -7,6 +7,9 @@ from machine learning models to improve their reliability.
 
 from __future__ import annotations
 
+# Get version from pyproject.toml - single source of truth
+import importlib.metadata
+
 # Import modules (users can do: from calibre import metrics)
 from . import metrics
 
@@ -42,9 +45,6 @@ from .metrics import (
     tie_preservation_score,
     unique_value_counts,
 )
-
-# Get version from pyproject.toml - single source of truth
-import importlib.metadata
 
 __version__ = importlib.metadata.version("calibre")
 
