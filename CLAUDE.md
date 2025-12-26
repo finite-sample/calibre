@@ -191,7 +191,7 @@ The CI pipeline uses `uv sync --locked` to ensure:
 - **Consistent API**: `.fit(X, y)` and `.transform(X)` following sklearn conventions
 - **Standalone diagnostic functions**: Optional plateau analysis via `calibre.diagnostics` module
 - **Input validation**: Through `check_arrays()` utility
-- **Type hints**: Throughout codebase (Python 3.10+)
+- **Type hints**: Throughout codebase (Python 3.12+)
 
 ### Diagnostic Workflow
 ```python
@@ -239,7 +239,7 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 ## Configuration
 - **pyproject.toml**: Modern Python packaging configuration
 - Tool configurations for Black, isort, mypy included in pyproject.toml
-- Python 3.10+ required
+- Python 3.12+ required
 - Development dependencies defined in `[project.optional-dependencies.dev]`
 
 ## Interactive Examples
@@ -251,7 +251,7 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 ## CI/CD Configuration
 - GitHub Actions workflow in `.github/workflows/ci.yml`
 - **Optimized for efficiency**: CI skips when only documentation files are changed
-- Test matrix: Python 3.10, 3.11, 3.12 on Ubuntu (primary), Python 3.11 on macOS/Windows
+- Test matrix: Python 3.12, 3.13, 3.14 on Ubuntu (primary), Python 3.12 on macOS/Windows
 - Includes code quality checks (Black, isort, flake8) as informational
 - Coverage reporting via Codecov
 - Package building and installation validation
@@ -284,7 +284,7 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 ## Code Quality Standards (v0.4.1+)
 - **Line length**: 88 characters maximum (configured in Black and flake8)
 - **Complexity**: Functions should have complexity ≤10 (measured by McCabe)
-- **Type hints**: Required throughout codebase (Python 3.10+ typing)
+- **Type hints**: Required throughout codebase (Python 3.12+ typing)
 - **Import management**: No unused imports or variables
 - **Formatting**: Automatic via Black with 88-character line length
 - **Testing**: Comprehensive test coverage with realistic data generators

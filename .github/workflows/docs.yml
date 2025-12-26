@@ -29,7 +29,7 @@ jobs:
       uses: astral-sh/setup-uv@v7.1.4
       with:
         version: "0.9.13"
-        python-version: '3.11'
+        python-version: '3.12'
     
     - name: Install system dependencies
       run: |
@@ -38,7 +38,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        uv sync --all-extras  # Install all dependencies including base package for notebook execution
+        uv sync --all-extras
     
     - name: Build documentation
       run: |

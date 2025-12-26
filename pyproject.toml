@@ -11,9 +11,12 @@ authors = [
     {name = "Gaurav Sood", email = "gsood07@gmail.com"}
 ]
 license = {text = "MIT"}
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -71,7 +74,7 @@ module-root = ""
 # Ruff configuration
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 exclude = [
     ".git",
     "__pycache__",
@@ -114,7 +117,7 @@ line-ending = "auto"
 
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
