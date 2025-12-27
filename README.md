@@ -2,6 +2,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/calibre.svg)](https://pypi.org/project/calibre/)
 [![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Downloads](https://pepy.tech/badge/calibre)](https://pepy.tech/project/calibre)
 [![CI](https://github.com/finite-sample/calibre/workflows/CI/badge.svg)](https://github.com/finite-sample/calibre/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-stable-green.svg)](https://finite-sample.github.io/calibre/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
