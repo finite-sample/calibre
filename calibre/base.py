@@ -53,9 +53,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
     >>> y = np.array([0, 1, 1])
     >>>
     >>> cal = SimpleCalibrator()
-    >>> cal.fit(X, y)
+    >>> _ = cal.fit(X, y)
     >>> cal.transform(X)
-    array([0.667, 0.667, 0.667])
+    array([0.66666667, 0.66666667, 0.66666667])
     """
 
     def __init__(self, enable_diagnostics: bool = False) -> None:
@@ -64,7 +64,12 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         self._fit_data_X: np.ndarray | None = None
         self._fit_data_y: np.ndarray | None = None
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> BaseCalibrator:
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> BaseCalibrator:
         """Fit the calibrator.
 
         This method implements the template method pattern: it handles
@@ -77,6 +82,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             The values to be calibrated (e.g., predicted probabilities).
         y
             The target values (e.g., true labels).
+        sample_weight
+            Non-negative per-observation weights. Calibrators that cannot honour
+            weights raise rather than ignore them.
 
         Returns
         -------
@@ -86,16 +94,22 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         # Store fit data for potential diagnostics
         self._fit_data_X = X
         self._fit_data_y = y
+        self._fit_data_weight = sample_weight
 
         # Delegate actual fitting to subclass implementation
-        self._fit_impl(X, y)
+        self._fit_impl(X, y, sample_weight)
 
         # Run diagnostics if enabled
         self._run_diagnostics()
 
         return self
 
-    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+    def _fit_impl(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> None:
         """Implement the actual fitting logic.
 
         This abstract method must be implemented by subclasses to perform
@@ -108,19 +122,48 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             The values to be calibrated (e.g., predicted probabilities).
         y
             The target values (e.g., true labels).
+        sample_weight
+            Non-negative per-observation weights.
+
         Raises
         ------
         NotImplementedError
             This method must be implemented by subclasses.
+
         Notes
         -----
         Subclasses should implement this method instead of overriding fit().
         The fit() method in the base class ensures consistent behavior
         for diagnostics and data storage.
+
+        Implementations must do all of their work here, so that ``transform``
+        is a lookup against a fitted object rather than a re-solve.
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement the _fit_impl() method"
         )
+
+    def _reject_sample_weight(self, sample_weight: np.ndarray | None) -> None:
+        """Raise if weights were supplied to a calibrator that cannot use them.
+
+        Silently discarding weights would quietly return the wrong estimator, so
+        calibrators that have not yet been made weight-aware call this instead.
+
+        Parameters
+        ----------
+        sample_weight
+            The weights passed to :meth:`fit`.
+
+        Raises
+        ------
+        NotImplementedError
+            If ``sample_weight`` is not None.
+        """
+        if sample_weight is not None:
+            raise NotImplementedError(
+                f"{type(self).__name__} does not support sample_weight yet. "
+                "Use IsotonicCalibrator or CenteredIsotonicCalibrator, which do."
+            )
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply calibration to new data.
@@ -143,7 +186,13 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             f"{self.__class__.__name__} must implement the transform() method"
         )
 
-    def fit_transform(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+    def fit_transform(  # type: ignore[override]
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+        **fit_params: object,
+    ) -> np.ndarray:
         """Fit the calibrator and then transform the data.
 
         This is a convenience method that combines fit() and transform()
@@ -156,6 +205,10 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             The values to be calibrated.
         y
             The target values.
+        sample_weight
+            Non-negative per-observation weights.
+        **fit_params
+            Ignored. Accepted for scikit-learn pipeline compatibility.
 
         Returns
         -------
@@ -170,7 +223,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         >>> cal = IsotonicCalibrator()
         >>> X_calibrated = cal.fit_transform(X, y)
         """
-        return self.fit(X, y).transform(X)
+        return self.fit(X, y, sample_weight).transform(X)
 
     def _run_diagnostics(self) -> None:
         """
@@ -215,9 +268,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         >>> y = np.array([0, 1, 1])
         >>>
         >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-        >>> cal.fit(X, y)
-        >>> if cal.has_diagnostics():
-        ...     print("Diagnostics available!")
+        >>> _ = cal.fit(X, y)
+        >>> cal.has_diagnostics()
+        True
         """
         return self.diagnostics_ is not None
 
@@ -240,10 +293,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         >>> y = np.array([0, 1, 1])
         >>>
         >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-        >>> cal.fit(X, y)
-        >>> diagnostics = cal.get_diagnostics()
-        >>> if diagnostics:
-        ...     print(f"Found {diagnostics['n_plateaus']} plateaus")
+        >>> _ = cal.fit(X, y)
+        >>> cal.get_diagnostics()["n_plateaus"]
+        1
         """
         return self.diagnostics_
 
@@ -265,8 +317,13 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         >>> y = np.array([0, 0, 1, 1, 1])
         >>>
         >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-        >>> cal.fit(X, y)
+        >>> _ = cal.fit(X, y)
         >>> print(cal.diagnostic_summary())
+        Detected 2 plateau(s):
+        <BLANKLINE>
+        Warnings:
+          ... Plateau 1 at [0.100, 0.300] has only 2 samples - may be unreliable
+          ... Plateau 2 at [0.500, 0.900] has only 3 samples - may be unreliable
         """
         if not self.enable_diagnostics or self.diagnostics_ is None:
             return "Diagnostics not available. Set enable_diagnostics=True to enable."

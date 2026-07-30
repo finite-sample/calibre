@@ -175,10 +175,10 @@ def check_consistent_length(*arrays: np.ndarray) -> None:
     >>> check_consistent_length(X, y)  # No error
     >>>
     >>> z = np.array([0, 1])  # Different length
-    >>> try:
-    ...     check_consistent_length(X, z)
-    ... except ValueError as e:
-    ...     print("Error:", e)
+    >>> check_consistent_length(X, z)
+    Traceback (most recent call last):
+        ...
+    ValueError: Inconsistent array lengths: [3, 2]. All arrays must have the same length.
     """
     lengths = [len(X) for X in arrays if X is not None]
 
@@ -209,10 +209,10 @@ def validate_parameters(**params: object) -> None:
     >>>
     >>> validate_parameters(alpha=0.1, n_bootstraps=100)  # OK
     >>>
-    >>> try:
-    ...     validate_parameters(alpha=-0.5)  # Negative
-    ... except ValueError as e:
-    ...     print("Error:", e)
+    >>> validate_parameters(alpha=-0.5)  # Negative
+    Traceback (most recent call last):
+        ...
+    ValueError: Parameter 'alpha' must be non-negative, got -0.5
     """
     for name, value in params.items():
         if name in ["alpha", "lam"] and value is not None:

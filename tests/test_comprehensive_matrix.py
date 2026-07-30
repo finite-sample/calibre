@@ -51,22 +51,16 @@ class TestMatrix:
                 lam=0.1, method="path"
             ),
             # I-Spline Calibrator variants
-            "ispline_small": lambda: SplineCalibrator(n_splines=5, degree=2, cv=3),
-            "ispline_medium": lambda: SplineCalibrator(n_splines=10, degree=3, cv=3),
-            "ispline_large": lambda: SplineCalibrator(n_splines=20, degree=3, cv=5),
-            # Relaxed PAVA variants
-            "rpava_strict_adaptive": lambda: RelaxedPAVACalibrator(
-                percentile=5, adaptive=True
-            ),
-            "rpava_loose_adaptive": lambda: RelaxedPAVACalibrator(
-                percentile=20, adaptive=True
-            ),
-            "rpava_strict_block": lambda: RelaxedPAVACalibrator(
-                percentile=5, adaptive=False
-            ),
-            "rpava_loose_block": lambda: RelaxedPAVACalibrator(
-                percentile=20, adaptive=False
-            ),
+            "ispline_small": lambda: SplineCalibrator(n_knots=5, degree=2, cv=3),
+            "ispline_medium": lambda: SplineCalibrator(n_knots=10, degree=3, cv=3),
+            "ispline_large": lambda: SplineCalibrator(n_knots=20, degree=3, cv=5),
+            # Epsilon-monotone / minimum-slope variants. The old adaptive-vs-block
+            # split is gone (there is one exact algorithm now), so these cover the
+            # two directions of the signed increment bound instead.
+            "rpava_strict_adaptive": lambda: RelaxedPAVACalibrator(epsilon=0.01),
+            "rpava_loose_adaptive": lambda: RelaxedPAVACalibrator(epsilon=0.05),
+            "rpava_strict_block": lambda: RelaxedPAVACalibrator(min_slope=0.001),
+            "rpava_loose_block": lambda: RelaxedPAVACalibrator(min_slope=0.01),
             # Regularized Isotonic variants
             "rir_weak": lambda: RegularizedIsotonicCalibrator(alpha=0.01),
             "rir_medium": lambda: RegularizedIsotonicCalibrator(alpha=0.1),
@@ -328,20 +322,48 @@ class TestMatrix:
 
     @pytest.mark.slow
     def test_relaxed_monotonicity_calibrators(self):
-        """Test that relaxed monotonicity calibrators have controlled violations."""
-        relaxed_calibrators = ["nir_relaxed_path", "rpava_loose_adaptive"]
+        """Violations must fall as the monotonicity penalty rises.
 
-        for calibrator_name in relaxed_calibrators:
-            for pattern in ["multi_modal", "weather_forecasting"]:
-                result = self._run_single_test(calibrator_name, pattern, 300, 0.1)
+        A fixed threshold on the violation rate at a single ``lam`` is not a
+        meaningful test, because ``lam`` in this objective is not scale-free: the
+        squared-error term is *summed* over observations while the penalty term
+        is a total decrease, so the penalty's influence scales like 1/n. At
+        n=300, ``lam=0.1`` is effectively no penalty at all -- the fit sits close
+        to the raw data and legitimately shows ~35% violations -- while ``lam=50``
+        drives them to zero. The previous fixed 40% bound only passed because the
+        path solver was not solving the stated objective.
 
-                if result["success"]:
-                    violation_rate = (
-                        result["monotonicity_violations"] / 49
-                    )  # 50 test points = 49 intervals
-                    assert violation_rate <= 0.4, (
-                        f"{calibrator_name} had too many violations ({violation_rate:.1%}) on {pattern}"
-                    )
+        So assert the property that actually characterises the estimator. Note it
+        is the total violation *magnitude* that is controlled, not the violation
+        count: the penalty is ``sum max(0, b_i - b_{i+1})``, so a larger ``lam``
+        can shrink the total while spreading it over more, smaller, violations.
+        For any penalised problem ``min f(b) + lam * P(b)``, the penalty at the
+        optimum is non-increasing in ``lam``; that is the provable statement, and
+        it must be measured on the fitted grid rather than on a resampled linspace
+        (interpolating between knots creates sign changes of its own).
+        """
+        # Both patterns accept noise_level; weather_forecasting does not, and it
+        # is perfectly calibrated by construction anyway (y ~ Binomial(1, y_pred)),
+        # so it is a poor probe for a miscalibration fix.
+        for pattern in ["multi_modal", "sigmoid_distorted"]:
+            y_pred, y_true = self.data_generator.generate_dataset(
+                pattern, 300, noise_level=0.1
+            )
+            grid = np.unique(y_pred)
+
+            totals = []
+            for lam in (0.1, 1.0, 10.0, 100.0):
+                cal = NearlyIsotonicCalibrator(lam=lam, method="path")
+                fitted = cal.fit(y_pred, y_true).transform(grid)
+                totals.append(float(np.sum(np.maximum(0.0, -np.diff(fitted)))))
+
+            for lo, hi in zip(totals[:-1], totals[1:], strict=True):
+                assert hi <= lo + 1e-9, (
+                    f"{pattern}: total violation magnitude rose with lam: {totals}"
+                )
+            assert totals[-1] == 0.0, (
+                f"{pattern}: a large penalty must recover monotonicity, got {totals}"
+            )
 
     @pytest.mark.parametrize("n_samples", [100, 300, 1000])
     def test_scalability(self, n_samples):
@@ -585,9 +607,9 @@ class TestMatrixAnalysis:
                     if cal_name == "nir_strict_path":
                         calibrator = NearlyIsotonicCalibrator(lam=10.0, method="path")
                     elif cal_name == "ispline_medium":
-                        calibrator = SplineCalibrator(n_splines=10, degree=3, cv=3)
+                        calibrator = SplineCalibrator(n_knots=10, degree=3, cv=3)
                     elif cal_name == "rpava_strict_adaptive":
-                        calibrator = RelaxedPAVACalibrator(percentile=5, adaptive=True)
+                        calibrator = RelaxedPAVACalibrator(epsilon=0.01)
                     elif cal_name == "rir_medium":
                         calibrator = RegularizedIsotonicCalibrator(alpha=0.1)
                     elif cal_name == "sir_fixed_medium":

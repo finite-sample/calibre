@@ -107,13 +107,17 @@ class TestNearlyIsotonicCalibrator:
         assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
 
     def test_invalid_method(self, calibration_data):
-        """Test error handling for invalid method."""
-        x, y_observed, y_true = calibration_data
-        cal = NearlyIsotonicCalibrator(lam=1.0, method="invalid")
-        cal.fit(x, y_observed)
+        """An unknown solver name must be rejected by fit, not deferred.
 
-        with pytest.raises(ValueError, match="Unknown method"):
-            cal.transform(x)
+        Validating in ``fit`` rather than in ``transform`` means a bad
+        configuration surfaces where the user can act on it, instead of after a
+        model has apparently trained successfully.
+        """
+        x, y_observed, _ = calibration_data
+        cal = NearlyIsotonicCalibrator(lam=1.0, method="invalid")
+
+        with pytest.raises(ValueError, match="method must be"):
+            cal.fit(x, y_observed)
 
 
 class TestSplineCalibrator:
@@ -122,7 +126,10 @@ class TestSplineCalibrator:
     def test_basic_functionality(self, calibration_data):
         """Test SplineCalibrator basic operations."""
         x, y_observed, y_true = calibration_data
-        cal = SplineCalibrator(n_splines=10, degree=3, cv=5)
+        # The `calibration_data` fixture's targets run outside [0, 1] (up to
+        # ~1.52), so they are not probabilities and the Bernoulli likelihood
+        # does not apply -- fit on the identity scale instead.
+        cal = SplineCalibrator(n_knots=10, degree=3, cv=5, link="identity")
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
@@ -135,15 +142,15 @@ class TestSplineCalibrator:
         """Test different parameter combinations."""
         x, y_observed, y_true = calibration_data
 
-        # Test with different spline configurations
+        # Fitted on the identity scale: see test_basic_functionality.
         configs = [
-            {"n_splines": 5, "degree": 2},
-            {"n_splines": 15, "degree": 3},
-            {"n_splines": 8, "degree": 1},
+            {"n_knots": 5, "degree": 2},
+            {"n_knots": 15, "degree": 3},
+            {"n_knots": 8, "degree": 1},
         ]
 
         for config in configs:
-            cal = SplineCalibrator(**config)
+            cal = SplineCalibrator(**config, link="identity")
             cal.fit(x, y_observed)
             y_calib = cal.transform(x)
             assert len(y_calib) == len(x)
@@ -156,7 +163,7 @@ class TestRelaxedPAVACalibrator:
     def test_basic_functionality(self, calibration_data):
         """Test RelaxedPAVACalibrator basic operations."""
         x, y_observed, y_true = calibration_data
-        cal = RelaxedPAVACalibrator(percentile=10, adaptive=True)
+        cal = RelaxedPAVACalibrator(epsilon=0.02)
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
@@ -165,16 +172,60 @@ class TestRelaxedPAVACalibrator:
         corr = np.corrcoef(y_true, y_calib)[0, 1]
         assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
 
-    def test_percentile_variations(self, calibration_data):
-        """Test different percentile thresholds."""
-        x, y_observed, y_true = calibration_data
+    def test_epsilon_relaxes_monotonicity_monotonically(self, calibration_data):
+        """A larger epsilon must permit at least as much total decrease.
 
-        for percentile in [5, 10, 20]:
-            cal = RelaxedPAVACalibrator(percentile=percentile, adaptive=False)
-            cal.fit(x, y_observed)
-            y_calib = cal.transform(x)
-            assert len(y_calib) == len(x)
-            assert np.all((y_calib >= 0) & (y_calib <= 1))
+        `epsilon` bounds the decrease allowed between adjacent unique scores, so
+        the total decrease in the fit is non-decreasing in epsilon, and epsilon=0
+        must reproduce plain isotonic regression exactly.
+        """
+        x, y_observed, _ = calibration_data
+        grid = np.unique(x)
+
+        totals = []
+        for epsilon in [0.0, 0.01, 0.05, 0.2]:
+            cal = RelaxedPAVACalibrator(epsilon=epsilon, clip_output=False)
+            fitted = cal.fit(x, y_observed).transform(grid)
+            assert len(cal.transform(x)) == len(x)
+            totals.append(float(np.sum(np.maximum(0.0, -np.diff(fitted)))))
+
+        assert totals[0] == 0.0, "epsilon=0 must be exactly monotone"
+        for lo, hi in zip(totals[:-1], totals[1:], strict=True):
+            assert hi >= lo - 1e-12, f"total decrease fell as epsilon rose: {totals}"
+
+    def test_epsilon_zero_equals_isotonic(self, calibration_data):
+        """epsilon=0 is standard isotonic regression, so it must match sklearn."""
+        from sklearn.isotonic import IsotonicRegression
+
+        x, y_observed, _ = calibration_data
+        grid = np.unique(x)
+
+        # clip_output=False so the comparison is against the same estimator:
+        # sklearn does not clip, and this fixture's targets dip below 0.
+        got = (
+            RelaxedPAVACalibrator(epsilon=0.0, clip_output=False)
+            .fit(x, y_observed)
+            .transform(grid)
+        )
+        expected = (
+            IsotonicRegression(out_of_bounds="clip").fit(x, y_observed).transform(grid)
+        )
+        np.testing.assert_allclose(got, expected, rtol=0, atol=1e-10)
+
+    def test_min_slope_removes_plateaus(self, calibration_data):
+        """A positive min_slope must leave no plateau on the fitted grid."""
+        x, y_observed, _ = calibration_data
+        grid = np.unique(x)
+
+        plain = RelaxedPAVACalibrator().fit(x, y_observed).transform(grid)
+        sloped = (
+            RelaxedPAVACalibrator(min_slope=1e-4, clip_output=False)
+            .fit(x, y_observed)
+            .transform(grid)
+        )
+
+        assert np.any(np.diff(plain) == 0), "fixture should produce plateaus"
+        assert np.all(np.diff(sloped) > 0), "min_slope must eliminate plateaus"
 
 
 class TestRegularizedIsotonicCalibrator:
@@ -183,7 +234,10 @@ class TestRegularizedIsotonicCalibrator:
     def test_basic_functionality(self, calibration_data):
         """Test RegularizedIsotonicCalibrator basic operations."""
         x, y_observed, y_true = calibration_data
-        cal = RegularizedIsotonicCalibrator(alpha=0.1)
+        # The `calibration_data` fixture's targets run outside [0, 1] (up to
+        # ~1.52), so they are not probabilities and the Bernoulli likelihood
+        # does not apply -- fit on the identity scale instead.
+        cal = RegularizedIsotonicCalibrator(alpha=0.1, link="identity")
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
@@ -197,7 +251,7 @@ class TestRegularizedIsotonicCalibrator:
         x, y_observed, y_true = calibration_data
 
         for alpha in [0.01, 0.1, 1.0]:
-            cal = RegularizedIsotonicCalibrator(alpha=alpha)
+            cal = RegularizedIsotonicCalibrator(alpha=alpha, link="identity")
             cal.fit(x, y_observed)
             y_calib = cal.transform(x)
             assert len(y_calib) == len(x)
@@ -250,8 +304,8 @@ class TestCalibratorErrorHandling:
 
         calibrators = [
             NearlyIsotonicCalibrator(lam=1.0, method="cvx"),
-            SplineCalibrator(n_splines=5),
-            RelaxedPAVACalibrator(percentile=10),
+            SplineCalibrator(n_knots=5),
+            RelaxedPAVACalibrator(epsilon=0.02),
             RegularizedIsotonicCalibrator(alpha=0.1),
             SmoothedIsotonicCalibrator(window_length=5),
         ]
@@ -268,7 +322,7 @@ class TestCalibratorErrorHandling:
         calibrators = [
             IsotonicCalibrator(),
             NearlyIsotonicCalibrator(lam=1.0, method="cvx"),
-            SplineCalibrator(n_splines=5),
+            SplineCalibrator(n_knots=5),
         ]
 
         for cal in calibrators:
@@ -299,8 +353,8 @@ class TestCalibratorCommonInterface:
         return [
             IsotonicCalibrator(),
             NearlyIsotonicCalibrator(lam=1.0, method="path"),
-            SplineCalibrator(n_splines=8, cv=3),
-            RelaxedPAVACalibrator(percentile=10),
+            SplineCalibrator(n_knots=8, cv=3),
+            RelaxedPAVACalibrator(epsilon=0.02),
             RegularizedIsotonicCalibrator(alpha=0.1),
             SmoothedIsotonicCalibrator(window_length=7),
         ]

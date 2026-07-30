@@ -50,14 +50,16 @@ class IsotonicCalibrator(BaseCalibrator):
     >>>
     >>> # Basic usage
     >>> cal = IsotonicCalibrator()
-    >>> cal.fit(X, y)
+    >>> _ = cal.fit(X, y)
     >>> X_calibrated = cal.transform(X)
     >>>
     >>> # With diagnostics
     >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-    >>> cal.fit(X, y)
-    >>> if cal.has_diagnostics():
-    ...     print(cal.diagnostic_summary())
+    >>> _ = cal.fit(X, y)
+    >>> cal.has_diagnostics()
+    True
+    >>> cal.get_diagnostics()["n_plateaus"]
+    2
 
     Notes
     -----
@@ -90,7 +92,12 @@ class IsotonicCalibrator(BaseCalibrator):
 
         self.isotonic_: IsotonicRegression | None = None
 
-    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+    def _fit_impl(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> None:
         """
         Implement the isotonic regression fitting logic.
 
@@ -115,7 +122,7 @@ class IsotonicCalibrator(BaseCalibrator):
             increasing=self.increasing,
             out_of_bounds=self.out_of_bounds,
         )
-        self.isotonic_.fit(X, y)
+        self.isotonic_.fit(X, y, sample_weight=sample_weight)
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """

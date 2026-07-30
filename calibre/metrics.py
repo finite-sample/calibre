@@ -13,7 +13,14 @@ from sklearn.utils import check_array
 
 def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """
-    Calculate the mean calibration error.
+    Calculate the mean calibration error: the bias of the predictions.
+
+    .. math:: \\left| \\mathbb{E}[\\hat{p}] - \\mathbb{E}[y] \\right|
+
+    This is calibration *in the large* -- whether the predictions are right on
+    average. It is zero for any predictor whose mean matches the base rate, and
+    it says nothing about calibration within subgroups; for that use
+    :func:`expected_calibration_error`.
 
     Parameters
     ----------
@@ -24,21 +31,36 @@ def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
     Returns
     -------
-    mce : float
-        Mean calibration error.
+    float
+        Absolute difference between the mean prediction and the base rate.
 
     Raises
     ------
     ValueError
         If arrays have different shapes.
 
+    Notes
+    -----
+    .. versionchanged:: 0.7.0
+       Previously this returned ``mean(|y_pred - y_true|)``, which is mean
+       absolute error, not a calibration error at all: it is minimised by hard
+       0/1 predictions and is nonzero for a perfectly calibrated model -- a
+       perfectly calibrated constant predictor of 0.5 scored 0.5. Use
+       :func:`sklearn.metrics.mean_absolute_error` if you want the old quantity.
+
     Examples
     --------
     >>> import numpy as np
     >>> y_true = np.array([0, 1, 1, 0, 1])
     >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> mean_calibration_error(y_true, y_pred)
-    0.26
+    >>> round(mean_calibration_error(y_true, y_pred), 4)   # mean 0.54 vs base 0.6
+    0.06
+
+    A perfectly calibrated predictor scores zero, however unsharp it is:
+
+    >>> y = np.array([0, 0, 1, 1])
+    >>> mean_calibration_error(y, np.full(4, 0.5))
+    0.0
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -47,12 +69,16 @@ def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     if y_true.shape != y_pred.shape:
         raise ValueError("y_true and y_pred should have the same shape")
 
-    # Simple mean absolute difference between predictions and outcomes
-    return float(np.mean(np.abs(y_pred - y_true)))
+    return float(abs(np.mean(y_pred) - np.mean(y_true)))
 
 
 def binned_calibration_error(
-    y_true: np.ndarray, y_pred: np.ndarray, x: np.ndarray | None = None, n_bins: int = 10, strategy: str = "uniform", return_details: bool = False
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    x: np.ndarray | None = None,
+    n_bins: int = 10,
+    strategy: str = "uniform",
+    return_details: bool = False,
 ) -> float | dict:
     """
     Calculate binned calibration error.
@@ -91,7 +117,7 @@ def binned_calibration_error(
     >>> y_true = np.array([0, 1, 1, 0, 1])
     >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
     >>> binned_calibration_error(y_true, y_pred, n_bins=2)
-    0.05
+    0.3
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -164,7 +190,9 @@ def binned_calibration_error(
         return float(bce)
 
 
-def expected_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10) -> float:
+def expected_calibration_error(
+    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10
+) -> float:
     """
     Calculate Expected Calibration Error (ECE).
 
@@ -195,8 +223,8 @@ def expected_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: i
     >>> import numpy as np
     >>> y_true = np.array([0, 1, 1, 0, 1])
     >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> expected_calibration_error(y_true, y_pred, n_bins=2)
-    0.12
+    >>> float(expected_calibration_error(y_true, y_pred, n_bins=2))
+    0.3
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -227,7 +255,9 @@ def expected_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: i
     return ece
 
 
-def maximum_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10) -> float:
+def maximum_calibration_error(
+    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10
+) -> float:
     """
     Calculate Maximum Calibration Error (MCE).
 
@@ -258,8 +288,8 @@ def maximum_calibration_error(y_true: np.ndarray, y_pred: np.ndarray, n_bins: in
     >>> import numpy as np
     >>> y_true = np.array([0, 1, 1, 0, 1])
     >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> maximum_calibration_error(y_true, y_pred, n_bins=2)
-    0.2
+    >>> round(float(maximum_calibration_error(y_true, y_pred, n_bins=2)), 4)
+    0.3
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -319,7 +349,7 @@ def brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     >>> y_true = np.array([0, 1, 1, 0, 1])
     >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
     >>> brier_score(y_true, y_pred)
-    0.142
+    0.098
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -330,7 +360,12 @@ def brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(brier_score_loss(y_true, y_pred))
 
 
-def correlation_metrics(y_true: np.ndarray, y_pred: np.ndarray, x: np.ndarray | None = None, y_orig: np.ndarray | None = None) -> dict:
+def correlation_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    x: np.ndarray | None = None,
+    y_orig: np.ndarray | None = None,
+) -> dict:
     """
     Calculate correlation metrics between various signals.
 
@@ -356,8 +391,13 @@ def correlation_metrics(y_true: np.ndarray, y_pred: np.ndarray, x: np.ndarray | 
     >>> y_true = np.array([0, 1, 1, 0, 1])
     >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
     >>> y_orig = np.array([0.1, 0.6, 0.9, 0.3, 0.5])
-    >>> correlation_metrics(y_true, y_pred, y_orig=y_orig)
-    {'spearman_corr_to_y_true': 0.6708203932499371, 'spearman_corr_to_y_orig': 0.9}
+    >>> corr = correlation_metrics(y_true, y_pred, y_orig=y_orig)
+    >>> sorted(corr)
+    ['spearman_corr_orig_to_calib', 'spearman_corr_to_y_orig', 'spearman_corr_to_y_true']
+    >>> round(float(corr["spearman_corr_to_y_true"]), 4)
+    0.866
+    >>> round(float(corr["spearman_corr_to_y_orig"]), 4)
+    1.0
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -378,7 +418,9 @@ def correlation_metrics(y_true: np.ndarray, y_pred: np.ndarray, x: np.ndarray | 
     return results
 
 
-def unique_value_counts(y_pred: np.ndarray, y_orig: np.ndarray | None = None, precision: int = 6) -> dict:
+def unique_value_counts(
+    y_pred: np.ndarray, y_orig: np.ndarray | None = None, precision: int = 6
+) -> dict:
     """
     Count unique values in predictions.
 
@@ -406,7 +448,9 @@ def unique_value_counts(y_pred: np.ndarray, y_orig: np.ndarray | None = None, pr
     """
     y_pred = check_array(y_pred, ensure_2d=False)
 
-    results: dict[str, int | float] = {"n_unique_y_pred": len(np.unique(np.round(y_pred, precision)))}
+    results: dict[str, int | float] = {
+        "n_unique_y_pred": len(np.unique(np.round(y_pred, precision)))
+    }
 
     if y_orig is not None:
         y_orig = check_array(y_orig, ensure_2d=False)
@@ -418,7 +462,9 @@ def unique_value_counts(y_pred: np.ndarray, y_orig: np.ndarray | None = None, pr
     return results
 
 
-def calibration_curve(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10, strategy: str = "uniform") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def calibration_curve(
+    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10, strategy: str = "uniform"
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the calibration curve for binary classification.
 
@@ -603,7 +649,7 @@ def plateau_quality_score(
     >>> y = np.array([0, 0, 1, 1, 1])
     >>> y_cal = np.array([0.1, 0.25, 0.25, 0.4, 0.6])
     >>> score = plateau_quality_score(X, y, y_cal)
-    >>> 0 <= score <= 1
+    >>> bool(0 <= score <= 1)
     True
     """
     from .diagnostics import detect_plateaus

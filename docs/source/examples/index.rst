@@ -60,14 +60,14 @@ To run these notebooks locally:
 
    git clone https://github.com/finite-sample/calibre.git
    cd calibre
-   pip install -e ".[dev]"
+   uv sync --all-extras --dev
    jupyter notebook docs/source/notebooks/
 
 Or install required dependencies:
 
 .. code-block:: bash
 
-   pip install calibre[examples]  # Installs matplotlib, seaborn, pandas
+   pip install matplotlib  # only needed to plot the examples yourself
 
 Additional Documentation Examples
 ----------------------------------

@@ -28,9 +28,6 @@ dependencies = [
     "scipy>=1.7.0",
     "scikit-learn>=1.0.0",
     "cvxpy>=1.2.0",
-    "pandas>=1.3.0",
-    "matplotlib>=3.4.0",
-    "seaborn>=0.11.0"
 ]
 
 [project.optional-dependencies]
@@ -129,19 +126,20 @@ no_implicit_optional = true
 module = [
     "sklearn.*",
     "scipy.*",
-    "matplotlib.*",
-    "seaborn.*",
-    "cvxpy.*"
+    "cvxpy.*",
 ]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests"]
+# "calibre" is here so --doctest-modules below actually reaches the library's
+# docstrings; with only "tests" it would collect nothing from the package.
+testpaths = ["tests", "calibre"]
 python_files = "test_*.py"
 addopts = [
     "-ra",
     "--strict-markers",
+    "--doctest-modules",
     "--cov=calibre",
     "--cov-report=term-missing",
     "--cov-report=html",
@@ -150,6 +148,11 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+# Doctests are executable documentation, so run them: --doctest-modules above is
+# what collects them. They were not collected before, which is how several
+# docstrings came to state numerically wrong results. ELLIPSIS lets an example
+# elide a volatile fragment with `...` rather than be left out of collection.
+doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE"]
 
 # Coverage configuration
 [tool.coverage.run]

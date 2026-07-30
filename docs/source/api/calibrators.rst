@@ -118,8 +118,8 @@ Comparing Methods
        'CDI-ISO': CDIIsotonicCalibrator(thresholds=[0.3, 0.7], gamma=0.15),
        'Isotonic': IsotonicCalibrator(),
        'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
-       'Spline': SplineCalibrator(n_splines=10),
-       'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
+       'Spline': SplineCalibrator(n_knots=10),
+       'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
        'Regularized': RegularizedIsotonicCalibrator(alpha=0.1)
    }
    

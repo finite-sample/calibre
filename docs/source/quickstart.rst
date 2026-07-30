@@ -55,7 +55,7 @@ For smooth calibration curves using monotonic splines:
    from calibre import SplineCalibrator
    
    # Smooth calibration with cross-validation
-   cal_ispline = SplineCalibrator(n_splines=10, degree=3, cv=5)
+   cal_ispline = SplineCalibrator(n_knots=10, degree=3, cv=5)
    cal_ispline.fit(y_pred, y_true)
    y_calibrated_smooth = cal_ispline.transform(y_pred)
 
@@ -68,12 +68,12 @@ Ignores small violations while correcting larger ones:
 
    from calibre import RelaxedPAVACalibrator
    
-   # Allow violations below 10th percentile threshold
-   cal_relaxed = RelaxedPAVACalibrator(percentile=10, adaptive=True)
+   # Permit decreases of up to 0.02
+   cal_relaxed = RelaxedPAVACalibrator(epsilon=0.02)
    cal_relaxed.fit(y_pred, y_true)
    y_calibrated_relaxed = cal_relaxed.transform(y_pred)
 
-Regularized Isotonic Regression
+Regularized Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Adds L2 regularization for smoother curves:
@@ -82,12 +82,12 @@ Adds L2 regularization for smoother curves:
 
    from calibre import RegularizedIsotonicCalibrator
    
-   # L2 regularized isotonic regression
+   # monotone spline with a curvature penalty
    cal_reg = RegularizedIsotonicCalibrator(alpha=0.1)
    cal_reg.fit(y_pred, y_true)
    y_calibrated_reg = cal_reg.transform(y_pred)
 
-Smoothed Isotonic Regression
+Smoothed Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Reduces the "staircase" effect of standard isotonic regression:

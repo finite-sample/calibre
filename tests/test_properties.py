@@ -33,8 +33,8 @@ def core_calibrators():
     """Fixture providing core calibrators for property testing."""
     return {
         "nearly_isotonic": NearlyIsotonicCalibrator(lam=1.0, method="path"),
-        "spline": SplineCalibrator(n_splines=10, degree=3, cv=3),
-        "relaxed_pava": RelaxedPAVACalibrator(percentile=10, adaptive=True),
+        "spline": SplineCalibrator(n_knots=10, degree=3, cv=3),
+        "relaxed_pava": RelaxedPAVACalibrator(epsilon=0.02),
         "regularized": RegularizedIsotonicCalibrator(alpha=0.1),
         "smoothed": SmoothedIsotonicCalibrator(window_length=7, poly_order=3),
     }
@@ -403,24 +403,20 @@ class TestParameterSensitivity:
                 "Lambda trend check failed"
             )
 
-        # Test percentile sensitivity for RelaxedPAVACalibrator
+        # Epsilon sensitivity for RelaxedPAVACalibrator. A larger tolerance means
+        # less pooling, hence at least as many distinct calibrated values. No
+        # try/except here: if the fit raises, that is the finding.
         y_pred2, y_true2 = data_generator.generate_dataset("multi_modal", n_samples=300)
-        percentile_results = {}
-        for perc in [5, 20]:
-            try:
-                calibrator = RelaxedPAVACalibrator(percentile=perc, adaptive=True)
-                calibrator.fit(y_pred2, y_true2)
-                y_calib = calibrator.transform(y_pred2)
-                unique_count = len(np.unique(np.round(y_calib, 6)))
-                percentile_results[perc] = unique_count
-            except Exception:
-                pass
+        epsilon_results = {}
+        for eps in [0.0, 0.05]:
+            calibrator = RelaxedPAVACalibrator(epsilon=eps)
+            calibrator.fit(y_pred2, y_true2)
+            y_calib = calibrator.transform(y_pred2)
+            epsilon_results[eps] = len(np.unique(np.round(y_calib, 6)))
 
-        if len(percentile_results) == 2:
-            # Higher percentile should preserve more unique values
-            assert percentile_results[20] >= percentile_results[5], (
-                "Percentile trend check failed"
-            )
+        assert epsilon_results[0.05] >= epsilon_results[0.0], (
+            f"a larger epsilon pooled more, not less: {epsilon_results}"
+        )
 
 
 # Utility functions for property testing

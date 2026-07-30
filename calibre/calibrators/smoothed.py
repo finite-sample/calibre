@@ -62,7 +62,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
     >>>
     >>> cal = SmoothedIsotonicCalibrator(window_length=7)
-    >>> cal.fit(X, y)
+    >>> _ = cal.fit(X, y)
     >>> X_calibrated = cal.transform(X)
 
     See Also
@@ -91,7 +91,12 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         self.min_window = min_window
         self.max_window = max_window
 
-    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+    def _fit_impl(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> None:
         """Implement the smoothed isotonic regression fitting logic.
 
         Parameters
@@ -106,6 +111,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         This method implements the actual fitting logic. Data storage,
         diagnostics, and return value are handled by the base class fit() method.
         """
+        self._reject_sample_weight(sample_weight)
         X, y = check_arrays(X, y)
 
         if self.poly_order < 1:

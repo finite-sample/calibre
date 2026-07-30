@@ -100,7 +100,7 @@ Comprehensive Evaluation
    
    print(f"Binned Calibration Error: {bce:.4f}")
    print(f"Bin centers: {details['bin_centers']}")
-   print(f"Bin accuracies: {details['bin_accuracies']}")
+   print(f"Bin accuracies: {details['bin_true_means']}")
    
    # Correlation analysis
    corr = correlation_metrics(y_true, y_pred)

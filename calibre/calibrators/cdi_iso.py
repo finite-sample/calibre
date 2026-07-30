@@ -114,9 +114,10 @@ def _inv_std_normal_cdf(p: float) -> float:
 
     if p < plow:
         q = np.sqrt(-2 * np.log(p))
-        return float((((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / (
-            (((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1
-        ))
+        return float(
+            (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+        )
     elif p <= phigh:
         q = p - 0.5
         r = q * q
@@ -127,9 +128,10 @@ def _inv_std_normal_cdf(p: float) -> float:
         )
     else:
         q = np.sqrt(-2 * np.log(1 - p))
-        return float(-(
-            ((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]
-        ) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1))
+        return float(
+            -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+        )
 
 
 def _z_value(alpha: float) -> float:

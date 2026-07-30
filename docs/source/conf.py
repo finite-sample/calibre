@@ -3,6 +3,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import importlib.metadata
 import os
 import sys
 
@@ -19,7 +20,7 @@ sys.path.insert(0, os.path.abspath('../../'))
 project = 'Calibre'
 copyright = '2024, Gaurav Sood'
 author = 'Gaurav Sood'
-release = '0.6.0'
+release = importlib.metadata.version('calibre')
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

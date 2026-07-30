@@ -44,7 +44,7 @@ For development, install with additional development dependencies:
 
    git clone https://github.com/finite-sample/calibre.git
    cd calibre
-   pip install -e ".[dev]"
+   uv sync --all-extras --dev
 
 This includes:
 
