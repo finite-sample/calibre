@@ -64,8 +64,10 @@ def run_plateau_diagnostics(
     >>> diagnostics = run_plateau_diagnostics(X, y, y_cal)
     >>> print(diagnostics['n_plateaus'])
     2
-    >>> print(diagnostics['warnings'])
-    []
+    >>> for warning in diagnostics['warnings']:
+    ...     print(warning)
+    Plateau 1 at [0.100, 0.300] has only 3 samples - may be unreliable
+    Plateau 2 at [0.700, 0.900] has only 3 samples - may be unreliable
     """
     # Sort by calibrated values to find consecutive identical values
     sorted_indices = np.argsort(y_calibrated)
@@ -132,7 +134,7 @@ def detect_plateaus(
     --------
     >>> y_cal = np.array([0.2, 0.2, 0.2, 0.5, 0.8, 0.8])
     >>> plateaus = detect_plateaus(y_cal)
-    >>> print(plateaus)
+    >>> [(lo, hi, float(v)) for lo, hi, v in plateaus]
     [(0, 2, 0.2), (4, 5, 0.8)]
     """
     if len(y_calibrated) == 0:
@@ -271,7 +273,7 @@ def diversity_learning_curve(
     Notes
     -----
     This function is computationally expensive as it fits the calibrator
-    multiple times (n_trials × len(sample_sizes) fits). Use for diagnostic
+    multiple times (n_trials x len(sample_sizes) fits). Use for diagnostic
     analysis, not routine evaluation.
 
     The diversity metric measures granularity: higher diversity means more
@@ -282,30 +284,20 @@ def diversity_learning_curve(
     Examples
     --------
     >>> import numpy as np
-    >>> from calibre import IsotonicCalibrator
-    >>>
-    >>> # Generate example data
-    >>> np.random.seed(42)
-    >>> X = np.random.uniform(0, 1, 500)
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.uniform(0, 1, 200)
     >>> y = (X > 0.5).astype(int)
     >>>
-    >>> # Test data sufficiency
-    >>> sizes, divs = diversity_learning_curve(X, y,
-    ...     sample_sizes=[50, 100, 200, 300, 400, 500])
-    >>>
-    >>> # Check if converged
-    >>> if divs[-1] - divs[-2] < 0.05:
-    ...     print("✓ Diversity has converged - sufficient data")
-    ... else:
-    ...     print("⚠ Diversity still increasing - more data may help")
-    >>>
-    >>> # Compare methods
-    >>> from calibre import SplineCalibrator
-    >>> sizes, iso_divs = diversity_learning_curve(X, y,
-    ...     calibrator=IsotonicCalibrator())
-    >>> sizes, spl_divs = diversity_learning_curve(X, y,
-    ...     calibrator=SplineCalibrator())
-    >>> # Compare which method preserves more diversity at each sample size
+    >>> sizes, divs = diversity_learning_curve(
+    ...     X, y, sample_sizes=[50, 100, 200], n_trials=2, random_state=0
+    ... )
+    >>> sizes
+    [50, 100, 200]
+    >>> len(divs) == 3 and all(0.0 <= d <= 1.0 for d in divs)
+    True
+
+    Rising diversity suggests more data would buy more granularity; a flat tail
+    suggests the calibrator has the resolution the data can support.
 
     See Also
     --------

@@ -5,6 +5,7 @@ This module provides functions to generate synthetic datasets that mimic
 common miscalibration patterns observed in real machine learning models.
 """
 
+import zlib
 from typing import Any
 
 import numpy as np
@@ -26,6 +27,7 @@ class CalibrationDataGenerator:
         random_state : int, default=42
             Random seed for reproducible results.
         """
+        self.random_state = random_state
         self.random_state = random_state
         np.random.seed(random_state)
 
@@ -457,6 +459,19 @@ class CalibrationDataGenerator:
         y_true : ndarray
             True binary labels.
         """
+        # Reseed from a hash of the request. Every generator below draws from
+        # the global np.random, so without this the data a test receives depends
+        # on how many draws earlier tests made -- making the suite
+        # order-dependent and non-reproducible under -k filters or xdist.
+        np.random.seed(
+            (
+                self.random_state
+                + zlib.crc32(
+                    repr((pattern, n_samples, sorted(kwargs.items()))).encode()
+                )
+            )
+            % (2**32)
+        )
         generators = {
             "overconfident_nn": self.overconfident_neural_network,
             "underconfident_rf": self.underconfident_random_forest,

@@ -3,6 +3,7 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import importlib.metadata
 import os
 import sys
 
@@ -11,37 +12,37 @@ import sys
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('../../'))
+sys.path.insert(0, os.path.abspath("../../"))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'Calibre'
-copyright = '2024, Gaurav Sood'
-author = 'Gaurav Sood'
-release = '0.6.0'
+project = "Calibre"
+copyright = "2024, Gaurav Sood"
+author = "Gaurav Sood"
+release = importlib.metadata.version("calibre")
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',        # Auto-generate docs from docstrings
-    'sphinx.ext.autosummary',    # Generate summary tables
-    'sphinx.ext.napoleon',       # Support for Google/NumPy style docstrings
-    'sphinx.ext.viewcode',       # Add links to source code
-    'sphinx.ext.intersphinx',    # Link to other project's documentation
-    'sphinx.ext.coverage',       # Coverage extension
-    'sphinx.ext.mathjax',        # Math support
-    'sphinx_autodoc_typehints',  # Type hints support
-    'sphinx_copybutton',         # Copy button for code blocks
-    'nbsphinx',                  # Jupyter notebook support
-    'myst_parser',               # Markdown support
+    "sphinx.ext.autodoc",  # Auto-generate docs from docstrings
+    "sphinx.ext.autosummary",  # Generate summary tables
+    "sphinx.ext.napoleon",  # Support for Google/NumPy style docstrings
+    "sphinx.ext.viewcode",  # Add links to source code
+    "sphinx.ext.intersphinx",  # Link to other project's documentation
+    "sphinx.ext.coverage",  # Coverage extension
+    "sphinx.ext.mathjax",  # Math support
+    "sphinx_autodoc_typehints",  # Type hints support
+    "sphinx_copybutton",  # Copy button for code blocks
+    "nbsphinx",  # Jupyter notebook support
+    "myst_parser",  # Markdown support
 ]
 
 # Source file configuration
 source_suffix = {
-    '.rst': 'restructuredtext',
-    '.md': 'markdown',
+    ".rst": "restructuredtext",
+    ".md": "markdown",
 }
 
 # Copy button settings
@@ -63,26 +64,26 @@ myst_enable_extensions = [
     "tasklist",
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
 
 # -- Autodoc configuration --------------------------------------------------
 
 autodoc_default_options = {
-    'members': True,
-    'undoc-members': True,
-    'private-members': False,
-    'special-members': '__init__',
-    'inherited-members': True,
-    'show-inheritance': True,
+    "members": True,
+    "undoc-members": True,
+    "private-members": False,
+    "special-members": "__init__",
+    "inherited-members": True,
+    "show-inheritance": True,
 }
 
 autosummary_generate = True
-autodoc_typehints = 'signature'
-autodoc_typehints_description_target = 'all'
+autodoc_typehints = "signature"
+autodoc_typehints_description_target = "all"
 autodoc_type_aliases = {
-    'ArrayLike': 'array-like',
-    'DTypeLike': 'dtype-like',
+    "ArrayLike": "array-like",
+    "DTypeLike": "dtype-like",
 }
 
 typehints_fully_qualified = False
@@ -102,20 +103,20 @@ napoleon_preprocess_types = False
 # -- Intersphinx configuration ----------------------------------------------
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3/', None),
-    'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy/', None),
-    'sklearn': ('https://scikit-learn.org/stable/', None),
-    'pandas': ('https://pandas.pydata.org/docs/', None),
-    'matplotlib': ('https://matplotlib.org/stable/', None),
+    "python": ("https://docs.python.org/3/", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+    "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+    "sklearn": ("https://scikit-learn.org/stable/", None),
+    "pandas": ("https://pandas.pydata.org/docs/", None),
+    "matplotlib": ("https://matplotlib.org/stable/", None),
 }
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'furo'
+html_theme = "furo"
 html_title = project
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # Furo theme options
 html_theme_options = {
@@ -146,9 +147,9 @@ html_sidebars = {
 
 # -- Options for nbsphinx ---------------------------------------------------
 
-nbsphinx_execute = 'auto'  # Execute notebooks that don't have outputs
+nbsphinx_execute = "auto"  # Execute notebooks that don't have outputs
 nbsphinx_allow_errors = True
-nbsphinx_kernel_name = 'python3'
+nbsphinx_kernel_name = "python3"
 nbsphinx_requirejs_path = ""
 nbsphinx_requirejs_options = {"paths": {"https://unpkg.com": "https://unpkg.com"}}
 nbsphinx_timeout = 300  # 5 minutes per notebook
@@ -157,20 +158,19 @@ nbsphinx_prolog = """
    This notebook is executed during documentation build to show live results.
    You can also run it interactively on `Binder <https://mybinder.org/v2/gh/finite-sample/calibre/main?labpath=docs/source/notebooks>`_.
 """
-nbsphinx_codecell_lexer = 'none'
+nbsphinx_codecell_lexer = "none"
 
 
 # -- Options for LaTeX output -----------------------------------------------
 
 latex_elements = {
-    'papersize': 'letterpaper',
-    'pointsize': '10pt',
-    'preamble': '',
-    'fncychap': '',
-    'printindex': '',
+    "papersize": "letterpaper",
+    "pointsize": "10pt",
+    "preamble": "",
+    "fncychap": "",
+    "printindex": "",
 }
 
 latex_documents = [
-    ('index', 'calibre.tex', 'Calibre Documentation',
-     'Gaurav Sood', 'manual'),
+    ("index", "calibre.tex", "Calibre Documentation", "Gaurav Sood", "manual"),
 ]

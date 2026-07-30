@@ -11,6 +11,34 @@ import numpy as np
 from sklearn.utils import check_array
 
 
+def _as_float_1d(a: np.ndarray) -> np.ndarray:
+    """Validate an array and return it as 1-D ``float64``, allowing NaN.
+
+    Wrapped for two reasons. sklearn's ``check_array`` preserves an integer dtype,
+    and integer targets are a trap for any estimator that averages labels: pooling
+    a 0 and a 1 into an int array stores 0, not 0.5. And its stubs type
+    ``ensure_all_finite`` as ``bool`` even though the documented API also accepts
+    ``"allow-nan"``, so the call is funnelled through one place.
+
+    Parameters
+    ----------
+    a
+        Array-like input.
+
+    Returns
+    -------
+    ndarray
+        A 1-D float64 array.
+    """
+    checked = check_array(
+        a,
+        ensure_2d=False,
+        ensure_all_finite="allow-nan",  # type: ignore[arg-type]
+        dtype="numeric",
+    )
+    return np.asarray(checked, dtype=np.float64).ravel()
+
+
 def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Check and validate input arrays for calibration.
@@ -37,6 +65,12 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     ValueError
         If arrays are empty or have incompatible lengths.
 
+    Notes
+    -----
+    Both arrays are returned as ``float64``. sklearn's ``check_array`` preserves an
+    integer dtype, and integer targets are a trap for any estimator that averages
+    labels: pooling a 0 and a 1 into an int array stores 0, not 0.5.
+
     Examples
     --------
     >>> import numpy as np
@@ -47,10 +81,11 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     >>> X_checked, y_checked = check_arrays(X, y)
     >>> print(X_checked.shape, y_checked.shape)
     (3,) (3,)
+    >>> y_checked.dtype                       # integer labels are widened
+    dtype('float64')
     """
-    # Use sklearn's check_array for initial validation
-    X = check_array(X, ensure_2d=False, ensure_all_finite="allow-nan")
-    y = check_array(y, ensure_2d=False, ensure_all_finite="allow-nan")
+    X = _as_float_1d(X)
+    y = _as_float_1d(y)
 
     # Ensure 1D arrays
     X = X.ravel()
@@ -100,8 +135,7 @@ def check_array_1d(X: np.ndarray, name: str = "X") -> np.ndarray:
     >>> print(X_checked.shape)
     (3,)
     """
-    X = check_array(X, ensure_2d=False, ensure_all_finite="allow-nan")
-    X = X.ravel()
+    X = _as_float_1d(X)
 
     if len(X) == 0:
         raise ValueError(f"Array '{name}' cannot be empty")
@@ -175,10 +209,10 @@ def check_consistent_length(*arrays: np.ndarray) -> None:
     >>> check_consistent_length(X, y)  # No error
     >>>
     >>> z = np.array([0, 1])  # Different length
-    >>> try:
-    ...     check_consistent_length(X, z)
-    ... except ValueError as e:
-    ...     print("Error:", e)
+    >>> check_consistent_length(X, z)
+    Traceback (most recent call last):
+        ...
+    ValueError: Inconsistent array lengths: [3, 2]. All arrays must have the same length.
     """
     lengths = [len(X) for X in arrays if X is not None]
 
@@ -209,10 +243,10 @@ def validate_parameters(**params: object) -> None:
     >>>
     >>> validate_parameters(alpha=0.1, n_bootstraps=100)  # OK
     >>>
-    >>> try:
-    ...     validate_parameters(alpha=-0.5)  # Negative
-    ... except ValueError as e:
-    ...     print("Error:", e)
+    >>> validate_parameters(alpha=-0.5)  # Negative
+    Traceback (most recent call last):
+        ...
+    ValueError: Parameter 'alpha' must be non-negative, got -0.5
     """
     for name, value in params.items():
         if name in ["alpha", "lam"] and value is not None:
@@ -227,23 +261,25 @@ def validate_parameters(**params: object) -> None:
                     f"Parameter '{name}' must be a positive integer, got {value}"
                 )
 
-        elif name in ["window_length", "min_window"] and value is not None:
-            if not isinstance(value, int) or value < 3:
-                raise ValueError(
-                    f"Parameter '{name}' must be an integer >= 3, got {value}"
-                )
+        elif (
+            name in ["window_length", "min_window"]
+            and value is not None
+            and (not isinstance(value, int) or value < 3)
+        ):
+            raise ValueError(f"Parameter '{name}' must be an integer >= 3, got {value}")
 
-        elif name == "percentile" and value is not None:
-            if not isinstance(value, (int, float)) or not 0 <= value <= 100:
-                raise ValueError(
-                    f"Parameter 'percentile' must be in [0, 100], got {value}"
-                )
+        elif (
+            name == "percentile"
+            and value is not None
+            and (not isinstance(value, (int, float)) or not 0 <= value <= 100)
+        ):
+            raise ValueError(f"Parameter 'percentile' must be in [0, 100], got {value}")
 
 
 __all__ = [
-    "check_arrays",
     "check_array_1d",
-    "check_fitted",
+    "check_arrays",
     "check_consistent_length",
+    "check_fitted",
     "validate_parameters",
 ]

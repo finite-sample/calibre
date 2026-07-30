@@ -11,17 +11,22 @@ import logging
 
 import cvxpy as cp
 import numpy as np
-from scipy.interpolate import interp1d
-from sklearn.isotonic import IsotonicRegression
 
+from .._core import PiecewiseLinear, aggregate_ties, nearly_isotonic_path
 from ..base import BaseCalibrator
-from ..utils import check_arrays, sort_by_x
+from ..utils import check_arrays
 
 logger = logging.getLogger(__name__)
 
+# cvxpy ships no type information, so `cp.error.SolverError` cannot be resolved
+# statically. Bind it once here.
+_SolverError: type[Exception] = getattr(
+    getattr(cp, "error", None), "SolverError", Exception
+)
+
 
 class NearlyIsotonicCalibrator(BaseCalibrator):
-    """Nearly-isotonic regression for flexible monotonic calibration.
+    r"""Nearly-isotonic regression for flexible monotonic calibration.
 
     This calibrator implements nearly-isotonic regression, which relaxes the
     strict monotonicity constraint of standard isotonic regression by penalizing
@@ -34,9 +39,15 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         Regularization parameter controlling the strength of monotonicity constraint.
         Higher values enforce stricter monotonicity.
     method
-        Method to use for solving the optimization problem:
-        - 'cvx': Uses convex optimization with CVXPY
-        - 'path': Uses a path algorithm similar to the original nearly-isotonic paper
+        Solver for the optimization problem. Both are exact and agree to solver
+        tolerance; ``path`` is the faster and needs no CVXPY.
+
+        - ``'path'``: the exact solution path (O(n log n)).
+        - ``'cvx'``: convex optimization via CVXPY.
+    clip_output
+        Clip calibrated values into ``[0, 1]``. Appropriate for probability
+        calibration; turn it off to recover the unconstrained optimum of the
+        objective above, which is what the estimator is actually defined as.
     enable_diagnostics
         Whether to enable plateau diagnostics analysis.
 
@@ -46,13 +57,36 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     Nearly-isotonic regression solves the following optimization problem:
 
     .. math::
-        \\min_{\\beta} \\sum_{i=1}^{n} (y_i - \\beta_i)^2 + \\lambda \\sum_{i=1}^{n-1} \\max(0, \\beta_i - \\beta_{i+1})
+        \min_{\beta} \sum_{i=1}^{n} (y_i - \beta_i)^2 + \lambda \sum_{i=1}^{n-1} \max(0, \beta_i - \beta_{i+1})
 
-    where :math:`\\beta` is the calibrated output, :math:`y` are the true labels,
-    and :math:`\\lambda > 0` controls the strength of the monotonicity penalty.
+    where :math:`\beta` is the calibrated output, :math:`y` are the true labels,
+    and :math:`\lambda > 0` controls the strength of the monotonicity penalty.
 
     This formulation penalizes violations of monotonicity proportionally to their
     magnitude, allowing small violations when they significantly improve the fit.
+
+    **Interpreting lam.** Read it as a bias-variance knob on pooling rather than
+    as permission for non-monotone structure: ``lam = 0`` returns the data
+    untouched, ``lam -> inf`` returns the isotonic fit, and intermediate values
+    give shorter plateaus than isotonic regression -- finer granularity -- in
+    exchange for bounded violations.
+
+    **Scaling differs from the source paper.** Tibshirani, Hoefling & Tibshirani
+    (2011, *Technometrics* 53(1), 54-61) put a factor of 1/2 on the squared-error
+    term:
+
+    .. math::
+        \min_{\beta} \tfrac{1}{2} \sum_i (y_i - \beta_i)^2
+        + \lambda_{\text{paper}} \sum_i \max(0, \beta_i - \beta_{i+1})
+
+    The objective above omits it, so ``lam`` here is *twice* the paper's
+    :math:`\lambda`:
+
+    .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
+
+    Double any penalty value taken from the paper before passing it in. Both
+    solvers are pinned against the authors' R implementation (``neariso``) in
+    ``tests/test_r_reference.py``.
 
     Examples
     --------
@@ -63,7 +97,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
     >>>
     >>> cal = NearlyIsotonicCalibrator(lam=0.5)
-    >>> cal.fit(X, y)
+    >>> _ = cal.fit(X, y)
     >>> X_calibrated = cal.transform(np.array([0.15, 0.35, 0.55]))
 
     See Also
@@ -75,7 +109,8 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     def __init__(
         self,
         lam: float = 1.0,
-        method: str = "cvx",
+        method: str = "path",
+        clip_output: bool = True,
         enable_diagnostics: bool = False,
     ):
         # Call base class for diagnostic support
@@ -83,8 +118,14 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         self.lam = lam
         self.method = method
+        self.clip_output = clip_output
 
-    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+    def _fit_impl(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> None:
         """Implement the nearly-isotonic regression fitting logic.
 
         Parameters
@@ -99,12 +140,36 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         This method implements the actual fitting logic. Data storage,
         diagnostics, and return value are handled by the base class fit() method.
         """
+        self._reject_sample_weight(sample_weight)
         X, y = check_arrays(X, y)
+        if self.lam < 0:
+            raise ValueError(f"lam must be non-negative, got {self.lam}")
+        if self.method not in ("path", "cvx"):
+            raise ValueError(f"method must be 'path' or 'cvx', got {self.method!r}")
         self.X_ = X
         self.y_ = y
 
+        # Pool tied scores first. Without this the objective double-counts tied
+        # observations as independent, and the interpolant would be built on
+        # repeated abscissae, where the surviving point depends on the sort's
+        # tie-breaking.
+        x_unique, y_mean, weight = aggregate_ties(X, y)
+
+        if self.method == "path":
+            beta = np.asarray(
+                nearly_isotonic_path(y_mean, lam=self.lam, sample_weight=weight)
+            )
+        else:
+            beta = self._solve_cvx(y_mean, weight)
+
+        if self.clip_output:
+            beta = np.clip(beta, 0.0, 1.0)
+
+        self.calibration_curve_ = PiecewiseLinear(x_unique, beta)
+        self.n_features_in_ = 1
+
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Apply nearly-isotonic calibration to new data.
+        """Map scores through the fitted calibration curve.
 
         Parameters
         ----------
@@ -118,166 +183,65 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         Raises
         ------
-        ValueError
-            If method is not 'cvx' or 'path'.
+        AttributeError
+            If called before :meth:`fit`.
         """
-        X = np.asarray(X).ravel()
+        if not hasattr(self, "calibration_curve_"):
+            raise AttributeError(
+                f"{type(self).__name__} is not fitted yet. Call fit() first."
+            )
+        return self.calibration_curve_(np.asarray(X, dtype=float).ravel())
 
-        if self.method == "cvx":
-            return self._transform_cvx(X)
-        elif self.method == "path":
-            return self._transform_path(X)
-        else:
-            raise ValueError(f"Unknown method: {self.method}. Use 'cvx' or 'path'.")
-
-    def _transform_cvx(self, X: np.ndarray) -> np.ndarray:
-        """Implement nearly-isotonic regression using convex optimization.
-
-        This method solves the convex optimization problem:
-        minimize ||β - y||² + λ * Σ max(0, β[i] - β[i+1])
+    def _solve_cvx(self, y_mean: np.ndarray, weight: np.ndarray) -> np.ndarray:
+        """Solve the nearly-isotonic problem with CVXPY on the pooled grid.
 
         Parameters
         ----------
-        X
-            Input values to calibrate.
+        y_mean
+            Weighted mean target at each unique score.
+        weight
+            Total weight at each unique score.
 
         Returns
         -------
-        ndarray of shape (n_samples,)
-            Calibrated values obtained by linear interpolation of the
-            optimal solution on the training grid.
+        ndarray of shape (n_unique,)
+            The optimal fitted values.
         """
-        order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
+        beta = cp.Variable(len(y_mean))
 
-        # Define variables
-        beta = cp.Variable(len(y_sorted))
-
-        # Penalty for non-monotonicity: sum of positive parts of decreases
+        # Penalty for non-monotonicity: sum of positive parts of decreases.
         monotonicity_penalty = cp.sum(cp.maximum(0, beta[:-1] - beta[1:]))
 
-        # Objective: minimize squared error + lambda * monotonicity penalty
+        # Weighted squared error, so pooled ties carry their original mass.
         obj = cp.Minimize(
-            cp.sum_squares(beta - y_sorted) + self.lam * monotonicity_penalty
+            cp.sum(cp.multiply(weight, cp.square(beta - y_mean)))
+            + self.lam * monotonicity_penalty
         )
-
-        # Create and solve the problem
         prob = cp.Problem(obj)
 
         try:
+            # OSQP with polishing is what matches R's neariso to ~1e-16 on this
+            # hinge objective; CLARABEL returns optimal_inaccurate here.
             prob.solve(solver=cp.OSQP, polishing=True)
+            if (
+                prob.status in ("optimal", "optimal_inaccurate")
+                and beta.value is not None
+            ):
+                return np.asarray(beta.value, dtype=float)
+            logger.warning(
+                "Nearly-isotonic solve did not converge (status=%s); falling back "
+                "to the exact path algorithm",
+                prob.status,
+            )
+        except _SolverError as exc:
+            logger.warning(
+                "Nearly-isotonic solve failed (%s); falling back to the exact "
+                "path algorithm",
+                exc,
+            )
 
-            # Check if solution is found and is optimal
-            if prob.status in ["optimal", "optimal_inaccurate"] and beta.value is not None:
-                # Create interpolation function based on sorted values
-                cal_func = interp1d(
-                    X_sorted,
-                    beta.value,
-                    kind="linear",
-                    bounds_error=False,
-                    fill_value=(beta.value[0], beta.value[-1]),
-                )
-
-                # Apply interpolation to get values at X points
-                return np.asarray(np.clip(cal_func(X), 0, 1))
-
-        except Exception as e:
-            logger.warning(f"Optimization failed: {e}")
-
-        # Fallback to standard isotonic regression if optimization fails
-        logger.warning("Falling back to standard isotonic regression")
-        ir = IsotonicRegression(out_of_bounds="clip")
-        ir.fit(self.X_, self.y_)
-        return np.asarray(ir.transform(X))
-
-    def _transform_path(self, X: np.ndarray) -> np.ndarray:
-        """Implement nearly-isotonic regression using a path algorithm.
-
-        This method implements the path algorithm from the original
-        nearly-isotonic regression paper, which iteratively merges
-        groups of points that violate monotonicity until the penalty
-        budget λ is exhausted.
-
-        Parameters
-        ----------
-        X
-            Input values to calibrate.
-
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Calibrated values obtained by linear interpolation after
-            applying the path algorithm.
-        """
-        order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
-        n = len(y_sorted)
-
-        # Initialize solution with original values
-        beta = y_sorted.copy()
-
-        # Initialize groups and number of groups
-        groups = [[i] for i in range(n)]
-
-        # Initialize current lambda
-        lambda_curr = 0
-
-        while True:
-            # Compute collision times
-            collisions = []
-
-            for i in range(len(groups) - 1):
-                g1 = groups[i]
-                g2 = groups[i + 1]
-
-                # Calculate average values for each group
-                avg1 = np.mean([beta[j] for j in g1])
-                avg2 = np.mean([beta[j] for j in g2])
-
-                # Check if collision will occur (if first group has higher value)
-                if avg1 > avg2:
-                    # Calculate collision time
-                    t = avg1 - avg2
-                    collisions.append((i, t))
-                else:
-                    # No collision will occur
-                    collisions.append((i, np.inf))
-
-            # Check termination condition
-            if all(t[1] > self.lam - lambda_curr for t in collisions):
-                break
-
-            # Find minimum collision time
-            valid_times = [(i, t) for i, t in collisions if t < np.inf]
-            if not valid_times:
-                break
-
-            idx, t_min = min(valid_times, key=lambda x: x[1])
-
-            # Compute new lambda value (critical point)
-            lambda_star = lambda_curr + t_min
-
-            # Check if we've exceeded lambda or reached max iterations
-            if lambda_star > self.lam or len(groups) <= 1:
-                break
-
-            # Update current lambda
-            lambda_curr = lambda_star
-
-            # Merge groups
-            new_group = groups[idx] + groups[idx + 1]
-            avg = np.mean([beta[j] for j in new_group])
-            for j in new_group:
-                beta[j] = avg
-
-            groups = groups[:idx] + [new_group] + groups[idx + 2 :]
-
-        # Create interpolation function based on sorted values
-        cal_func = interp1d(
-            X_sorted,
-            beta,
-            kind="linear",
-            bounds_error=False,
-            fill_value=(beta[0], beta[-1]),
+        # The path solver computes the same estimator exactly, so it is a strictly
+        # better fallback than switching to a different estimator entirely.
+        return np.asarray(
+            nearly_isotonic_path(y_mean, lam=self.lam, sample_weight=weight)
         )
-
-        # Apply interpolation to get values at X points
-        return np.asarray(np.clip(cal_func(X), 0, 1))

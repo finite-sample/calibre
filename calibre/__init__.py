@@ -1,5 +1,5 @@
 """
-Calibre: Model Probability Calibration Library
+Calibre: Model Probability Calibration Library.
 
 This library provides various methods for calibrating probability predictions
 from machine learning models to improve their reliability.
@@ -19,6 +19,7 @@ from .base import BaseCalibrator, MonotonicMixin
 # Import all calibrators (including cvxpy-dependent ones)
 from .calibrators import (
     CDIIsotonicCalibrator,
+    CenteredIsotonicCalibrator,
     IsotonicCalibrator,
     NearlyIsotonicCalibrator,
     RegularizedIsotonicCalibrator,
@@ -51,31 +52,32 @@ __version__ = importlib.metadata.version("calibre")
 __all__ = [
     # Base classes
     "BaseCalibrator",
-    "MonotonicMixin",
     # Calibrators
     "CDIIsotonicCalibrator",
+    "CenteredIsotonicCalibrator",
     "IsotonicCalibrator",
+    "MonotonicMixin",
     "NearlyIsotonicCalibrator",
-    "SplineCalibrator",
-    "RelaxedPAVACalibrator",
     "RegularizedIsotonicCalibrator",
+    "RelaxedPAVACalibrator",
     "SmoothedIsotonicCalibrator",
-    # Diagnostic functions
-    "run_plateau_diagnostics",
-    "detect_plateaus",
+    "SplineCalibrator",
     # Metrics functions
     "binned_calibration_error",
     "brier_score",
     "calibration_curve",
     "calibration_diversity_index",
     "correlation_metrics",
+    "detect_plateaus",
     "expected_calibration_error",
     "maximum_calibration_error",
     "mean_calibration_error",
-    "plateau_quality_score",
-    "progressive_sampling_diversity",
-    "tie_preservation_score",
-    "unique_value_counts",
     # Modules
     "metrics",
+    "plateau_quality_score",
+    "progressive_sampling_diversity",
+    # Diagnostic functions
+    "run_plateau_diagnostics",
+    "tie_preservation_score",
+    "unique_value_counts",
 ]

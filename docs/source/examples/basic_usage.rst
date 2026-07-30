@@ -97,7 +97,7 @@ Working with Imbalanced Data
    y_pred = model.predict_proba(X_test)[:, 1]
    
    # Calibrate with method suitable for imbalanced data
-   calibrator = RelaxedPAVACalibrator(percentile=5, adaptive=True)  # Lower percentile for imbalanced data
+   calibrator = RelaxedPAVACalibrator(epsilon=0.01)  # Small absolute slack
    calibrator.fit(y_pred, y_test)
    y_cal = calibrator.transform(y_pred)
    
@@ -118,9 +118,9 @@ Working with Small Datasets
    
    # Use methods that work well with small datasets
    calibrators_small = {
-       'I-Spline (small)': SplineCalibrator(n_splines=5, degree=2, cv=3),
-       'Relaxed PAVA': RelaxedPAVACalibrator(percentile=20, adaptive=False),
-       'Regularized': RegularizedIsotonicRegression(alpha=1.0)  # Higher regularization
+       'I-Spline (small)': SplineCalibrator(n_knots=5, degree=2, cv=3),
+       'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.05),
+       'Regularized': RegularizedIsotonicCalibrator(alpha=1.0)  # Higher regularization
    }
    
    for name, cal in calibrators_small.items():

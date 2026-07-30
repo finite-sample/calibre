@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Calibre is a Python package for advanced probability calibration techniques in machine learning. It provides alternative calibration methods to traditional isotonic regression that better preserve probability granularity while maintaining monotonicity constraints.
 
-**Current Version**: 0.6.0 (code quality and type safety improvements)
+**Current Version**: 0.7.0 (correctness release — see CHANGELOG)
 
 ### Import Structure
 ```python
@@ -16,11 +16,11 @@ from calibre import BaseCalibrator, MonotonicMixin
 # Import calibrators
 from calibre import (
     IsotonicCalibrator,
-    NearlyIsotonicCalibrator, 
+    NearlyIsotonicCalibrator,
     SplineCalibrator,
     RelaxedPAVACalibrator,
     RegularizedIsotonicCalibrator,
-    SmoothedIsotonicCalibrator
+    SmoothedIsotonicCalibrator,
 )
 
 # Import standalone diagnostic functions
@@ -117,26 +117,53 @@ The CI pipeline uses `uv sync --locked` to ensure:
 ### Core Modules
 
 **calibre/base.py**: Base classes and mixins for all calibrators:
-- `BaseCalibrator`: Abstract base class following sklearn transformer interface
-- `DiagnosticMixin`: Optional mixin for diagnostic capabilities
+- `BaseCalibrator`: Abstract base class following sklearn transformer interface.
+  Subclasses implement `_fit_impl(X, y, sample_weight)`; `fit()` is a template method
+  that also runs diagnostics. Diagnostics live here, not in a separate mixin.
 - `MonotonicMixin`: Utility mixin for monotonicity checking and enforcement
 
 **calibre/calibrators/**: Modular calibrator implementations:
-- `IsotonicCalibrator`: Standard isotonic regression calibration
-- `NearlyIsotonicCalibrator`: Allows controlled violations of monotonicity (CVXPY-based)
-- `SplineCalibrator`: Smooth calibration using I-splines with cross-validation
-- `RelaxedPAVACalibrator`: Ignores small violations based on percentile thresholds
-- `RegularizedIsotonicCalibrator`: L2 regularized isotonic regression
-- `SmoothedIsotonicCalibrator`: Applies Savitzky-Golay filtering to reduce staircase effects
+- `IsotonicCalibrator`: Standard isotonic regression (wraps sklearn)
+- `CenteredIsotonicCalibrator`: Centered isotonic regression — collapses PAVA's flat
+  blocks to their centroid and interpolates. The recommended default.
+- `NearlyIsotonicCalibrator`: Penalises rather than forbids monotonicity violations.
+  Two exact solvers: `method="path"` (default, pure NumPy) and `method="cvx"` (CVXPY).
+  Note `lam` is 2x the source paper's lambda.
+- `SplineCalibrator`: Monotone I-spline fit; CV picks `(n_knots, alpha)` on log-loss
+- `RelaxedPAVACalibrator`: Bounds each adjacent increment — `epsilon` permits small
+  decreases, `min_slope` forbids plateaus. Solved by shift-to-PAVA in O(n).
+- `RegularizedIsotonicCalibrator`: Monotone spline with a second-difference (curvature)
+  penalty. NOT ridge, and `alpha=0` is not isotonic regression.
+- `SmoothedIsotonicCalibrator`: Savitzky-Golay smoothing of an isotonic fit (legacy)
+- `CDIIsotonicCalibrator`: Cost- and data-informed isotonic (research)
+
+**calibre/_core.py**: Shared numerical primitives. Every calibrator is built from
+these rather than reimplementing isotonic machinery locally:
+- `weighted_pava`, `monotone_projection`, `cumulative_max`
+- `aggregate_ties` (pool tied scores — required before any interpolation)
+- `shift_to_pava` (increment lower bounds via cumulative shift)
+- `nearly_isotonic_path` (exact solution path)
+- `collapse_blocks` (the geometric step behind CIR)
+- `monotone_spline_basis` / `MonotoneSplineBasis`, `fit_monotone_spline`
+- `PiecewiseLinear`, `StepFunction` (fitted-function objects, built on `np.interp`)
+
+All are pinned against R reference implementations by `tests/test_r_reference.py`.
 
 **calibre/diagnostics.py**: Standalone plateau diagnostic functions:
-- `run_plateau_diagnostics()`: Comprehensive plateau analysis
+- `run_plateau_diagnostics()`: Returns a dict with `n_plateaus`, `plateaus`, `warnings`
 - `detect_plateaus()`: Detect flat regions in calibration curves
-- `analyze_plateau()`: Classify individual plateaus
-- `classify_plateau()`: Classify plateaus as supported/limited-data/inconclusive
+- `analyze_plateau_simple()`: Describe one plateau (`x_range`, `value`, `n_samples`,
+  `sample_density`)
+- `diversity_learning_curve()`: How granularity changes with sample size
+
+Note: this module is a stub relative to what earlier CHANGELOGs promised. Bootstrap
+tie stability, conditional AUC among tied pairs, minimum detectable difference, and the
+supported/limited-data/inconclusive classifier do not exist. `n_bootstraps` and
+`random_state` on `run_plateau_diagnostics` are accepted and ignored.
 
 **calibre/metrics.py**: Evaluation metrics for calibration quality:
-- `mean_calibration_error()`: Basic calibration error
+- `mean_calibration_error()`: Bias, |E[p] - E[y]|. Changed in 0.7.0; it used to
+  return mean absolute error, which is not a calibration error.
 - `binned_calibration_error()`: Binned approach with uniform/quantile strategies
 - `expected_calibration_error()`: Expected calibration error (ECE)
 - `maximum_calibration_error()`: Maximum calibration error (MCE)
@@ -149,40 +176,20 @@ The CI pipeline uses `uv sync --locked` to ensure:
 - `calibration_diversity_index()`: Measures granularity preservation
 - `progressive_sampling_diversity()`: Analyzes how diversity changes with sample size
 
-**calibre/diagnostics.py** (NEW in v0.4.0, simplified in v0.4.1): Plateau diagnostic tools:
-- `PlateauInfo`: Data structure for plateau information
-- `PlateauAnalyzer`: Basic plateau identification and analysis
-- `IsotonicDiagnostics`: Comprehensive diagnostic engine with 6 methods:
-  - Bootstrap tie stability analysis
-  - Cross-fit stability testing
-  - Conditional AUC among tied pairs
-  - Minimum detectable difference calculations
-  - Progressive sampling analysis
-  - Local slope testing with smooth monotone fits
-- `analyze_plateaus()`: Convenience function for full diagnostic analysis
-
-**calibre/utils.py**: Utility functions:
-- `check_arrays()`: Input validation
-- `sort_by_x()`: Sorting utilities
-- `create_bins()`, `bin_data()`: Binning operations
-- `extract_plateaus()`: Identify plateau regions in calibrated output
-- `bootstrap_resample()`: Generate bootstrap resamples
-- `compute_delong_ci()`: DeLong confidence intervals for AUC
-- `minimum_detectable_difference()`: Statistical power analysis
-
-**calibre/visualization.py** (NEW in v0.4.0): Plotting tools for diagnostics:
-- `plot_plateau_diagnostics()`: Comprehensive diagnostic visualization
-- `plot_stability_heatmap()`: Bootstrap stability visualization
-- `plot_progressive_sampling()`: Sample size vs diversity plots
-- `plot_calibration_comparison()`: Compare different calibration methods
-- `plot_mdd_analysis()`: Minimum detectable difference visualization
+**calibre/utils/**: A package, not a module. `validation.py` and `array_ops.py`:
+- `check_arrays()`, `check_array_1d()`, `check_fitted()`, `check_consistent_length()`,
+  `validate_parameters()`
+- `sort_by_x()`, `clip_to_range()`, `ensure_1d()`, `restore_order()`,
+  `find_unique_sorted()`, `group_by_value()`, `interpolate_monotonic()`
 
 ### Key Dependencies
 - **numpy, scipy**: Core numerical computing
 - **scikit-learn**: Base classes and isotonic regression
-- **cvxpy**: Convex optimization for nearly-isotonic regression
-- **pandas**: Data manipulation
-- **matplotlib**: Visualization (examples)
+- **cvxpy**: Convex optimization (`NearlyIsotonicCalibrator(method="cvx")`). Still a hard
+  dependency because `nearly_isotonic.py` imports it at module level.
+
+pandas, matplotlib and seaborn were removed as dependencies in 0.7.0 — nothing in the
+package imported them.
 
 ### Design Patterns
 - **Modular architecture**: Each calibrator in separate module under `calibrators/`
@@ -229,18 +236,21 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
   - `tests/test_properties.py`: Mathematical property validation
   - `tests/test_metrics.py`: Calibration metrics testing
   - `tests/test_utils.py`: Utility function testing
+  - `tests/test_monotone_spline.py`: Monotonicity guarantees for the spline calibrators
+  - `tests/test_r_reference.py`: Cross-language checks against committed R fixtures
+  - `tests/test_readme.py`: Executes every README code block and checks claimed output
   - `tests/data_generators.py`: Realistic test data generators for various calibration scenarios
-  - `tests/conftests.py`: Shared pytest fixtures and configuration
 - Uses pytest fixtures for test data generation
 - Coverage reporting via pytest-cov
-- **Expected behavior**: ~6-8 tests may be skipped when calibrators reach mathematical limits (this is normal)
-- Total tests: ~170+, with 160+ typically passing
+- Tests must fail rather than skip. Do not add `except Exception: pytest.skip(...)`.
+- Total tests: 484, all passing (includes 52 doctests, collected via --doctest-modules)
 
 ## Configuration
 - **pyproject.toml**: Modern Python packaging configuration
-- Tool configurations for Black, isort, mypy included in pyproject.toml
+- Tool configuration for ruff, mypy, pytest, coverage, deptry, pydoclint in pyproject.toml
 - Python 3.12+ required
-- Development dependencies defined in `[project.optional-dependencies.dev]`
+- Dev dependencies are a PEP 735 `[dependency-groups]` entry, so `pip install -e ".[dev]"`
+  does NOT work. Use `uv sync --all-extras --dev`.
 
 ## Interactive Examples
 - **docs/source/notebooks/**: Jupyter notebooks with comprehensive examples and benchmarks
@@ -252,8 +262,7 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 - GitHub Actions workflow in `.github/workflows/ci.yml`
 - **Optimized for efficiency**: CI skips when only documentation files are changed
 - Test matrix: Python 3.12, 3.13, 3.14 on Ubuntu (primary), Python 3.12 on macOS/Windows
-- Includes code quality checks (Black, isort, flake8) as informational
-- Coverage reporting via Codecov
+- Includes ruff lint/format checks as informational
 - Package building and installation validation
 
 ### Files that skip CI when changed alone:
@@ -277,16 +286,16 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 
 ## Known Issues and Expected Behavior
 - Some calibration methods may produce bounds violations (fixed with `np.clip`)
-- Regularized isotonic regression may have 15-20% monotonicity violations (expected)
-- Mathematical property tests skip when algorithms reach inherent limitations
-- Test thresholds have been relaxed to reflect realistic algorithm performance
+- All monotone methods are monotone by construction — a violation is a bug, not a
+  tolerance. `tests/test_monotone_spline.py` asserts exactly zero.
+- Assert provable properties, not thresholds tuned to whatever the code happened to do
 
 ## Code Quality Standards (v0.4.1+)
-- **Line length**: 88 characters maximum (configured in Black and flake8)
+- **Line length**: 88 characters (ruff; E501 is ignored, the formatter handles it)
 - **Complexity**: Functions should have complexity ≤10 (measured by McCabe)
 - **Type hints**: Required throughout codebase (Python 3.12+ typing)
 - **Import management**: No unused imports or variables
-- **Formatting**: Automatic via Black with 88-character line length
+- **Formatting**: Automatic via `ruff format`
 - **Testing**: Comprehensive test coverage with realistic data generators
 
 ### Key Diagnostic Features (v0.4.1)

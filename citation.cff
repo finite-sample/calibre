@@ -1,9 +1,9 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
-title: "Calibre: Advanced Probability Calibration Techniques for Machine Learning"
-version: 0.3.0
-date-released: 2024-01-01
+title: "calibre: Probability Calibration that Preserves Granularity"
+version: 0.7.0
+date-released: 2026-07-30
 url: "https://github.com/finite-sample/calibre"
 repository-code: "https://github.com/finite-sample/calibre"
 authors:

@@ -30,7 +30,7 @@ def plateau_data():
 
 def test_built_in_diagnostics_basic(plateau_data):
     """Test built-in diagnostics functionality."""
-    X, y_binary, y_true = plateau_data
+    X, y_binary, _y_true = plateau_data
 
     # Test with diagnostics enabled
     cal = IsotonicCalibrator(enable_diagnostics=True)
@@ -58,7 +58,7 @@ def test_built_in_diagnostics_basic(plateau_data):
 
 def test_built_in_diagnostics_disabled(plateau_data):
     """Test calibrator without diagnostics."""
-    X, y_binary, y_true = plateau_data
+    X, y_binary, _y_true = plateau_data
 
     # Test with diagnostics disabled (default)
     cal = IsotonicCalibrator(enable_diagnostics=False)
@@ -73,7 +73,7 @@ def test_built_in_diagnostics_disabled(plateau_data):
 
 def test_standalone_run_plateau_diagnostics(plateau_data):
     """Test standalone run_plateau_diagnostics function."""
-    X, y_binary, y_true = plateau_data
+    X, y_binary, _y_true = plateau_data
 
     # Fit a calibrator first
     cal = IsotonicCalibrator()

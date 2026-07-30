@@ -27,7 +27,7 @@ Features
 - **Nearly-isotonic regression**: Allows controlled violations of monotonicity to better preserve data granularity
 - **I-spline calibration**: Uses monotonic splines for smooth calibration functions
 - **Relaxed PAVA**: Ignores "small" violations based on percentile thresholds in the data
-- **Regularized isotonic regression**: Adds L2 regularization to standard isotonic regression for smoother calibration curves while maintaining monotonicity
+- **Regularized isotonic regression**: Monotone spline fit with a curvature penalty for smoother calibration curves while maintaining monotonicity
 - **Locally smoothed isotonic**: Applies Savitzky-Golay filtering to isotonic regression results to reduce the "staircase effect" while preserving monotonicity
 - **Adaptive smoothed isotonic**: Uses variable-sized smoothing windows based on data density to provide better detail in dense regions and smoother curves in sparse regions
 

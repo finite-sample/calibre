@@ -73,12 +73,12 @@ class TestFullCalibrationWorkflow:
             },
             {
                 "class": SplineCalibrator,
-                "kwargs": {"n_splines": 10, "degree": 3, "cv": 3},
+                "kwargs": {"n_knots": 10, "degree": 3, "cv": 3},
                 "name": "spline",
             },
             {
                 "class": RelaxedPAVACalibrator,
-                "kwargs": {"percentile": 5, "adaptive": True},
+                "kwargs": {"epsilon": 0.01},
                 "name": "relaxed_pava",
             },
             {
@@ -110,7 +110,8 @@ class TestFullCalibrationWorkflow:
 
         # Basic validation (common to all calibrators)
         assert len(y_calib) == len(data["y_test"])
-        assert np.all(y_calib >= 0) and np.all(y_calib <= 1)
+        assert np.all(y_calib >= 0)
+        assert np.all(y_calib <= 1)
 
         # Calibrator-specific validation
         name = calibrator_config["name"]
@@ -119,7 +120,8 @@ class TestFullCalibrationWorkflow:
             # Test calibration metrics
             mce_after = mean_calibration_error(data["y_test"], y_calib)
             ece_after = expected_calibration_error(data["y_test"], y_calib)
-            assert isinstance(mce_after, float) and isinstance(ece_after, float)
+            assert isinstance(mce_after, float)
+            assert isinstance(ece_after, float)
 
         elif name == "spline":
             # Check correlation preservation
@@ -128,15 +130,32 @@ class TestFullCalibrationWorkflow:
             )
             assert corr_metrics["spearman_corr_orig_to_calib"] > 0.5
 
-        elif name in ["relaxed_pava", "regularized"]:
-            # Check monotonicity (allowing some violations)
+        elif name == "regularized":
+            # Monotonicity is a hard constraint here, so nothing may go backwards.
             sorted_idx = np.argsort(data["y_proba_test"])
             y_calib_sorted = y_calib[sorted_idx]
-            violations = np.sum(np.diff(y_calib_sorted) < 0)
-            total_pairs = len(y_calib_sorted) - 1
-            violation_rate = violations / total_pairs if total_pairs > 0 else 0
-            max_violation_rate = 0.1 if name == "relaxed_pava" else 0.2
-            assert violation_rate <= max_violation_rate
+            assert np.all(np.diff(y_calib_sorted) >= -1e-9), (
+                "regularized isotonic constrains monotonicity, so a violation is "
+                "a bug, not a tolerance to be widened"
+            )
+
+        elif name == "relaxed_pava":
+            # This estimator deliberately permits decreases, so counting them is
+            # not the test. What it guarantees is their *size*: no single decrease
+            # between adjacent unique scores may exceed epsilon. A rate-based
+            # bound only ever passed here because the old percentile threshold
+            # collapsed to zero on binary labels, making the estimator silently
+            # equal to plain PAVA and hence trivially monotone.
+            # The bound is per adjacent pair of *fitted knots*, which is where the
+            # increment constraint lives. Measuring between arbitrary test scores
+            # would be wrong: two neighbouring test scores can span many knot
+            # intervals, and the permitted decreases accumulate across them.
+            epsilon = calibrator.get_params()["epsilon"]
+            knots = calibrator.calibration_curve_.y
+            worst_drop = float(np.max(np.maximum(0.0, -np.diff(knots))))
+            assert worst_drop <= epsilon + 1e-9, (
+                f"largest per-knot decrease {worst_drop:.6f} exceeds epsilon={epsilon}"
+            )
 
 
 class TestCalibratorComparison:
@@ -148,8 +167,8 @@ class TestCalibratorComparison:
 
         calibrators = {
             "nearly_isotonic": NearlyIsotonicCalibrator(lam=1.0, method="path"),
-            "spline": SplineCalibrator(n_splines=10, degree=3, cv=3),
-            "relaxed_pava": RelaxedPAVACalibrator(percentile=5),
+            "spline": SplineCalibrator(n_knots=10, degree=3, cv=3),
+            "relaxed_pava": RelaxedPAVACalibrator(epsilon=0.01),
             "regularized": RegularizedIsotonicCalibrator(alpha=0.1),
             "smoothed": SmoothedIsotonicCalibrator(window_length=7, poly_order=3),
         }
@@ -168,9 +187,10 @@ class TestCalibratorComparison:
 
             # All metrics should be valid
             for metric_name, value in metrics.items():
-                assert isinstance(value, float) and value >= 0, (
-                    f"{name} {metric_name} invalid"
+                assert isinstance(value, float), (
+                    f"{name} {metric_name} is not a float: {value!r}"
                 )
+                assert value >= 0, f"{name} {metric_name} is negative: {value}"
 
             assert len(y_calib) == len(data["y_test"])
 
@@ -183,7 +203,7 @@ class TestEdgeCasesAndRobustness:
         """Common set of calibrators for edge case testing."""
         return [
             NearlyIsotonicCalibrator(lam=1.0, method="path"),
-            RelaxedPAVACalibrator(percentile=5),
+            RelaxedPAVACalibrator(epsilon=0.01),
             RegularizedIsotonicCalibrator(alpha=0.1),
         ]
 
@@ -198,7 +218,8 @@ class TestEdgeCasesAndRobustness:
 
                 # Basic validation
                 assert len(y_calib) == len(y_true)
-                assert np.all(y_calib >= 0) and np.all(y_calib <= 1)
+                assert np.all(y_calib >= 0)
+                assert np.all(y_calib <= 1)
 
                 if expect_success:
                     # Additional checks for successful cases
@@ -299,18 +320,53 @@ class TestSklearnCompatibility:
             assert len(y_calib_ft) == len(data["y_train"])
 
     def test_parameter_validation(self):
-        """Test that invalid parameters are accepted at init (lazy validation)."""
-        # Our calibrators use lazy parameter validation
+        """Invalid parameters are accepted at init but must be rejected by fit.
+
+        Deferring validation to ``fit`` is the scikit-learn convention: ``__init__``
+        only records parameters so that ``get_params``/``clone`` round-trip. But
+        deferring is not the same as skipping -- previously nothing anywhere
+        checked that ``fit`` rejects a negative penalty, so an invalid setting
+        would silently produce a fit.
+        """
+        # Each case pins the message too, so the test checks that the *right*
+        # error is raised rather than merely that something went wrong.
         test_cases = [
-            (NearlyIsotonicCalibrator, {"lam": -1.0}),
-            (RelaxedPAVACalibrator, {"percentile": 150}),
-            (RegularizedIsotonicCalibrator, {"alpha": -0.1}),
+            (NearlyIsotonicCalibrator, {"lam": -1.0}, r"lam must be non-negative"),
+            (RelaxedPAVACalibrator, {"epsilon": -0.5}, r"epsilon must be non-negative"),
+            (
+                RelaxedPAVACalibrator,
+                {"min_slope": -0.5},
+                r"min_slope must be non-negative",
+            ),
+            (
+                RelaxedPAVACalibrator,
+                {"epsilon": 0.1, "min_slope": 0.1},
+                r"opposite directions",
+            ),
+            (
+                RegularizedIsotonicCalibrator,
+                {"alpha": -0.1},
+                r"alpha must be non-negative",
+            ),
         ]
 
-        for calibrator_class, invalid_params in test_cases:
+        x = np.linspace(0.05, 0.95, 40)
+        y = (np.arange(40) % 3 == 0).astype(float)
+
+        for calibrator_class, invalid_params, expected in test_cases:
             calibrator = calibrator_class(**invalid_params)
-            # Should not raise at init time - validation happens during fit
-            assert calibrator is not None
+            assert calibrator is not None, "init must not raise"
+
+            # get_params must echo back exactly what was passed, unmodified.
+            params = calibrator.get_params()
+            for key, value in invalid_params.items():
+                assert params[key] == value, (
+                    f"{calibrator_class.__name__} mutated {key}: "
+                    f"{params[key]!r} != {value!r}"
+                )
+
+            with pytest.raises(ValueError, match=expected):
+                calibrator.fit(x, y)
 
 
 class TestErrorHandling:
@@ -329,11 +385,11 @@ class TestErrorHandling:
         calibrator = calibrator_class()
 
         # Test mismatched array lengths
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"(?i)must|length|shape|empty"):
             calibrator.fit(np.array([0.1, 0.5, 0.9]), np.array([0, 1]))
 
         # Test empty arrays
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"(?i)must|length|shape|empty"):
             calibrator.fit(np.array([]), np.array([]))
 
     def test_invalid_prediction_range(self):
@@ -348,7 +404,8 @@ class TestErrorHandling:
             calibrator.fit(y_pred, y_true)
             y_calib = calibrator.transform(y_pred)
             # If it succeeds, results should be in valid range
-            assert np.all(y_calib >= 0) and np.all(y_calib <= 1)
+            assert np.all(y_calib >= 0)
+            assert np.all(y_calib <= 1)
         except (ValueError, AssertionError):
             # Expected for invalid input
             pass

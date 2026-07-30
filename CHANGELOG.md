@@ -5,10 +5,120 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.7.0] - 2026-07-30
+
+Correctness release. Several estimators did not compute what they claimed; each of
+those claims is now verified against a reference implementation or a numerical
+optimum, and the test suite asserts the guarantees rather than restating them.
+
+### 💥 BREAKING CHANGES
+
+- **`SplineCalibrator` was not monotone.** It combined a B-spline basis with
+  `Ridge(positive=True)`; non-negative coefficients on a B-spline basis give a
+  non-negative function, not a monotone one. Measured before the fix, it produced a
+  non-monotone calibration map on 12 of 12 random datasets, with up to 746 violations
+  out of 1999 intervals. It now uses an I-spline basis on which non-negative
+  coefficients *are* monotone, so monotonicity is structural.
+  - `n_splines` renamed to `n_knots`. It was always passed straight through as
+    `n_knots`, so the old name was simply wrong.
+  - New: `knots`, `alpha`, `link`, `random_state`, `max_cv_samples`, `clip_output`.
+  - Cross-validation now tunes `(n_knots, alpha)` on log-loss and refits on all the
+    data. It previously kept whichever fold scored best on its own validation split —
+    selection on noise, and the shipped model saw only `(cv-1)/cv` of the sample.
+  - It also stored mismatched parameters: one mutable transformer was refit per fold,
+    so the retained knots came from the last fold and the coefficients from the best.
+- **`RelaxedPAVACalibrator`: `percentile` and `adaptive` replaced by `epsilon` and
+  `min_slope`.** The old threshold was a percentile of `|diff(y)|`; with binary labels
+  those differences are all 0 or 1, so it collapsed to either "never binds" or "never
+  constrains" and the relaxation was a no-op for the package's main use case. `epsilon`
+  is now an absolute tolerance, and `min_slope` runs the other way to forbid plateaus.
+- **`RegularizedIsotonicCalibrator` is a monotone spline with a curvature penalty, not
+  ridge-penalised isotonic regression.** `alpha * sum(beta^2)` buys no smoothness:
+  unconstrained it is `beta = y/(1+alpha)`, a uniform deflation that breaks mean
+  calibration and drives every prediction to zero as `alpha` grows. `alpha=0` no
+  longer reduces to isotonic regression — use `IsotonicCalibrator` for that.
+- **`NearlyIsotonicCalibrator.method` now defaults to `"path"`**, and the path solver
+  actually solves the stated objective. The previous implementation used the raw level
+  gap as its collision time and never let block values drift with lambda; at a matched
+  lambda it returned objective 0.07625 against the true optimum 0.03750. Also
+  documented: `lam` here is **twice** the lambda of Tibshirani, Höfling & Tibshirani
+  (2011), because the squared-error term omits the factor of one half.
+- **`mean_calibration_error` returns `|E[p] - E[y]|`.** It previously returned
+  `mean(|p - y|)` — mean absolute error, which is minimised by hard 0/1 predictions and
+  is nonzero for a perfectly calibrated model. Use
+  `sklearn.metrics.mean_absolute_error` for the old quantity.
+- **`calibre.visualization` removed.** It was never exported, had no tests, was absent
+  from the API docs, indexed diagnostic keys the current `diagnostics.py` does not
+  emit, and called `plt.cm.get_cmap`, removed in matplotlib 3.9.
+- **`matplotlib`, `seaborn` and `pandas` are no longer dependencies.** `seaborn` and
+  `pandas` were imported nowhere in the package; `matplotlib` went with the
+  visualization module. Runtime dependencies drop from 7 to 4.
+
+### Added
+
+- **`CenteredIsotonicCalibrator`** — centered isotonic regression (Oron & Flournoy,
+  2017). Collapses each of PAVA's flat blocks to its weighted-centroid score and
+  interpolates, so the fit is strictly increasing in the interior. Non-parametric,
+  nothing to tune, O(n). Over 30 held-out splits it beats plain isotonic on Brier in
+  24, and returns ~1900 distinct values where isotonic returns 56.
+- **`sample_weight`** on `fit` for `IsotonicCalibrator` and
+  `CenteredIsotonicCalibrator`. Calibrators that cannot honour weights now raise
+  rather than silently discarding them.
+- **`calibre/_core.py`** — the shared numerical primitives every calibrator is built
+  from: `weighted_pava`, `aggregate_ties`, `shift_to_pava`, `nearly_isotonic_path`,
+  `collapse_blocks`, `monotone_spline_basis`, `fit_monotone_spline`, `PiecewiseLinear`,
+  `StepFunction`.
+- **Cross-language reference tests.** Committed fixtures in `tests/fixtures/r/` pin the
+  estimators against `stats::isoreg`, `Iso::pava`, `isotone::gpava`, `cir::cirPAVA`,
+  `neariso` and `scam(bs="mpi")`. `experiments/r_reference/gen_fixtures.R` regenerates
+  them. The nearly-isotonic solver matches the authors' own R implementation to ~1e-16.
+- `README.md` code blocks are executed by `tests/test_readme.py`, which also checks
+  that any claimed output is the output actually produced.
+
+### Fixed
+
+- **Integer labels silently truncated.** `check_arrays` preserved `int64`, so pooling
+  two labels averaged 0 and 1 to `0`. `RelaxedPAVACalibrator.fit(X, y)` with integer
+  0/1 labels — the documented usage — returned only 0s and 1s.
+- **Tied scores produced nondeterministic output.** Four calibrators built
+  `scipy.interpolate.interp1d` on duplicated abscissae, which silently drops one of the
+  tied points; combined with an unstable `argsort`, which one survived varied between
+  runs. Tied scores are now pooled into one weighted point.
+- **All work moved from `transform` into `fit`.** Four calibrators re-ran their whole
+  solve on every `transform` call, so a solver failure surfaced at predict time as a
+  silent fallback. `NearlyIsotonicCalibrator.transform` at n=100,000: 875 ms → 0.26 ms.
+- Second-difference penalties are computed on the actual, unevenly spaced score grid
+  rather than in index space.
+- Doctests are now collected (`--doctest-modules`) and all 52 pass. Six docstrings
+  stated numerically wrong results, including `brier_score` claiming 0.142 for a case
+  that yields 0.098.
+- Parameter validation happens in `fit` and raises instead of silently coercing, so
+  `get_params`/`clone` round-trip.
+- Removed `tests/conftests.py`, which pytest never loaded because of the trailing `s`.
+
+### Changed
+
+- Test suite grew from ~170 to 484 tests, all passing. Assertions that could not fail
+  were replaced: a monotonicity test that permitted 35 violations out of 49, an
+  "improvement" test satisfied by a 9% regression, and a granularity test that passed
+  with 2 distinct values out of 400.
+- `mypy` and `ruff` are clean; the test data generators reseed per request, so results
+  no longer depend on test execution order.
+
+## [0.6.0] - 2025-12-26
+
+### Changed
+- Code quality and type-safety pass across the package: type hints throughout,
+  consolidated tooling, and a modular `calibrators/` package layout.
+- Minimum Python raised to 3.12; CI matrix is 3.12, 3.13 and 3.14.
+
 ## [0.5.0] - 2025-11-27
 
 ### 💥 BREAKING CHANGES
 - **Python Version Requirement**: Minimum Python version increased from 3.10 to 3.11
+  (raised again to 3.12 in 0.6.0)
   - Updated CI test matrix to support Python 3.11, 3.12, and 3.13
   - Removed Python 3.10 from supported versions
   - Users must upgrade to Python 3.11+ to use this version
@@ -95,6 +205,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `minimum_detectable_difference()`: Statistical power calculations for two proportions
 
 - **📈 Visualization Module**: Comprehensive plotting tools for diagnostic analysis
+  (removed in 0.7.0 — see that entry)
   - `plot_plateau_diagnostics()`: Multi-panel diagnostic visualization
   - `plot_stability_heatmap()`: Bootstrap stability visualization
   - `plot_progressive_sampling()`: Sample size analysis plots

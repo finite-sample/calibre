@@ -50,12 +50,38 @@ class TestMeanCalibrationError:
         assert error == 0.0
 
     def test_known_values(self):
-        """Test with known values."""
+        """The metric is the bias: |mean(prediction) - base rate|.
+
+        This test previously asserted ``mean(|y_pred - y_true|)``, i.e. mean
+        absolute error, and so certified a formula that is not a calibration
+        error at all -- see test_perfectly_calibrated_but_unsharp_scores_zero.
+        """
         y_true = np.array([0, 1, 1, 0, 1])
         y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
         error = mean_calibration_error(y_true, y_pred)
-        expected = np.mean([0.2, 0.3, 0.2, 0.4, 0.4])
+        expected = abs(np.mean(y_pred) - np.mean(y_true))  # |0.54 - 0.6|
         assert np.isclose(error, expected)
+        assert np.isclose(error, 0.06)
+
+    def test_perfectly_calibrated_but_unsharp_scores_zero(self):
+        """A calibration error must be zero for a calibrated predictor.
+
+        Predicting the base rate for everyone is perfectly calibrated in the
+        large, however uninformative. The old mean-absolute-error formula scored
+        this 0.48, and scored a confident-but-wrong predictor better.
+        """
+        y_true = np.array([0, 0, 1, 1, 1])
+        base_rate = float(np.mean(y_true))
+        constant = np.full_like(y_true, base_rate, dtype=float)
+        assert mean_calibration_error(y_true, constant) == pytest.approx(0.0)
+
+    def test_penalises_systematic_bias(self):
+        """Shifting every prediction up must raise the error by that shift."""
+        y_true = np.array([0, 0, 1, 1])
+        y_pred = np.full(4, 0.5)
+        assert mean_calibration_error(y_true, y_pred) == pytest.approx(0.0)
+        assert mean_calibration_error(y_true, y_pred + 0.2) == pytest.approx(0.2)
+        assert mean_calibration_error(y_true, y_pred - 0.3) == pytest.approx(0.3)
 
     def test_input_validation(self):
         """Test input validation."""
@@ -67,7 +93,7 @@ class TestMeanCalibrationError:
 
     def test_edge_cases(self):
         """Test edge cases."""
-        # Single point
+        # Single point: |0.8 - 1| = 0.2
         error = mean_calibration_error([1], [0.8])
         assert error == pytest.approx(0.2)
 
@@ -266,7 +292,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        fraction_pos, mean_pred, counts = calibration_curve(
+        fraction_pos, mean_pred, _counts = calibration_curve(
             y_true, y_pred, n_bins=4, strategy="uniform"
         )
 
@@ -279,7 +305,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        fraction_pos, mean_pred, counts = calibration_curve(
+        fraction_pos, mean_pred, _counts = calibration_curve(
             y_true, y_pred, n_bins=4, strategy="quantile"
         )
 
@@ -291,7 +317,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 1])
         y_pred = np.array([0, 1])
 
-        fraction_pos, mean_pred, counts = calibration_curve(y_true, y_pred, n_bins=2)
+        fraction_pos, mean_pred, _counts = calibration_curve(y_true, y_pred, n_bins=2)
         # Should be close to perfect diagonal
         np.testing.assert_array_almost_equal(fraction_pos, mean_pred, decimal=1)
 
@@ -325,9 +351,9 @@ class TestEdgeCases:
         y_true = np.array([0, 1, 0, 1, 0])
         y_pred = np.array([0.5, 0.5, 0.5, 0.5, 0.5])
 
-        # Should handle constant predictions
+        # Constant 0.5 against a base rate of 0.4 is a bias of 0.1.
         error = mean_calibration_error(y_true, y_pred)
-        assert error == 0.5
+        assert error == pytest.approx(0.1)
 
         counts = unique_value_counts(y_pred)
         assert counts["n_unique_y_pred"] == 1

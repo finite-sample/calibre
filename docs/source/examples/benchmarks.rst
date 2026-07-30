@@ -22,7 +22,7 @@ Accessing the Performance Notebook
    cd calibre
    
    # Install dependencies
-   pip install -e ".[dev]"
+   uv sync --all-extras --dev
    
    # Start Jupyter
    jupyter notebook docs/source/notebooks/04_performance_comparison.ipynb
@@ -102,8 +102,8 @@ Calibration Error Comparison
        NearlyIsotonicCalibrator,
        SplineCalibrator,
        RelaxedPAVACalibrator,
-       RegularizedIsotonicRegression,
-       SmoothedIsotonicRegression,
+       RegularizedIsotonicCalibrator,
+       SmoothedIsotonicCalibrator,
        mean_calibration_error,
        expected_calibration_error
    )
@@ -115,10 +115,10 @@ Calibration Error Comparison
            'Nearly Isotonic (λ=10)': NearlyIsotonicCalibrator(lam=10.0, method='path'),
            'Nearly Isotonic (λ=1)': NearlyIsotonicCalibrator(lam=1.0, method='path'),
            'Nearly Isotonic (λ=0.1)': NearlyIsotonicCalibrator(lam=0.1, method='path'),
-           'I-Spline': SplineCalibrator(n_splines=10, degree=3, cv=3),
-           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10, adaptive=True),
-           'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.1),
-           'Smoothed Isotonic': SmoothedIsotonicRegression(window_length=7, poly_order=3)
+           'I-Spline': SplineCalibrator(n_knots=10, degree=3, cv=3),
+           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
+           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.1),
+           'Smoothed Isotonic': SmoothedIsotonicCalibrator(window_length=7, poly_order=3)
        }
        
        results = {name: {'mce': [], 'ece': [], 'time': []} for name in calibrators.keys()}
@@ -203,8 +203,8 @@ Scalability Analysis
        dataset_sizes = [500, 1000, 2000, 5000, 10000]
        methods = {
            'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0, method='path'),
-           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
-           'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.1)
+           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
+           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.1)
        }
        
        timing_results = {method: [] for method in methods.keys()}
@@ -278,8 +278,8 @@ Performance on Different Data Types
        
        calibrators = {
            'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
-           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
-           'I-Spline': SplineCalibrator(n_splines=8, cv=3)
+           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
+           'I-Spline': SplineCalibrator(n_knots=8, cv=3)
        }
        
        results = {}
@@ -333,8 +333,8 @@ Noise Sensitivity
        noise_levels = [0.0, 0.05, 0.1, 0.2, 0.3]
        calibrators = {
            'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
-           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=15),  # Slightly higher for noise
-           'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.5)
+           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.03),  # a little more slack for noisy data
+           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.5)
        }
        
        results = {name: [] for name in calibrators.keys()}
@@ -407,8 +407,8 @@ Memory Usage Analysis
        calibrators = {
            'Nearly Isotonic (CVX)': NearlyIsotonicCalibrator(lam=1.0, method='cvx'),
            'Nearly Isotonic (Path)': NearlyIsotonicCalibrator(lam=1.0, method='path'),
-           'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10),
-           'Regularized Isotonic': RegularizedIsotonicRegression(alpha=0.1)
+           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
+           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.1)
        }
        
        memory_results = {}
@@ -463,7 +463,7 @@ To reproduce these benchmarks:
 
    .. code-block:: bash
 
-      pip install -e ".[dev]"
+      uv sync --all-extras --dev
 
 2. **Run the interactive performance comparison notebook**:
 

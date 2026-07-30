@@ -1,23 +1,22 @@
 [build-system]
-requires = ["uv_build>=0.9.13,<0.10.0"]
-build-backend = "uv_build"
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
 
 [project]
 name = "calibre"
-version = "0.6.0"
 description = "Advanced probability calibration techniques for machine learning models"
 readme = "README.md"
 authors = [
     {name = "Gaurav Sood", email = "gsood07@gmail.com"}
 ]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Scientific/Engineering :: Mathematics",
@@ -28,42 +27,44 @@ dependencies = [
     "scipy>=1.7.0",
     "scikit-learn>=1.0.0",
     "cvxpy>=1.2.0",
-    "pandas>=1.3.0",
-    "matplotlib>=3.4.0",
-    "seaborn>=0.11.0"
 ]
-
-[project.optional-dependencies]
-docs = [
-    "sphinx>=7.0",
-    "furo>=2024.1.29",
-    "sphinx-autodoc-typehints>=1.25",
-    "sphinx-copybutton>=0.5",
-    "myst-parser>=2.0",
-    "nbsphinx>=0.9.0",
-    "ipykernel>=6.0",
-]
+dynamic = ["version"]
 
 [dependency-groups]
-dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "pytest-xdist>=3.0",
-    "ruff>=0.7.0",
-    "mypy>=1.0",
-    "pre-commit>=3.0",
-    "pydoclint>=0.8.3",
-]
+dev = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-xdist>=3.0", "ruff>=0.7.0", "pre-commit>=3.0", "pydoclint>=0.8.3", "pyright>=1.1.390"]
 test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.0",
 ]
+docs = [
+    "sphinx>=8",
+    "furo",
+    "myst-parser",
+    "sphinx-copybutton",
+    "py-canon @ git+https://github.com/gojiplus/py-canon@v1",
+    # Required by docs/source/conf.py and not part of the canon docs group.
+    "sphinx-autodoc-typehints>=1.25",
+    "nbsphinx>=0.9.0",
+    "ipykernel>=6.0",
+]
 
-[tool.uv.build-backend]
-module-name = "calibre"
-module-root = ""
+[tool.pyright]
+include = ["calibre"]
+typeCheckingMode = "standard"
+# cvxpy ships no type information, so its import is unresolvable to pyright even
+# though it is a hard runtime dependency.
+reportMissingImports = "none"
 
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.hatch.build.targets.wheel]
+packages = ["calibre"]
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
 [project.urls]
 "Homepage" = "https://github.com/finite-sample/calibre"
 "Bug Tracker" = "https://github.com/finite-sample/calibre/issues"
@@ -75,73 +76,46 @@ module-root = ""
 [tool.ruff]
 line-length = 88
 target-version = "py312"
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    ".venv",
-    "docs",
-    ".eggs",
-]
 
 [tool.ruff.lint]
-select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
-]
+external = ["DOC"]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT", "RUF"]
 ignore = [
-    "E501",  # line too long (handled by formatter)
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
+    "D203",
+    "D213",
+    "B008",
+    "C901",
+    "E501",
+    # `X` is scikit-learn's name for the feature argument of fit/transform, and the
+    # numerical routines use conventional math notation for matrices (M, D, B).
+    "N803",
+    "N806",
 ]
+
+[tool.ruff.lint.pydocstyle]
+# This package documents in numpy style (see any calibrator docstring) and Sphinx
+# renders it that way; google convention would flag every section header.
+convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # imported but unused
-"tests/*" = ["S101"]  # use of assert
-
-[tool.ruff.lint.isort]
-known-first-party = ["calibre"]
-
-# Ruff formatting configuration
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
-
-
-[tool.mypy]
-python_version = "3.12"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-ignore_missing_imports = true
-no_implicit_optional = true
-
-[[tool.mypy.overrides]]
-module = [
-    "sklearn.*",
-    "scipy.*",
-    "matplotlib.*",
-    "seaborn.*",
-    "cvxpy.*"
-]
-ignore_missing_imports = true
+# S102/S307: tests/test_readme.py executes the README's code blocks on purpose.
+"tests/**" = ["S101", "S102", "D", "T201"]
+# Notebooks print by design, and each cell is linted without the preceding cells in
+# scope, so F821 fires on names that are defined earlier in the notebook.
+# SIM102: notebook cells favour explicit stepwise guards for readability.
+"docs/**/*.ipynb" = ["D", "T201", "F821", "E402", "I001", "B905", "SIM102"]
+"docs/**" = ["D"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests"]
+# "calibre" is here so --doctest-modules below actually reaches the library's
+# docstrings; with only "tests" it would collect nothing from the package.
+testpaths = ["tests", "calibre"]
 python_files = "test_*.py"
 addopts = [
     "-ra",
     "--strict-markers",
+    "--doctest-modules",
     "--cov=calibre",
     "--cov-report=term-missing",
     "--cov-report=html",
@@ -150,6 +124,11 @@ addopts = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+# Doctests are executable documentation, so run them: --doctest-modules above is
+# what collects them. They were not collected before, which is how several
+# docstrings came to state numerically wrong results. ELLIPSIS lets an example
+# elide a volatile fragment with `...` rather than be left out of collection.
+doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE"]
 
 # Coverage configuration
 [tool.coverage.run]
@@ -174,9 +153,9 @@ pep621_dev_dependency_groups = ["docs"]
 # Pydoclint configuration
 [tool.pydoclint]
 style = "numpy"
-arg-type-hints-in-signature = true
 arg-type-hints-in-docstring = false
-return-type-hints-in-signature = true
-return-type-hints-in-docstring = false
 check-return-types = false
-check-yield-types = false
+check-class-attributes = false
+allow-init-docstring = true
+exclude = '\.venv|tests|docs'
+

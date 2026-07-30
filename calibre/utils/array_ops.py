@@ -10,7 +10,9 @@ from __future__ import annotations
 import numpy as np
 
 
-def sort_by_x(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def sort_by_x(
+    X: np.ndarray, y: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Sort arrays by X values and return sort indices.
 
@@ -150,7 +152,9 @@ def restore_order(X_sorted: np.ndarray, original_order: np.ndarray) -> np.ndarra
     return X_restored
 
 
-def find_unique_sorted(X: np.ndarray, tolerance: float = 1e-10) -> tuple[np.ndarray, np.ndarray]:
+def find_unique_sorted(
+    X: np.ndarray, tolerance: float = 1e-10
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Find unique values in a sorted array with tolerance.
 
@@ -196,7 +200,9 @@ def find_unique_sorted(X: np.ndarray, tolerance: float = 1e-10) -> tuple[np.ndar
     return unique_values, unique_indices
 
 
-def group_by_value(X: np.ndarray, y: np.ndarray, tolerance: float = 1e-10) -> tuple[list[np.ndarray], list[np.ndarray]]:
+def group_by_value(
+    X: np.ndarray, y: np.ndarray, tolerance: float = 1e-10
+) -> tuple[list[np.ndarray], list[np.ndarray]]:
     """
     Group y values by unique X values.
 
@@ -230,7 +236,7 @@ def group_by_value(X: np.ndarray, y: np.ndarray, tolerance: float = 1e-10) -> tu
     X = np.asarray(X)
     y = np.asarray(y)
 
-    unique_vals, unique_indices = find_unique_sorted(X, tolerance)
+    _unique_vals, unique_indices = find_unique_sorted(X, tolerance)
 
     groups = []
     group_indices = []
@@ -246,7 +252,11 @@ def group_by_value(X: np.ndarray, y: np.ndarray, tolerance: float = 1e-10) -> tu
 
 
 def interpolate_monotonic(
-    X_train: np.ndarray, y_train: np.ndarray, X_test: np.ndarray, bounds_error: bool = False, fill_value: float | tuple[float, float] | None = None
+    X_train: np.ndarray,
+    y_train: np.ndarray,
+    X_test: np.ndarray,
+    bounds_error: bool = False,
+    fill_value: float | tuple[float, float] | None = None,
 ) -> np.ndarray:
     """
     Interpolate monotonic function at new points.
@@ -306,11 +316,11 @@ def interpolate_monotonic(
 
 
 __all__ = [
-    "sort_by_x",
     "clip_to_range",
     "ensure_1d",
-    "restore_order",
     "find_unique_sorted",
     "group_by_value",
     "interpolate_monotonic",
+    "restore_order",
+    "sort_by_x",
 ]

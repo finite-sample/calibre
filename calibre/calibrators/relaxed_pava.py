@@ -1,9 +1,9 @@
-"""
-Relaxed Pool Adjacent Violators Algorithm (PAVA) for calibration.
+"""Epsilon-monotone isotonic regression via a cumulative-shift reduction.
 
-This module provides a relaxed version of PAVA that allows small monotonicity
-violations, creating smoother calibration curves while maintaining general
-monotonic trends.
+Isotonic regression forces every adjacent increment to be non-negative, which is
+exactly what produces its plateaus. Relaxing that to a lower *bound* on each
+increment turns one signed parameter into a family of estimators, all solvable by
+a single weighted PAVA call.
 """
 
 from __future__ import annotations
@@ -11,231 +11,197 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from scipy.interpolate import interp1d
 
+from .._core import PiecewiseLinear, aggregate_ties, shift_to_pava
 from ..base import BaseCalibrator
 from ..utils import check_arrays
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["RelaxedPAVACalibrator"]
+
 
 class RelaxedPAVACalibrator(BaseCalibrator):
-    """Relaxed Pool Adjacent Violators Algorithm (PAVA) for calibration.
+    r"""Isotonic regression with a lower bound on each adjacent increment.
 
-    This calibrator implements a relaxed version of PAVA that allows small
-    monotonicity violations up to a threshold determined by the percentile
-    of differences between adjacent sorted points.
+    Solves
+
+    .. math::
+        \min_{z} \sum_i w_i (y_i - z_i)^2
+        \quad\text{s.t.}\quad z_{i+1} - z_i \ge L_i
+
+    in O(n) via the cumulative-shift reduction (see
+    :func:`calibre._core.shift_to_pava`): substituting
+    :math:`u_i = z_i - \sum_{j<i} L_j` turns the constraint into
+    :math:`u_{i+1} \ge u_i`, so one weighted PAVA on the shifted targets solves
+    it exactly.
+
+    One signed bound spans three estimators:
+
+    ==================  =====================================================
+    ``epsilon = 0``     standard isotonic regression
+    ``epsilon > 0``     epsilon-monotone: decreases up to ``epsilon`` allowed
+    ``min_slope > 0``   strictly increasing, so no plateau can form at all
+    ==================  =====================================================
 
     Parameters
     ----------
-    percentile
-        Percentile of absolute differences to use as threshold.
-        Lower values enforce stricter monotonicity.
-    adaptive
-        Whether to use the adaptive implementation (recommended) or the
-        block-merging implementation.
+    epsilon
+        Largest decrease permitted between adjacent unique scores, in the units
+        of ``y``. So ``epsilon=0.02`` means "tolerate a drop of up to 2
+        percentage points".
+    min_slope
+        Minimum required increase between adjacent unique scores. Mutually
+        exclusive with a non-zero ``epsilon``; this is the direction that
+        eliminates plateaus.
+    clip_output
+        Clip calibrated values into ``[0, 1]``.
     enable_diagnostics
         Whether to enable plateau diagnostics analysis.
+
+    Attributes
+    ----------
+    calibration_curve_ : PiecewiseLinear
+        The fitted calibration map.
+    n_features_in_ : int
+        Always 1. Present for scikit-learn compatibility.
+
+    Notes
+    -----
+    ``epsilon`` is an absolute tolerance on the target scale, deliberately. An
+    earlier version of this class derived its threshold as a percentile of
+    ``|diff(y)|`` over the score-sorted targets, which cannot work for this
+    package's primary use case: with binary labels those differences are all 0 or
+    1, so any percentile collapses to either 0 -- the relaxation never binds and
+    the estimator is silently just PAVA -- or 1, where it never constrains
+    anything. There is no intermediate setting to choose.
+
+    Relaxing monotonicity is not free: a decrease in the calibration map reverses
+    the ranking of every score pair it spans, which costs discrimination. To
+    preserve granularity, ``min_slope`` is usually the better direction, since it
+    removes plateaus while keeping the map strictly increasing.
 
     Examples
     --------
     >>> import numpy as np
     >>> from calibre import RelaxedPAVACalibrator
     >>>
-    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+    >>> x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+    >>> y = np.array([0, 0, 1, 0, 1])
     >>>
-    >>> cal = RelaxedPAVACalibrator(percentile=20)
-    >>> cal.fit(X, y)
-    >>> X_calibrated = cal.transform(np.array([0.15, 0.35, 0.55]))
+    >>> RelaxedPAVACalibrator(epsilon=0.0).fit_transform(x, y)
+    array([0. , 0. , 0.5, 0.5, 1. ])
+
+    A minimum slope leaves no plateau anywhere:
+
+    >>> fitted = RelaxedPAVACalibrator(min_slope=0.05).fit_transform(x, y)
+    >>> bool(np.all(np.diff(fitted) > 0))
+    True
+
+    The bound itself is exact only without clipping. Clipping into ``[0, 1]``
+    can shorten the increments that straddle a boundary, so the guarantee
+    degrades from ">= min_slope" to "> 0" there:
+
+    >>> exact = RelaxedPAVACalibrator(
+    ...     min_slope=0.05, clip_output=False
+    ... ).fit_transform(x, y)
+    >>> bool(np.all(np.diff(exact) >= 0.05 - 1e-12))
+    True
+    >>> float(exact.min())                      # below 0, hence the clipping
+    -0.025
 
     See Also
     --------
-    IsotonicCalibrator : Strict monotonicity constraint
-    NearlyIsotonicCalibrator : Penalized monotonicity violations
+    IsotonicCalibrator : The ``epsilon = 0`` special case.
+    CenteredIsotonicCalibrator : Removes plateaus without relaxing monotonicity.
+    NearlyIsotonicCalibrator : Penalises violations instead of bounding them.
     """
 
     def __init__(
         self,
-        percentile: float = 10,
-        adaptive: bool = True,
+        epsilon: float = 0.0,
+        min_slope: float = 0.0,
+        clip_output: bool = True,
         enable_diagnostics: bool = False,
     ):
         # Call base class for diagnostic support
         super().__init__(enable_diagnostics=enable_diagnostics)
 
-        self.percentile = percentile
-        self.adaptive = adaptive
+        self.epsilon = epsilon
+        self.min_slope = min_slope
+        self.clip_output = clip_output
 
-    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
-        """Implement the relaxed PAVA fitting logic.
+    def _fit_impl(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> None:
+        """Solve the epsilon-monotone problem once and store the fitted curve.
 
         Parameters
         ----------
         X
-            The training input samples.
+            Uncalibrated scores.
         y
-            The target values.
+            Targets.
+        sample_weight
+            Non-negative per-observation weights.
 
-        Notes
-        -----
-        This method implements the actual fitting logic. Data storage,
-        diagnostics, and return value are handled by the base class fit() method.
+        Raises
+        ------
+        ValueError
+            If ``epsilon`` or ``min_slope`` is negative, or both are non-zero.
         """
         X, y = check_arrays(X, y)
 
-        # Validate percentile parameter
-        if not 0 <= self.percentile <= 100:
-            logger.warning(
-                f"percentile should be between 0 and 100. Got {self.percentile}. Clipping to range."
+        if self.epsilon < 0:
+            raise ValueError(f"epsilon must be non-negative, got {self.epsilon}")
+        if self.min_slope < 0:
+            raise ValueError(f"min_slope must be non-negative, got {self.min_slope}")
+        if self.epsilon > 0 and self.min_slope > 0:
+            raise ValueError(
+                "epsilon and min_slope pull in opposite directions; set at most "
+                f"one (got epsilon={self.epsilon}, min_slope={self.min_slope})"
             )
-            self.percentile = np.clip(self.percentile, 0, 100)
 
-        self.X_ = X
-        self.y_ = y
+        # Pool tied scores. Beyond removing the interpolation hazard, this is what
+        # makes the bound mean "per distinct score" rather than "per observation".
+        x_unique, y_mean, weight = aggregate_ties(X, y, sample_weight)
+
+        # Lower bound on each increment: negative permits decreases, positive
+        # forces strict growth.
+        bound = self.min_slope - self.epsilon
+        fitted = shift_to_pava(y_mean, weight, L=bound)
+
+        if self.clip_output:
+            # Clipping can flatten an enforced minimum slope at the boundaries,
+            # but returning probabilities outside [0, 1] is worse for a calibrator.
+            fitted = np.clip(fitted, 0.0, 1.0)
+
+        self.calibration_curve_ = PiecewiseLinear(x_unique, fitted)
+        self.n_features_in_ = 1
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Apply relaxed PAVA calibration to new data.
+        """Map scores through the fitted calibration curve.
 
         Parameters
         ----------
         X
-            The values to be calibrated.
+            Scores to calibrate.
 
         Returns
         -------
-        Calibrated values.
+        ndarray of shape (n_samples,)
+            Calibrated values.
+
+        Raises
+        ------
+        AttributeError
+            If called before :meth:`fit`.
         """
-        X = np.asarray(X).ravel()
-
-        # Apply relaxed PAVA to get calibrated values for training data
-        if self.adaptive:
-            y_calibrated = self._relaxed_pava_adaptive()
-        else:
-            y_calibrated = self._relaxed_pava_block()
-
-        # Create interpolation function
-        cal_func = interp1d(
-            self.X_,
-            y_calibrated,
-            kind="linear",
-            bounds_error=False,
-            fill_value=(np.min(y_calibrated), np.max(y_calibrated)),
-        )
-
-        # Apply interpolation to get values at X points
-        return np.asarray(np.clip(cal_func(X), 0, 1))
-
-    def _relaxed_pava_adaptive(self) -> np.ndarray:
-        """Implement relaxed PAVA with adaptive threshold."""
-        X, y = self.X_, self.y_
-
-        # Sort by X values
-        sort_idx = np.argsort(X)
-        y_sorted = y[sort_idx]
-
-        # Calculate absolute differences between adjacent points
-        diffs = np.abs(np.diff(y_sorted))
-
-        # Handle edge cases
-        if len(diffs) == 0:
-            return y.copy()
-
-        # Handle case where all differences are zero
-        if np.all(diffs == 0):
-            return y.copy()
-
-        # Find relaxation threshold based on percentile of differences
-        relaxation = np.percentile(diffs, self.percentile)
-
-        n = len(y_sorted)
-        y_smoothed = y_sorted.copy()
-
-        # Iteratively pool adjacent violators that exceed the relaxation threshold
-        max_iterations = min(n, 100)  # Prevent infinite loops
-        for _iteration in range(max_iterations):
-            changed = False
-            for i in range(n - 1):
-                # Check if monotonicity is violated by more than the threshold
-                if y_smoothed[i] > y_smoothed[i + 1] + relaxation:
-                    # Average adjacent violators
-                    avg = (y_smoothed[i] + y_smoothed[i + 1]) / 2
-                    y_smoothed[i] = avg
-                    y_smoothed[i + 1] = avg
-                    changed = True
-
-            # If no changes in this iteration, we've converged
-            if not changed:
-                break
-
-        # Restore original order
-        y_result = np.empty_like(y)
-        y_result[sort_idx] = y_smoothed
-
-        return np.clip(y_result, 0, 1)
-
-    def _relaxed_pava_block(self) -> np.ndarray:
-        """Implement relaxed PAVA with block merging approach."""
-        X, y = self.X_, self.y_
-
-        # Sort by X values
-        sort_idx = np.argsort(X)
-        y_sorted = y[sort_idx]
-        n = len(y_sorted)
-
-        # Calculate threshold based on the percentile of sorted differences
-        diffs = np.abs(np.diff(y_sorted))
-        if len(diffs) > 0:
-            epsilon = np.percentile(diffs, self.percentile)
-        else:
-            epsilon = 0.0
-
-        # Apply modified PAVA with epsilon threshold
-        y_fit = y_sorted.copy()
-
-        # Use a more efficient approach with block tracking via indices
-        block_starts = np.arange(n)
-        block_ends = np.arange(n) + 1
-        block_values = y_sorted.copy()
-
-        changed = True
-        max_iterations = min(n, 50)  # Prevent excessive iterations
-        iteration = 0
-
-        while changed and iteration < max_iterations:
-            changed = False
-            iteration += 1
-
-            i = 0
-            while i < len(block_starts) - 1:
-                if block_values[i] > block_values[i + 1] + epsilon:
-                    # Merge blocks i and i+1
-                    start = block_starts[i]
-                    end = block_ends[i + 1]
-                    merged_avg = np.mean(y_sorted[start:end])
-
-                    # Update arrays
-                    block_starts = np.concatenate(
-                        [block_starts[:i], [start], block_starts[i + 2 :]]
-                    )
-                    block_ends = np.concatenate(
-                        [block_ends[:i], [end], block_ends[i + 2 :]]
-                    )
-                    block_values = np.concatenate(
-                        [block_values[:i], [merged_avg], block_values[i + 2 :]]
-                    )
-
-                    # Update y_fit for all merged indices
-                    for j in range(start, end):
-                        y_fit[j] = merged_avg
-
-                    changed = True
-                    # Don't increment i, check this position again
-                else:
-                    i += 1
-
-        # Restore original order
-        y_result = np.empty_like(y_fit)
-        y_result[sort_idx] = y_fit
-
-        return np.clip(y_result, 0, 1)
+        if not hasattr(self, "calibration_curve_"):
+            raise AttributeError(
+                f"{type(self).__name__} is not fitted yet. Call fit() first."
+            )
+        return self.calibration_curve_(np.asarray(X, dtype=float).ravel())

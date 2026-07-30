@@ -8,6 +8,7 @@ reduce jaggedness while preserving monotonicity.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -62,7 +63,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
     >>>
     >>> cal = SmoothedIsotonicCalibrator(window_length=7)
-    >>> cal.fit(X, y)
+    >>> _ = cal.fit(X, y)
     >>> X_calibrated = cal.transform(X)
 
     See Also
@@ -91,7 +92,12 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         self.min_window = min_window
         self.max_window = max_window
 
-    def _fit_impl(self, X: np.ndarray, y: np.ndarray) -> None:
+    def _fit_impl(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> None:
         """Implement the smoothed isotonic regression fitting logic.
 
         Parameters
@@ -106,6 +112,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         This method implements the actual fitting logic. Data storage,
         diagnostics, and return value are handled by the base class fit() method.
         """
+        self._reject_sample_weight(sample_weight)
         X, y = check_arrays(X, y)
 
         if self.poly_order < 1:
@@ -142,12 +149,16 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         else:
             y_smoothed = self._transform_fixed()
 
+        # A two-tuple fill_value sets the below-range and above-range values
+        # separately. scipy's stub declares the parameter as a single float, so the
+        # tuple form needs the annotation loosened rather than the call changed.
+        edge_fill: Any = (float(np.min(y_smoothed)), float(np.max(y_smoothed)))
         cal_func = interp1d(
             self.X_,
             y_smoothed,
             kind=self.interp_method,
             bounds_error=False,
-            fill_value=(np.min(y_smoothed), np.max(y_smoothed)),
+            fill_value=edge_fill,
         )
 
         return np.asarray(np.clip(cal_func(X), 0, 1))
@@ -169,7 +180,9 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         if n >= window_length:
             try:
-                y_smoothed = savgol_filter(y_iso, window_length, poly_order)
+                y_smoothed = np.asarray(
+                    savgol_filter(y_iso, window_length, poly_order), dtype=float
+                )
                 # Check for low variance in the smoothed output
                 if np.var(y_smoothed) < MIN_VARIANCE_THRESHOLD:
                     logger.warning(
@@ -267,7 +280,9 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         poly_ord = min(self.poly_order, window_len - 1)
         try:
-            y_local_smooth = savgol_filter(y_local, window_len, poly_ord)
+            y_local_smooth = np.asarray(
+                savgol_filter(y_local, window_len, poly_ord), dtype=float
+            )
             local_idx = i - start_idx
             if 0 <= local_idx < len(y_local_smooth):
                 return float(y_local_smooth[local_idx])

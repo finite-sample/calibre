@@ -33,8 +33,8 @@ def core_calibrators():
     """Fixture providing core calibrators for property testing."""
     return {
         "nearly_isotonic": NearlyIsotonicCalibrator(lam=1.0, method="path"),
-        "spline": SplineCalibrator(n_splines=10, degree=3, cv=3),
-        "relaxed_pava": RelaxedPAVACalibrator(percentile=10, adaptive=True),
+        "spline": SplineCalibrator(n_knots=10, degree=3, cv=3),
+        "relaxed_pava": RelaxedPAVACalibrator(epsilon=0.02),
         "regularized": RegularizedIsotonicCalibrator(alpha=0.1),
         "smoothed": SmoothedIsotonicCalibrator(window_length=7, poly_order=3),
     }
@@ -107,9 +107,8 @@ class TestProbabilityBounds:
             try:
                 calibrator.fit(y_pred_train, y_true_train)
                 y_calib = calibrator.transform(y_pred_test)
-                assert np.all(y_calib >= 0) and np.all(y_calib <= 1), (
-                    f"{cal_name} extrapolation bounds"
-                )
+                assert np.all(y_calib >= 0), f"{cal_name} extrapolated below 0"
+                assert np.all(y_calib <= 1), f"{cal_name} extrapolated above 1"
             except Exception as e:
                 pytest.skip(f"{cal_name} failed on extrapolation: {e}")
 
@@ -142,10 +141,8 @@ class TestMonotonicity:
             for name, calibrator in extended_calibrators.items():
                 try:
                     # Set different expectations based on calibrator type
-                    if "strong" in name:
-                        max_violations = 0.0  # Strict monotonicity expected
-                    else:
-                        max_violations = 0.1  # Allow some violations
+                    # "strong" settings promise strict monotonicity.
+                    max_violations = 0.0 if "strong" in name else 0.1
 
                     is_monotonic, violation_rate = self._check_monotonicity(
                         calibrator, y_pred, y_true, max_violations
@@ -309,9 +306,8 @@ class TestEdgeCases:
                     assert len(y_calib) == len(y_pred), (
                         f"{cal_name} length change in {case_name}"
                     )
-                    assert np.all(y_calib >= 0) and np.all(y_calib <= 1), (
-                        f"{cal_name} bounds in {case_name}"
-                    )
+                    assert np.all(y_calib >= 0), f"{cal_name} below 0 in {case_name}"
+                    assert np.all(y_calib <= 1), f"{cal_name} above 1 in {case_name}"
 
                     # Case-specific checks
                     if extra_checks:
@@ -393,9 +389,10 @@ class TestParameterSensitivity:
                 y_test_calib = calibrator.transform(x_test)
                 violations = np.sum(np.diff(y_test_calib) < 0)
                 lambda_results[lam] = violations
-            except Exception:
-                pass
+            except Exception as exc:
+                pytest.fail(f"lam={lam} raised {type(exc).__name__}: {exc}")
 
+        assert len(lambda_results) >= 2, "the sweep must produce comparable fits"
         if len(lambda_results) >= 2:
             # Higher lambda should reduce violations
             low_lam, high_lam = min(lambda_results.keys()), max(lambda_results.keys())
@@ -403,24 +400,20 @@ class TestParameterSensitivity:
                 "Lambda trend check failed"
             )
 
-        # Test percentile sensitivity for RelaxedPAVACalibrator
+        # Epsilon sensitivity for RelaxedPAVACalibrator. A larger tolerance means
+        # less pooling, hence at least as many distinct calibrated values. No
+        # try/except here: if the fit raises, that is the finding.
         y_pred2, y_true2 = data_generator.generate_dataset("multi_modal", n_samples=300)
-        percentile_results = {}
-        for perc in [5, 20]:
-            try:
-                calibrator = RelaxedPAVACalibrator(percentile=perc, adaptive=True)
-                calibrator.fit(y_pred2, y_true2)
-                y_calib = calibrator.transform(y_pred2)
-                unique_count = len(np.unique(np.round(y_calib, 6)))
-                percentile_results[perc] = unique_count
-            except Exception:
-                pass
+        epsilon_results = {}
+        for eps in [0.0, 0.05]:
+            calibrator = RelaxedPAVACalibrator(epsilon=eps)
+            calibrator.fit(y_pred2, y_true2)
+            y_calib = calibrator.transform(y_pred2)
+            epsilon_results[eps] = len(np.unique(np.round(y_calib, 6)))
 
-        if len(percentile_results) == 2:
-            # Higher percentile should preserve more unique values
-            assert percentile_results[20] >= percentile_results[5], (
-                "Percentile trend check failed"
-            )
+        assert epsilon_results[0.05] >= epsilon_results[0.0], (
+            f"a larger epsilon pooled more, not less: {epsilon_results}"
+        )
 
 
 # Utility functions for property testing

@@ -9,6 +9,8 @@ Available Calibrators
 --------------------
 IsotonicCalibrator
     Isotonic regression calibration
+CenteredIsotonicCalibrator
+    Centered isotonic regression: plateau-free, granularity preserving
 NearlyIsotonicCalibrator
     Nearly-isotonic regression with soft monotonicity
 SplineCalibrator
@@ -29,7 +31,7 @@ Examples
 >>> y = np.array([0, 0, 1, 1, 1])
 >>>
 >>> cal = IsotonicCalibrator()
->>> cal.fit(X, y)
+>>> _ = cal.fit(X, y)
 >>> X_calibrated = cal.transform(X)
 """
 
@@ -37,6 +39,7 @@ from __future__ import annotations
 
 # Import all calibrators
 from .cdi_iso import CDIIsotonicCalibrator
+from .centered_isotonic import CenteredIsotonicCalibrator
 from .isotonic import IsotonicCalibrator
 from .nearly_isotonic import NearlyIsotonicCalibrator
 from .regularized import RegularizedIsotonicCalibrator
@@ -47,10 +50,11 @@ from .spline import SplineCalibrator
 # Define public API
 __all__ = [
     "CDIIsotonicCalibrator",
+    "CenteredIsotonicCalibrator",
     "IsotonicCalibrator",
     "NearlyIsotonicCalibrator",
-    "SplineCalibrator",
-    "RelaxedPAVACalibrator",
     "RegularizedIsotonicCalibrator",
+    "RelaxedPAVACalibrator",
     "SmoothedIsotonicCalibrator",
+    "SplineCalibrator",
 ]

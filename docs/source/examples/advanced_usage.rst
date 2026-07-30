@@ -112,8 +112,8 @@ This example shows how to create a custom ensemble class using Calibre's calibra
    # Create ensemble
    calibrators = [
        NearlyIsotonicCalibrator(lam=1.0, method='path'),
-       SplineCalibrator(n_splines=10, degree=3, cv=3),
-       RelaxedPAVACalibrator(percentile=10, adaptive=True)
+       SplineCalibrator(n_knots=10, degree=3, cv=3),
+       RelaxedPAVACalibrator(epsilon=0.02)
    ]
    
    ensemble = CalibrationEnsemble(calibrators, weights=[0.4, 0.3, 0.3])
@@ -176,8 +176,8 @@ Adaptive Calibration Selection
        'Nearly Isotonic (strict)': NearlyIsotonicCalibrator(lam=10.0),
        'Nearly Isotonic (moderate)': NearlyIsotonicCalibrator(lam=1.0),
        'Nearly Isotonic (relaxed)': NearlyIsotonicCalibrator(lam=0.1),
-       'I-Spline': SplineCalibrator(n_splines=10),
-       'Relaxed PAVA': RelaxedPAVACalibrator(percentile=10)
+       'I-Spline': SplineCalibrator(n_knots=10),
+       'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02)
    }
    
    best_cal, best_name, best_score = select_best_calibrator(

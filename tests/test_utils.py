@@ -123,7 +123,7 @@ class TestSortByX:
         X = np.array([0.5, 0.4, 0.3, 0.2, 0.1])
         y = np.array([1, 1, 1, 0, 0])
 
-        sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
+        _sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
 
         expected_X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
         expected_y = np.array([0, 0, 1, 1, 1])
@@ -136,7 +136,7 @@ class TestSortByX:
         X = np.array([0.3, 0.1, 0.3, 0.2, 0.1])
         y = np.array([1, 0, 2, 0, 3])
 
-        sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
+        _sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
 
         # X should be sorted
         assert np.all(X_sorted[:-1] <= X_sorted[1:])
@@ -160,7 +160,7 @@ class TestSortByX:
         X = np.array([0.3, np.nan, 0.1, 0.5])
         y = np.array([1, 2, 0, 1])
 
-        sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
+        _sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
 
         # Non-NaN values should be sorted, NaN should be at the end
         assert X_sorted[0] == 0.1
@@ -185,7 +185,7 @@ class TestValidationEdgeCases:
         y = np.random.randint(0, 2, n)
 
         X_valid, y_valid = check_arrays(X, y)
-        sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
+        _sort_idx, X_sorted, y_sorted = sort_by_x(X, y)
 
         assert len(X_valid) == n
         assert len(y_valid) == n

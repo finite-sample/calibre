@@ -1,21 +1,32 @@
 name: Find Adjacent Repositories
 
+# Maintains the "Adjacent Repositories" section of README.md once a month.
+# Actions are SHA-pinned and permissions are explicit so this passes the fleet's
+# zizmor workflow-security audit; `persist-credentials` stays on because the last
+# step pushes the README update back to main.
+
 on:
   schedule:
-    - cron: '0 0 1 * *' #once a month
+    - cron: "0 0 1 * *"  # once a month
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   recommend-repos:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Adjacent Repositories Recommender
-        uses: gojiplus/adjacent@v1.3
+        uses: gojiplus/adjacent@ab14392f3ccd0179ee0f8a995748b3b5485b6e36 # v1.4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # ✅ Pass the required token
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Commit and push changes
         run: |
