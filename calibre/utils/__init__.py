@@ -51,20 +51,20 @@ from .validation import (
 )
 
 __all__ = [
+    "check_array_1d",
     # Validation
     "check_arrays",
-    "check_array_1d",
-    "check_fitted",
     "check_consistent_length",
-    "validate_parameters",
-    # Array operations
-    "sort_by_x",
+    "check_fitted",
     "clip_to_range",
     "ensure_1d",
-    "restore_order",
     "find_unique_sorted",
     "group_by_value",
     "interpolate_monotonic",
+    "restore_order",
+    # Array operations
+    "sort_by_x",
+    "validate_parameters",
 ]
 
 # No version needed here - use main package version from calibre.__version__

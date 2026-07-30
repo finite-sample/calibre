@@ -57,13 +57,13 @@ def _log_loss(y: np.ndarray, p: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 
 
 class SplineCalibrator(BaseCalibrator):
-    """Monotone spline calibration with cross-validated smoothing.
+    r"""Monotone spline calibration with cross-validated smoothing.
 
     Fits
 
     .. math::
-        g\\big(f(x)\\big) = \\theta + \\sum_k \\delta_k I_k(x),
-        \\qquad \\delta_k \\ge 0
+        g\big(f(x)\big) = \theta + \sum_k \delta_k I_k(x),
+        \qquad \delta_k \ge 0
 
     where the :math:`I_k` are I-splines (each non-decreasing) and :math:`g` is the
     link. Because every basis function is non-decreasing and every coefficient is

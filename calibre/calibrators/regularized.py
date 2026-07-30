@@ -27,17 +27,17 @@ __all__ = ["RegularizedIsotonicCalibrator"]
 
 
 class RegularizedIsotonicCalibrator(BaseCalibrator):
-    """Monotone calibration with an explicit roughness penalty.
+    r"""Monotone calibration with an explicit roughness penalty.
 
     Solves
 
     .. math::
-        \\min_{\\theta,\\ \\delta \\ge 0}\\
-        \\mathcal{L}\\big(\\theta + M\\delta;\\ y, w\\big)
-        + \\alpha \\lVert \\Delta\\delta \\rVert^2
+        \min_{\theta,\ \delta \ge 0}\
+        \mathcal{L}\big(\theta + M\delta;\ y, w\big)
+        + \alpha \lVert \Delta\delta \rVert^2
 
     where ``M`` is an I-spline design, so ``delta >= 0`` makes the fit monotone by
-    construction, and :math:`\\Delta\\delta` is the second difference of the
+    construction, and :math:`\Delta\delta` is the second difference of the
     underlying B-spline coefficients.
 
     Parameters
@@ -72,16 +72,16 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     Notes
     -----
     **The penalty is on curvature, not on magnitude.** A ridge penalty
-    :math:`\\alpha\\sum_i \\beta_i^2` buys no smoothness at all: unconstrained its
-    solution is :math:`\\beta = y/(1+\\alpha)`, a uniform deflation of every
+    :math:`\alpha\sum_i \beta_i^2` buys no smoothness at all: unconstrained its
+    solution is :math:`\beta = y/(1+\alpha)`, a uniform deflation of every
     probability that breaks mean calibration by construction and drives all
-    predictions to zero as :math:`\\alpha` grows. A second-difference penalty leaves
+    predictions to zero as :math:`\alpha` grows. A second-difference penalty leaves
     any straight line unpenalised, so the identity map and the empirical base rate
     both survive it.
 
     **Why a fixed basis rather than one parameter per score.** Putting a parameter at
     every unique score makes this a smoothing-spline problem whose penalty operator
-    scales like :math:`h^{-2} \\sim n^{2}`, so the normal equations scale like
+    scales like :math:`h^{-2} \sim n^{2}`, so the normal equations scale like
     :math:`n^{4}`. That is ill-conditioned in a way no solver choice repairs -- a
     constrained QP stops converging above a few thousand distinct scores, ADMM
     diverges, and a matrix-free least-squares solve fails to converge while the

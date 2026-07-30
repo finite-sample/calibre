@@ -439,10 +439,7 @@ class MonotonicMixin:
         >>> print(y)
         [0.1 0.3 0.2 0.5 0.4]
         """
-        if inplace:
-            y_result = y
-        else:
-            y_result = np.asarray(y).copy()
+        y_result = y if inplace else np.asarray(y).copy()
 
         for i in range(1, len(y_result)):
             if y_result[i] < y_result[i - 1]:
@@ -461,13 +458,13 @@ WINDOW_DIVISOR = 10
 ADAPTIVE_WINDOW_DIVISOR = 5
 
 __all__ = [
-    "BaseCalibrator",
-    "MonotonicMixin",
+    "ADAPTIVE_WINDOW_DIVISOR",
     "DEFAULT_MIN_WINDOW",
-    "DEFAULT_POLY_ORDER",
     "DEFAULT_N_BOOTSTRAPS",
     "DEFAULT_N_SPLITS",
+    "DEFAULT_POLY_ORDER",
     "MIN_VARIANCE_THRESHOLD",
     "WINDOW_DIVISOR",
-    "ADAPTIVE_WINDOW_DIVISOR",
+    "BaseCalibrator",
+    "MonotonicMixin",
 ]

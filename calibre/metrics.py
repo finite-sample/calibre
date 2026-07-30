@@ -1,6 +1,4 @@
-"""
-Evaluation metrics for calibration.
-"""
+"""Evaluation metrics for calibration."""
 
 from __future__ import annotations
 
@@ -11,11 +9,39 @@ from sklearn.metrics import brier_score_loss
 from sklearn.utils import check_array
 
 
-def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+def _spearman(a: np.ndarray, b: np.ndarray) -> float:
+    """Spearman rank correlation between two arrays, as a plain float.
+
+    Wrapped because ``scipy.stats.spearmanr`` returns a result object whose
+    ``correlation`` attribute type checkers cannot see, and whose tuple form is
+    typed too loosely to convert directly.
+
+    Parameters
+    ----------
+    a
+        First array.
+    b
+        Second array.
+
+    Returns
+    -------
+    float
+        The correlation coefficient, or NaN if either input is constant.
     """
+    result = spearmanr(a, b)
+    coefficient = getattr(result, "statistic", None)
+    if coefficient is None:  # pragma: no cover - older scipy
+        coefficient = getattr(result, "correlation", None)
+    if coefficient is None:  # pragma: no cover - unexpected scipy shape
+        coefficient = next(iter(result))  # type: ignore[call-overload]
+    return float(coefficient)  # type: ignore[arg-type]
+
+
+def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    r"""
     Calculate the mean calibration error: the bias of the predictions.
 
-    .. math:: \\left| \\mathbb{E}[\\hat{p}] - \\mathbb{E}[y] \\right|
+    .. math:: \left| \mathbb{E}[\hat{p}] - \mathbb{E}[y] \right|
 
     This is calibration *in the large* -- whether the predictions are right on
     average. It is zero for any predictor whose mean matches the base rate, and
@@ -126,24 +152,24 @@ def binned_calibration_error(
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
-    # If x is not provided, use y_pred for binning
+    # Bind to a separate name so the type is narrowed: reassigning `x` would leave
+    # `None` in its inferred union for every use below.
     if x is None:
-        x = y_pred
+        bin_on = y_pred
     else:
-        x = check_array(x, ensure_2d=False)
-        # Check that x has matching length
-        if len(x) != len(y_true):
+        bin_on = check_array(x, ensure_2d=False)
+        if len(bin_on) != len(y_true):
             raise ValueError("x must have the same length as y_true and y_pred")
 
     # Create bins based on strategy
     if strategy == "uniform":
-        bins = np.linspace(np.min(x), np.max(x), n_bins + 1)
+        bins = np.linspace(np.min(bin_on), np.max(bin_on), n_bins + 1)
     elif strategy == "quantile":
-        bins = np.percentile(x, np.linspace(0, 100, n_bins + 1))
+        bins = np.percentile(bin_on, np.linspace(0, 100, n_bins + 1))
     else:
         raise ValueError(f"Unknown binning strategy: {strategy}")
 
-    bin_ids = np.digitize(x, bins) - 1
+    bin_ids = np.digitize(bin_on, bins) - 1
     bin_ids = np.clip(bin_ids, 0, n_bins - 1)  # Ensure valid bin indices
 
     # Calculate error for each bin
@@ -173,10 +199,7 @@ def binned_calibration_error(
                 bin_true_means.append(avg_true)
 
     # Calculate root mean squared error across bins
-    if valid_bins > 0:
-        bce = np.sqrt(error / valid_bins)
-    else:
-        bce = 0.0
+    bce = np.sqrt(error / valid_bins) if valid_bins > 0 else 0.0
 
     if return_details:
         return {
@@ -402,18 +425,17 @@ def correlation_metrics(
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
 
-    results = {"spearman_corr_to_y_true": spearmanr(y_true, y_pred).correlation}
+    results = {"spearman_corr_to_y_true": _spearman(y_true, y_pred)}
 
     if y_orig is not None:
-        y_orig = check_array(y_orig, ensure_2d=False)
-        results["spearman_corr_to_y_orig"] = spearmanr(y_orig, y_pred).correlation
-        results["spearman_corr_orig_to_calib"] = spearmanr(
-            y_orig, y_pred
-        ).correlation  # Alias for backward compatibility
+        orig = check_array(y_orig, ensure_2d=False)
+        corr_orig = _spearman(orig, y_pred)
+        results["spearman_corr_to_y_orig"] = corr_orig
+        results["spearman_corr_orig_to_calib"] = corr_orig  # backward-compatible alias
 
     if x is not None:
-        x = check_array(x, ensure_2d=False)
-        results["spearman_corr_to_x"] = spearmanr(x, y_pred).correlation
+        scores = check_array(x, ensure_2d=False)
+        results["spearman_corr_to_x"] = _spearman(scores, y_pred)
 
     return results
 
@@ -453,8 +475,8 @@ def unique_value_counts(
     }
 
     if y_orig is not None:
-        y_orig = check_array(y_orig, ensure_2d=False)
-        results["n_unique_y_orig"] = len(np.unique(np.round(y_orig, precision)))
+        orig = check_array(y_orig, ensure_2d=False)
+        results["n_unique_y_orig"] = len(np.unique(np.round(orig, precision)))
         results["unique_value_ratio"] = float(results["n_unique_y_pred"]) / max(
             1, int(results["n_unique_y_orig"])
         )
@@ -599,11 +621,8 @@ def tie_preservation_score(
                 tied_cal += 1
 
     # Score based on preservation of original ties and avoidance of spurious ties
-    if tied_orig == 0:
-        # No original ties to preserve
-        preservation_rate = 1.0
-    else:
-        preservation_rate = preserved_ties / tied_orig
+    # With no original ties there is nothing to preserve, so the rate is vacuously 1.
+    preservation_rate = 1.0 if tied_orig == 0 else preserved_ties / tied_orig
 
     # Penalty for creating too many new ties
     if tied_cal == 0:
@@ -689,7 +708,7 @@ def plateau_quality_score(
         plateau_score = np.exp(-plateau_var - size_penalty)
         scores.append(plateau_score)
 
-    return np.mean(scores) if scores else 1.0
+    return float(np.mean(scores)) if scores else 1.0
 
 
 def calibration_diversity_index(
@@ -826,16 +845,16 @@ def progressive_sampling_diversity(
 
 
 __all__ = [
-    "mean_calibration_error",
     "binned_calibration_error",
+    "brier_score",
+    "calibration_curve",
+    "calibration_diversity_index",
+    "correlation_metrics",
     "expected_calibration_error",
     "maximum_calibration_error",
-    "brier_score",
-    "correlation_metrics",
-    "unique_value_counts",
-    "calibration_curve",
-    "tie_preservation_score",
+    "mean_calibration_error",
     "plateau_quality_score",
-    "calibration_diversity_index",
     "progressive_sampling_diversity",
+    "tie_preservation_score",
+    "unique_value_counts",
 ]

@@ -236,7 +236,7 @@ def group_by_value(
     X = np.asarray(X)
     y = np.asarray(y)
 
-    unique_vals, unique_indices = find_unique_sorted(X, tolerance)
+    _unique_vals, unique_indices = find_unique_sorted(X, tolerance)
 
     groups = []
     group_indices = []
@@ -316,11 +316,11 @@ def interpolate_monotonic(
 
 
 __all__ = [
-    "sort_by_x",
     "clip_to_range",
     "ensure_1d",
-    "restore_order",
     "find_unique_sorted",
     "group_by_value",
     "interpolate_monotonic",
+    "restore_order",
+    "sort_by_x",
 ]

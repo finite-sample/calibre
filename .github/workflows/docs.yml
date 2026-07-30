@@ -1,62 +1,63 @@
-name: Deploy Documentation
+name: Docs
+
+# Deliberate deviation from the py-canon docs shim. The canon reusable workflow
+# expects `docs/` as the Sphinx root with a `docs/conf.py` built from
+# `py_canon.sphinx.configure`, but this repo's documentation lives in
+# `docs/source/` and needs `nbsphinx` to render four tutorial notebooks, which the
+# canon config does not enable. Adopting the shim as-is would silently stop
+# publishing the notebooks.
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:  # Allow manual triggering
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+permissions:
+  contents: read
+
 concurrency:
-  group: "pages"
+  group: docs-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  docs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pages: write
       id-token: write
-    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v5
-      with:
-        fetch-depth: 0  # Fetch full history for proper git info
-    
-    - name: Install uv
-      uses: astral-sh/setup-uv@v7.1.4
-      with:
-        version: "0.9.13"
-        python-version: '3.12'
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y pandoc
-    
-    - name: Install dependencies
-      run: |
-        uv sync --all-extras
-    
-    - name: Build documentation
-      run: |
-        uv run sphinx-build -b html docs/source docs/_build/html
-      env:
-        SPHINXOPTS: "--keep-going -E"  # Keep going on errors, rebuild all files
-    
-    - name: Setup Pages
-      uses: actions/configure-pages@v4
-      if: github.ref == 'refs/heads/main'
-    
-    - name: Upload documentation artifact
-      uses: actions/upload-pages-artifact@v3
-      if: github.ref == 'refs/heads/main'
-      with:
-        path: ./docs/_build/html
-    
-    - name: Deploy to GitHub Pages
-      id: deployment
-      uses: actions/deploy-pages@v4
-      if: github.ref == 'refs/heads/main'
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7.1.4
+        with:
+          python-version: "3.12"
+
+      - name: Install pandoc (nbsphinx renders notebooks through it)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc
+
+      - name: Install dependencies
+        run: uv sync --all-extras --all-groups
+
+      - name: Build documentation
+        run: uv run sphinx-build -b html --keep-going -E docs/source docs/_build/html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+      - name: Upload documentation artifact
+        uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        with:
+          path: ./docs/_build/html
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'

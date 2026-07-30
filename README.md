@@ -52,8 +52,8 @@ centered = CenteredIsotonicCalibrator().fit(s_fit, y_fit)
 
 print("distinct values, isotonic:", len(np.unique(isotonic.transform(s_test))))
 print("distinct values, calibre: ", len(np.unique(centered.transform(s_test))))
-#> distinct values, isotonic: 82
-#> distinct values, calibre:  1863
+# > distinct values, isotonic: 82
+# > distinct values, calibre:  1863
 ```
 
 Both are well calibrated. Only one of them still tells you which of two customers is
@@ -128,8 +128,10 @@ oof = cross_val_predict(
 
 calibrator = CenteredIsotonicCalibrator().fit(oof, y_train)
 calibrated = calibrator.transform(model.predict_proba(X_test)[:, 1])
-print(f"{len(calibrated)} calibrated probabilities in "
-      f"[{calibrated.min():.3f}, {calibrated.max():.3f}]")
+print(
+    f"{len(calibrated)} calibrated probabilities in "
+    f"[{calibrated.min():.3f}, {calibrated.max():.3f}]"
+)
 ```
 
 ### Guarantee no ties at all
@@ -183,7 +185,7 @@ from calibre.metrics import (
 y_true = np.array([0, 0, 1, 1, 1, 0, 1, 1])
 y_pred = np.array([0.1, 0.3, 0.6, 0.7, 0.9, 0.2, 0.8, 0.75])
 
-print(f"Brier          {brier_score(y_true, y_pred):.4f}")   # lower is better
+print(f"Brier          {brier_score(y_true, y_pred):.4f}")  # lower is better
 print(f"ECE            {expected_calibration_error(y_true, y_pred):.4f}")
 print(f"bias           {mean_calibration_error(y_true, y_pred):.4f}")
 ```
@@ -215,8 +217,10 @@ report = run_plateau_diagnostics(scores, labels, calibrator.transform(scores))
 print(f"{report['n_plateaus']} plateaus")
 for plateau in report["plateaus"][:3]:
     low, high = plateau["x_range"]
-    print(f"  [{low:.3f}, {high:.3f}] -> {plateau['value']:.3f} "
-          f"({plateau['n_samples']} samples, {plateau['sample_density']})")
+    print(
+        f"  [{low:.3f}, {high:.3f}] -> {plateau['value']:.3f} "
+        f"({plateau['n_samples']} samples, {plateau['sample_density']})"
+    )
 ```
 
 Plateaus flagged `very_sparse` rest on few observations. `report["warnings"]` collects

@@ -110,7 +110,8 @@ class TestFullCalibrationWorkflow:
 
         # Basic validation (common to all calibrators)
         assert len(y_calib) == len(data["y_test"])
-        assert np.all(y_calib >= 0) and np.all(y_calib <= 1)
+        assert np.all(y_calib >= 0)
+        assert np.all(y_calib <= 1)
 
         # Calibrator-specific validation
         name = calibrator_config["name"]
@@ -119,7 +120,8 @@ class TestFullCalibrationWorkflow:
             # Test calibration metrics
             mce_after = mean_calibration_error(data["y_test"], y_calib)
             ece_after = expected_calibration_error(data["y_test"], y_calib)
-            assert isinstance(mce_after, float) and isinstance(ece_after, float)
+            assert isinstance(mce_after, float)
+            assert isinstance(ece_after, float)
 
         elif name == "spline":
             # Check correlation preservation
@@ -185,9 +187,10 @@ class TestCalibratorComparison:
 
             # All metrics should be valid
             for metric_name, value in metrics.items():
-                assert isinstance(value, float) and value >= 0, (
-                    f"{name} {metric_name} invalid"
+                assert isinstance(value, float), (
+                    f"{name} {metric_name} is not a float: {value!r}"
                 )
+                assert value >= 0, f"{name} {metric_name} is negative: {value}"
 
             assert len(y_calib) == len(data["y_test"])
 
@@ -215,7 +218,8 @@ class TestEdgeCasesAndRobustness:
 
                 # Basic validation
                 assert len(y_calib) == len(y_true)
-                assert np.all(y_calib >= 0) and np.all(y_calib <= 1)
+                assert np.all(y_calib >= 0)
+                assert np.all(y_calib <= 1)
 
                 if expect_success:
                     # Additional checks for successful cases
@@ -324,18 +328,32 @@ class TestSklearnCompatibility:
         checked that ``fit`` rejects a negative penalty, so an invalid setting
         would silently produce a fit.
         """
+        # Each case pins the message too, so the test checks that the *right*
+        # error is raised rather than merely that something went wrong.
         test_cases = [
-            (NearlyIsotonicCalibrator, {"lam": -1.0}),
-            (RelaxedPAVACalibrator, {"epsilon": -0.5}),
-            (RelaxedPAVACalibrator, {"min_slope": -0.5}),
-            (RelaxedPAVACalibrator, {"epsilon": 0.1, "min_slope": 0.1}),
-            (RegularizedIsotonicCalibrator, {"alpha": -0.1}),
+            (NearlyIsotonicCalibrator, {"lam": -1.0}, r"lam must be non-negative"),
+            (RelaxedPAVACalibrator, {"epsilon": -0.5}, r"epsilon must be non-negative"),
+            (
+                RelaxedPAVACalibrator,
+                {"min_slope": -0.5},
+                r"min_slope must be non-negative",
+            ),
+            (
+                RelaxedPAVACalibrator,
+                {"epsilon": 0.1, "min_slope": 0.1},
+                r"opposite directions",
+            ),
+            (
+                RegularizedIsotonicCalibrator,
+                {"alpha": -0.1},
+                r"alpha must be non-negative",
+            ),
         ]
 
         x = np.linspace(0.05, 0.95, 40)
         y = (np.arange(40) % 3 == 0).astype(float)
 
-        for calibrator_class, invalid_params in test_cases:
+        for calibrator_class, invalid_params, expected in test_cases:
             calibrator = calibrator_class(**invalid_params)
             assert calibrator is not None, "init must not raise"
 
@@ -347,7 +365,7 @@ class TestSklearnCompatibility:
                     f"{params[key]!r} != {value!r}"
                 )
 
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match=expected):
                 calibrator.fit(x, y)
 
 
@@ -367,11 +385,11 @@ class TestErrorHandling:
         calibrator = calibrator_class()
 
         # Test mismatched array lengths
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"(?i)must|length|shape|empty"):
             calibrator.fit(np.array([0.1, 0.5, 0.9]), np.array([0, 1]))
 
         # Test empty arrays
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"(?i)must|length|shape|empty"):
             calibrator.fit(np.array([]), np.array([]))
 
     def test_invalid_prediction_range(self):
@@ -386,7 +404,8 @@ class TestErrorHandling:
             calibrator.fit(y_pred, y_true)
             y_calib = calibrator.transform(y_pred)
             # If it succeeds, results should be in valid range
-            assert np.all(y_calib >= 0) and np.all(y_calib <= 1)
+            assert np.all(y_calib >= 0)
+            assert np.all(y_calib <= 1)
         except (ValueError, AssertionError):
             # Expected for invalid input
             pass

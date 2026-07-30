@@ -292,7 +292,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        fraction_pos, mean_pred, counts = calibration_curve(
+        fraction_pos, mean_pred, _counts = calibration_curve(
             y_true, y_pred, n_bins=4, strategy="uniform"
         )
 
@@ -305,7 +305,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        fraction_pos, mean_pred, counts = calibration_curve(
+        fraction_pos, mean_pred, _counts = calibration_curve(
             y_true, y_pred, n_bins=4, strategy="quantile"
         )
 
@@ -317,7 +317,7 @@ class TestCalibrationCurve:
         y_true = np.array([0, 1])
         y_pred = np.array([0, 1])
 
-        fraction_pos, mean_pred, counts = calibration_curve(y_true, y_pred, n_bins=2)
+        fraction_pos, mean_pred, _counts = calibration_curve(y_true, y_pred, n_bins=2)
         # Should be close to perfect diagonal
         np.testing.assert_array_almost_equal(fraction_pos, mean_pred, decimal=1)
 

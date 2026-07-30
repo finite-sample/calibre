@@ -273,7 +273,7 @@ def diversity_learning_curve(
     Notes
     -----
     This function is computationally expensive as it fits the calibrator
-    multiple times (n_trials × len(sample_sizes) fits). Use for diagnostic
+    multiple times (n_trials x len(sample_sizes) fits). Use for diagnostic
     analysis, not routine evaluation.
 
     The diversity metric measures granularity: higher diversity means more

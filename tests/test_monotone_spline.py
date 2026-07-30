@@ -66,7 +66,7 @@ def _dataset(seed: int, n: int = 500, shape: str = "logistic"):
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize("n_knots,degree,knots", BASIS_CONFIGS)
+@pytest.mark.parametrize(("n_knots", "degree", "knots"), BASIS_CONFIGS)
 def test_ispline_basis_columns_are_monotone(n_knots, degree, knots):
     """Every I-spline basis column must be non-decreasing.
 
@@ -86,7 +86,7 @@ def test_ispline_basis_columns_are_monotone(n_knots, degree, knots):
     )
 
 
-@pytest.mark.parametrize("n_knots,degree,knots", BASIS_CONFIGS)
+@pytest.mark.parametrize(("n_knots", "degree", "knots"), BASIS_CONFIGS)
 def test_ispline_basis_is_monotone_outside_the_knot_range(n_knots, degree, knots):
     """Monotonicity must also hold where the basis is extrapolated."""
     from calibre._core import monotone_spline_basis
@@ -126,7 +126,7 @@ def test_ispline_basis_drops_the_constant_column():
 
 
 @pytest.mark.parametrize("link", LINKS)
-@pytest.mark.parametrize("n_knots,degree,knots", BASIS_CONFIGS)
+@pytest.mark.parametrize(("n_knots", "degree", "knots"), BASIS_CONFIGS)
 def test_spline_calibrator_is_monotone(link, n_knots, degree, knots):
     """The fitted calibration curve must have exactly zero violations.
 
@@ -367,7 +367,8 @@ def test_logit_link_needs_no_clipping():
 
     x, y = _dataset(9, n=800)
     f = SplineCalibrator(link="logit", clip_output=False, alpha=0.1).fit_transform(x, y)
-    assert np.all(f > 0.0) and np.all(f < 1.0), (f.min(), f.max())
+    assert np.all(f > 0.0), f"minimum {f.min()} is not above 0"
+    assert np.all(f < 1.0), f"maximum {f.max()} is not below 1"
 
 
 @pytest.mark.parametrize("link", LINKS)
@@ -377,7 +378,8 @@ def test_clip_output_bounds_the_range(link):
 
     x, y = _dataset(10, n=500)
     f = SplineCalibrator(link=link, clip_output=True, alpha=0.1).fit_transform(x, y)
-    assert f.min() >= 0.0 and f.max() <= 1.0
+    assert f.min() >= 0.0
+    assert f.max() <= 1.0
 
 
 @pytest.mark.parametrize(
@@ -482,5 +484,5 @@ def test_invalid_params_rejected_by_fit(kwargs):
     from calibre import SplineCalibrator
 
     x, y = _dataset(14, n=200)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"(?i)must be"):
         SplineCalibrator(**kwargs).fit(x, y)

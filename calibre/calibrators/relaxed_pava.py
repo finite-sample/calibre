@@ -22,18 +22,18 @@ __all__ = ["RelaxedPAVACalibrator"]
 
 
 class RelaxedPAVACalibrator(BaseCalibrator):
-    """Isotonic regression with a lower bound on each adjacent increment.
+    r"""Isotonic regression with a lower bound on each adjacent increment.
 
     Solves
 
     .. math::
-        \\min_{z} \\sum_i w_i (y_i - z_i)^2
-        \\quad\\text{s.t.}\\quad z_{i+1} - z_i \\ge L_i
+        \min_{z} \sum_i w_i (y_i - z_i)^2
+        \quad\text{s.t.}\quad z_{i+1} - z_i \ge L_i
 
     in O(n) via the cumulative-shift reduction (see
     :func:`calibre._core.shift_to_pava`): substituting
-    :math:`u_i = z_i - \\sum_{j<i} L_j` turns the constraint into
-    :math:`u_{i+1} \\ge u_i`, so one weighted PAVA on the shifted targets solves
+    :math:`u_i = z_i - \sum_{j<i} L_j` turns the constraint into
+    :math:`u_{i+1} \ge u_i`, so one weighted PAVA on the shifted targets solves
     it exactly.
 
     One signed bound spans three estimators:

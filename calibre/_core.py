@@ -20,6 +20,9 @@ from typing import Any
 import numpy as np
 
 __all__ = [
+    "MonotoneSplineBasis",
+    "PiecewiseLinear",
+    "StepFunction",
     "aggregate_ties",
     "collapse_blocks",
     "cumulative_max",
@@ -29,9 +32,6 @@ __all__ = [
     "nearly_isotonic_path",
     "shift_to_pava",
     "weighted_pava",
-    "MonotoneSplineBasis",
-    "PiecewiseLinear",
-    "StepFunction",
 ]
 
 
@@ -106,12 +106,12 @@ def aggregate_ties(
 
 
 def weighted_pava(y: np.ndarray, sample_weight: np.ndarray | None = None) -> np.ndarray:
-    """Weighted pool-adjacent-violators: the L2 projection onto the monotone cone.
+    r"""Weighted pool-adjacent-violators: the L2 projection onto the monotone cone.
 
     Solves, in O(n) time,
 
     .. math::
-        \\min_{z_1 \\le \\cdots \\le z_n} \\sum_i w_i (y_i - z_i)^2
+        \min_{z_1 \le \cdots \le z_n} \sum_i w_i (y_i - z_i)^2
 
     by the classical stack algorithm: push each point as its own block, then
     merge backwards into weighted means while the last two blocks violate the
@@ -188,7 +188,7 @@ def weighted_pava(y: np.ndarray, sample_weight: np.ndarray | None = None) -> np.
 def monotone_projection(
     y: np.ndarray, sample_weight: np.ndarray | None = None
 ) -> np.ndarray:
-    """The L2 projection of ``y`` onto the non-decreasing cone.
+    """Project ``y`` onto the non-decreasing cone in weighted L2.
 
     An alias for :func:`weighted_pava`, named for the role it plays when a
     smoother's output needs to be made monotone. Prefer this over
@@ -242,19 +242,19 @@ def shift_to_pava(
     sample_weight: np.ndarray | None = None,
     L: np.ndarray | float = 0.0,
 ) -> np.ndarray:
-    """Isotonic regression with per-adjacency lower bounds on the increments.
+    r"""Isotonic regression with per-adjacency lower bounds on the increments.
 
     Solves
 
     .. math::
-        \\min_{z} \\sum_i w_i (y_i - z_i)^2
-        \\quad\\text{s.t.}\\quad z_{i+1} - z_i \\ge L_i
+        \min_{z} \sum_i w_i (y_i - z_i)^2
+        \quad\text{s.t.}\quad z_{i+1} - z_i \ge L_i
 
-    in O(n) by a change of variables. With :math:`R_i = \\sum_{j<i} L_j` and
+    in O(n) by a change of variables. With :math:`R_i = \sum_{j<i} L_j` and
     :math:`u_i = z_i - R_i`, the constraint becomes
 
     .. math::
-        u_{i+1} - u_i = (z_{i+1} - R_{i+1}) - (z_i - R_i) = z_{i+1} - z_i - L_i \\ge 0
+        u_{i+1} - u_i = (z_{i+1} - R_{i+1}) - (z_i - R_i) = z_{i+1} - z_i - L_i \ge 0
 
     so the problem is a plain weighted PAVA on the shifted targets
     :math:`y_i - R_i`, after which the shift is added back.
@@ -317,16 +317,16 @@ def nearly_isotonic_path(
     sample_weight: np.ndarray | None = None,
     return_path: bool = False,
 ) -> np.ndarray | tuple[np.ndarray, list[tuple[float, int]]]:
-    """Nearly-isotonic regression by its exact solution path.
+    r"""Nearly-isotonic regression by its exact solution path.
 
     Solves
 
     .. math::
-        \\min_{\\beta} \\sum_i w_i (y_i - \\beta_i)^2
-        + \\lambda \\sum_{i=1}^{n-1} \\max(0,\\ \\beta_i - \\beta_{i+1})
+        \min_{\beta} \sum_i w_i (y_i - \beta_i)^2
+        + \lambda \sum_{i=1}^{n-1} \max(0,\ \beta_i - \beta_{i+1})
 
     exactly, in O(n log n), by following the solution path from
-    :math:`\\lambda = 0` to the requested value.
+    :math:`\lambda = 0` to the requested value.
 
     Monotonicity is penalised rather than imposed, so ``lam`` acts as a
     bias-variance knob on pooling: ``lam = 0`` returns the data untouched,
@@ -364,39 +364,39 @@ def nearly_isotonic_path(
     2011, *Technometrics* 53(1), 54-61) carries a factor of one half on the
     squared-error term. The objective above does not, so
 
-    .. math:: \\lambda_{\\text{here}} = 2\\,\\lambda_{\\text{paper}}
+    .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
 
     A penalty value taken from the paper must be doubled before being passed
     here. This is verified against the authors' own R implementation
     (``neariso``) in ``tests/test_r_reference.py``.
 
     **How the path is computed.** Subgradient stationarity gives
-    :math:`2 w_i(\\beta_i - y_i) + \\lambda(g_i - g_{i-1}) = 0`, where
-    :math:`g_i \\in [0, 1]` is the subgradient of the hinge on adjacency
+    :math:`2 w_i(\beta_i - y_i) + \lambda(g_i - g_{i-1}) = 0`, where
+    :math:`g_i \in [0, 1]` is the subgradient of the hinge on adjacency
     :math:`i` and :math:`g_0 = g_n = 0`. Summing over a block :math:`A_k` of
     tied coordinates, the interior subgradients cancel telescopically and leave
 
     .. math::
-        \\beta_k(\\lambda) = \\bar{y}_k
-        - \\frac{\\lambda}{2}\\cdot\\frac{G_k - G_{k-1}}{W_k}
+        \beta_k(\lambda) = \bar{y}_k
+        - \frac{\lambda}{2}\cdot\frac{G_k - G_{k-1}}{W_k}
 
-    with :math:`\\bar y_k` the block's weighted mean, :math:`W_k` its total
-    weight, and :math:`G_k \\in \\{0, 1\\}` indicating whether the boundary
+    with :math:`\bar y_k` the block's weighted mean, :math:`W_k` its total
+    weight, and :math:`G_k \in \{0, 1\}` indicating whether the boundary
     between blocks :math:`k` and :math:`k+1` is violated. So each block's value
-    is *linear in* :math:`\\lambda` with slope
+    is *linear in* :math:`\lambda` with slope
     :math:`s_k = -(G_k - G_{k-1}) / (2 W_k)`, and two adjacent blocks meet after
 
     .. math::
-        \\Delta_k = \\frac{\\beta_{k+1} - \\beta_k}{s_k - s_{k+1}}
+        \Delta_k = \frac{\beta_{k+1} - \beta_k}{s_k - s_{k+1}}
 
     The two ingredients that make this correct are exactly the ones a naive
     implementation drops: the collision time is a gap divided by a *difference of
     slopes* (so block sizes govern the merge order), and block values *drift with*
-    :math:`\\lambda` between merges instead of sitting still. Using the raw gap
-    :math:`\\beta_k - \\beta_{k+1}` as the collision time, and freezing values
+    :math:`\lambda` between merges instead of sitting still. Using the raw gap
+    :math:`\beta_k - \beta_{k+1}` as the collision time, and freezing values
     between merges, yields a different -- and suboptimal -- estimator.
 
-    Blocks never split as :math:`\\lambda` grows, so merges are permanent.
+    Blocks never split as :math:`\lambda` grows, so merges are permanent.
 
     Examples
     --------
@@ -728,7 +728,7 @@ VALID_KNOTS = ("uniform", "quantile")
 
 
 class MonotoneSplineBasis:
-    """An I-spline design matrix, on which non-negative coefficients are monotone.
+    r"""An I-spline design matrix, on which non-negative coefficients are monotone.
 
     ``sklearn.preprocessing.SplineTransformer`` produces a **B-spline** basis. Its
     columns are bumps, so a non-negative combination of them is merely
@@ -737,14 +737,14 @@ class MonotoneSplineBasis:
     becomes a plain non-negativity constraint after a change of variables:
 
     .. math::
-        c_1 = \\theta,\\qquad c_j = \\theta + \\sum_{k \\le j} \\delta_k,
-        \\qquad \\delta_k \\ge 0
+        c_1 = \theta,\qquad c_j = \theta + \sum_{k \le j} \delta_k,
+        \qquad \delta_k \ge 0
 
-    Substituting into :math:`f = \\sum_j c_j B_j` and collecting terms gives
+    Substituting into :math:`f = \sum_j c_j B_j` and collecting terms gives
 
     .. math::
-        f = \\theta \\underbrace{\\sum_j B_j}_{=\\,1}
-            + \\sum_{k\\ge 1} \\delta_k \\underbrace{\\sum_{j \\ge k} B_j}_{I_k}
+        f = \theta \underbrace{\sum_j B_j}_{=\,1}
+            + \sum_{k\ge 1} \delta_k \underbrace{\sum_{j \ge k} B_j}_{I_k}
 
     The :math:`I_k` are the **I-splines**: right-cumulative sums of the B-spline
     basis, each non-decreasing. The :math:`k = 0` term is constant by partition of
@@ -941,7 +941,12 @@ def _difference_matrix(p: int) -> Any:
 
     if p < 2:
         return sparse.csr_matrix((0, p))
-    return sparse.diags([-1.0, 1.0], [0, 1], shape=(p - 1, p), format="csr")
+    # Built explicitly rather than via sparse.diags: its stub types `offsets` as a
+    # single int, so passing a list is a type error even though it is valid at runtime.
+    rows = np.repeat(np.arange(p - 1), 2)
+    cols = np.stack([np.arange(p - 1), np.arange(1, p)], axis=1).ravel()
+    data = np.tile(np.array([-1.0, 1.0]), p - 1)
+    return sparse.csr_matrix((data, (rows, cols)), shape=(p - 1, p))
 
 
 def fit_monotone_spline(
@@ -951,14 +956,14 @@ def fit_monotone_spline(
     alpha: float = 0.0,
     link: str = "logit",
 ) -> tuple[float, np.ndarray]:
-    """Fit a monotone spline by penalised, non-negativity-constrained regression.
+    r"""Fit a monotone spline by penalised, non-negativity-constrained regression.
 
     Solves
 
     .. math::
-        \\min_{\\theta,\\ \\delta \\ge 0}\\;
-        \\mathcal{L}\\!\\left(\\theta + M\\delta;\\ y, w\\right)
-        + \\alpha \\lVert \\Delta\\delta \\rVert^2
+        \min_{\theta,\ \delta \ge 0}\;
+        \mathcal{L}\!\left(\theta + M\delta;\ y, w\right)
+        + \alpha \lVert \Delta\delta \rVert^2
 
     where ``M`` is a monotone design (see :class:`MonotoneSplineBasis`), so
     ``delta >= 0`` makes the fit monotone by construction -- no post-hoc

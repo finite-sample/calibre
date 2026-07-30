@@ -18,9 +18,15 @@ from ..utils import check_arrays
 
 logger = logging.getLogger(__name__)
 
+# cvxpy ships no type information, so `cp.error.SolverError` cannot be resolved
+# statically. Bind it once here.
+_SolverError: type[Exception] = getattr(
+    getattr(cp, "error", None), "SolverError", Exception
+)
+
 
 class NearlyIsotonicCalibrator(BaseCalibrator):
-    """Nearly-isotonic regression for flexible monotonic calibration.
+    r"""Nearly-isotonic regression for flexible monotonic calibration.
 
     This calibrator implements nearly-isotonic regression, which relaxes the
     strict monotonicity constraint of standard isotonic regression by penalizing
@@ -51,10 +57,10 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     Nearly-isotonic regression solves the following optimization problem:
 
     .. math::
-        \\min_{\\beta} \\sum_{i=1}^{n} (y_i - \\beta_i)^2 + \\lambda \\sum_{i=1}^{n-1} \\max(0, \\beta_i - \\beta_{i+1})
+        \min_{\beta} \sum_{i=1}^{n} (y_i - \beta_i)^2 + \lambda \sum_{i=1}^{n-1} \max(0, \beta_i - \beta_{i+1})
 
-    where :math:`\\beta` is the calibrated output, :math:`y` are the true labels,
-    and :math:`\\lambda > 0` controls the strength of the monotonicity penalty.
+    where :math:`\beta` is the calibrated output, :math:`y` are the true labels,
+    and :math:`\lambda > 0` controls the strength of the monotonicity penalty.
 
     This formulation penalizes violations of monotonicity proportionally to their
     magnitude, allowing small violations when they significantly improve the fit.
@@ -70,13 +76,13 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     term:
 
     .. math::
-        \\min_{\\beta} \\tfrac{1}{2} \\sum_i (y_i - \\beta_i)^2
-        + \\lambda_{\\text{paper}} \\sum_i \\max(0, \\beta_i - \\beta_{i+1})
+        \min_{\beta} \tfrac{1}{2} \sum_i (y_i - \beta_i)^2
+        + \lambda_{\text{paper}} \sum_i \max(0, \beta_i - \beta_{i+1})
 
     The objective above omits it, so ``lam`` here is *twice* the paper's
-    :math:`\\lambda`:
+    :math:`\lambda`:
 
-    .. math:: \\lambda_{\\text{here}} = 2\\,\\lambda_{\\text{paper}}
+    .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
 
     Double any penalty value taken from the paper before passing it in. Both
     solvers are pinned against the authors' R implementation (``neariso``) in
@@ -227,7 +233,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
                 "to the exact path algorithm",
                 prob.status,
             )
-        except cp.error.SolverError as exc:
+        except _SolverError as exc:
             logger.warning(
                 "Nearly-isotonic solve failed (%s); falling back to the exact "
                 "path algorithm",

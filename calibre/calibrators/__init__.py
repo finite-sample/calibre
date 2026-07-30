@@ -53,8 +53,8 @@ __all__ = [
     "CenteredIsotonicCalibrator",
     "IsotonicCalibrator",
     "NearlyIsotonicCalibrator",
-    "SplineCalibrator",
-    "RelaxedPAVACalibrator",
     "RegularizedIsotonicCalibrator",
+    "RelaxedPAVACalibrator",
     "SmoothedIsotonicCalibrator",
+    "SplineCalibrator",
 ]

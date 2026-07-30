@@ -2,7 +2,7 @@
 Comprehensive test matrix for all calibration algorithms.
 
 This module runs systematic tests across all combinations of:
-- Calibrators (5 types × multiple parameter settings)
+- Calibrators (5 types x multiple parameter settings)
 - Data patterns (8 realistic miscalibration scenarios)
 - Sample sizes (small, medium, large)
 - Noise levels (low, medium, high)
@@ -10,7 +10,7 @@ This module runs systematic tests across all combinations of:
 Total test combinations: ~400 tests
 """
 
-from itertools import product
+from itertools import pairwise, product
 from typing import Any
 
 import numpy as np
@@ -197,7 +197,7 @@ class TestMatrix:
             }
 
     @pytest.mark.parametrize(
-        "calibrator_name,pattern,n_samples,noise_level",
+        ("calibrator_name", "pattern", "n_samples", "noise_level"),
         [
             (cal, pat, n, noise)
             for cal, pat, n, noise in product(
@@ -357,7 +357,7 @@ class TestMatrix:
                 fitted = cal.fit(y_pred, y_true).transform(grid)
                 totals.append(float(np.sum(np.maximum(0.0, -np.diff(fitted)))))
 
-            for lo, hi in zip(totals[:-1], totals[1:], strict=True):
+            for lo, hi in pairwise(totals):
                 assert hi <= lo + 1e-9, (
                     f"{pattern}: total violation magnitude rose with lam: {totals}"
                 )
@@ -479,12 +479,13 @@ class TestMatrix:
                 violations = np.sum(np.diff(y_test_calib) < 0)
 
                 results.append((lam, violations))
-            except Exception:
-                pass
+            except Exception as exc:
+                pytest.fail(f"lam={lam} raised {type(exc).__name__}: {exc}")
 
+        assert len(results) >= 2, "the sweep must produce comparable fits"
         if len(results) >= 2:
             # Higher lambda should generally reduce violations
-            lambdas_sorted, violations_sorted = zip(*sorted(results), strict=False)
+            _lambdas_sorted, violations_sorted = zip(*sorted(results), strict=False)
 
             # Check general trend (allow some noise)
             if len(results) >= 3:
@@ -510,7 +511,7 @@ class TestMatrix:
         print(f"\nRunning comprehensive test matrix: {total_combinations} combinations")
 
         combination_count = 0
-        for calibrator_name in self.calibrator_configs.keys():
+        for calibrator_name in self.calibrator_configs:
             for pattern in self.data_patterns:
                 for n_samples in self.sample_sizes:
                     for noise_level in self.noise_levels:
@@ -629,8 +630,10 @@ class TestMatrixAnalysis:
                     improvement = original_ece - calibrated_ece
                     improvements.append(improvement)
 
-                except Exception:
-                    pass
+                except Exception as exc:
+                    pytest.fail(
+                        f"{cal_name} on {pattern} raised {type(exc).__name__}: {exc}"
+                    )
 
             if improvements:
                 calibrator_scores[cal_name] = np.mean(improvements)
@@ -648,8 +651,8 @@ class TestMatrixAnalysis:
 
 # Utility functions for test matrix
 def run_test_matrix_subset(
-    calibrator_names: list[str] = None,
-    patterns: list[str] = None,
+    calibrator_names: list[str] | None = None,
+    patterns: list[str] | None = None,
     n_samples: int = 300,
     noise_level: float = 0.1,
 ) -> dict[str, Any]:

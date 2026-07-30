@@ -3,7 +3,7 @@
 # Licensed under the ... license.
 
 """
-CDI-ISO: Cost- and Data-Informed Isotonic Calibration
+CDI-ISO: Cost- and Data-Informed Isotonic Calibration.
 
 This calibrator solves:
     min_z  sum_i w_i (y_i - z_i)^2
@@ -67,9 +67,9 @@ def _triangular_kernel(dist: np.ndarray, h: float) -> np.ndarray:
 
 
 def _inv_std_normal_cdf(p: float) -> float:
-    """
-    Inverse CDF of the standard normal, high-accuracy rational approximation.
-    Source: Peter J. Acklam's algorithm (public domain).
+    """Invert the standard normal CDF via a rational approximation.
+
+    Uses Peter J. Acklam's algorithm (public domain).
     """
     if not (0.0 < p < 1.0):
         if p <= 0.0:
@@ -142,13 +142,18 @@ def _z_value(alpha: float) -> float:
 
 
 def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
-    """
-    Weighted PAVA for nondecreasing fit on a total order.
-    Returns fitted values of length len(y).
+    """Fit a nondecreasing sequence by weighted PAVA on a total order.
+
+    Returns fitted values of length ``len(y)``.
     """
     y = np.asarray(y, dtype=float)
     w = np.asarray(w, dtype=float)
-    assert y.ndim == 1 and w.ndim == 1 and y.size == w.size and y.size > 0
+    if y.ndim != 1 or w.ndim != 1:
+        raise ValueError(f"y and w must be 1-D, got {y.ndim}-D and {w.ndim}-D")
+    if y.size != w.size:
+        raise ValueError(f"y has {y.size} elements but w has {w.size}")
+    if y.size == 0:
+        raise ValueError("y must not be empty")
 
     means: list[float] = []
     weights: list[float] = []
@@ -288,7 +293,7 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         s_sorted, y_sorted, w_sorted = s[order], y[order], w[order]
 
         # Aggregate duplicates to unique-score blocks for stability/efficiency
-        uniq_vals, idx_first, counts = np.unique(
+        uniq_vals, idx_first, _counts = np.unique(
             s_sorted, return_index=True, return_counts=True
         )
 
@@ -368,7 +373,8 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
             raise RuntimeError("Call fit() before transform().")
         x_unique = self._x_unique  # train scale
         z_fit = self._z_fit
-        assert x_unique is not None and z_fit is not None
+        if x_unique is None or z_fit is None:  # pragma: no cover - guarded by _fitted
+            raise RuntimeError("Call fit() before transform().")
 
         s = np.asarray(scores, dtype=float).reshape(-1)
         # Apply the same affine scaling for threshold distances if needed (not required for prediction)
@@ -423,11 +429,12 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         y_bar: np.ndarray,  # shape (m,)
         w_block: np.ndarray,  # shape (m,)
     ) -> np.ndarray:
-        """
-        Build L_i = phi_i - epsilon_i for i=0..m-2 using:
-          - economics kernel weight w_econ_i in [0,1],
+        """Build the local increment bounds ``L_i = phi_i - epsilon_i``.
+
+        For ``i = 0..m-2``, combining:
+          - economics kernel weight ``w_econ_i`` in [0, 1],
           - two-proportion SE across adjacent aggregated blocks in a sliding band,
-          - gamma and alpha hyperparameters.
+          - the ``gamma`` and ``alpha`` hyperparameters.
 
         Parameters
         ----------

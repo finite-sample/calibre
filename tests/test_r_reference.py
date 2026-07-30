@@ -247,7 +247,7 @@ def _neariso_points():
             yield pytest.param(name, key, id=f"{name}-{key}")
 
 
-@pytest.mark.parametrize("name,key", list(_neariso_points()))
+@pytest.mark.parametrize(("name", "key"), list(_neariso_points()))
 def test_nearly_isotonic_cvx_matches_r_neariso(name, key):
     """The CVXPY solver reproduces R's neariso at the matched lambda."""
     from calibre import NearlyIsotonicCalibrator
@@ -265,7 +265,7 @@ def test_nearly_isotonic_cvx_matches_r_neariso(name, key):
     np.testing.assert_allclose(got, expected, rtol=0, atol=1e-6)
 
 
-@pytest.mark.parametrize("name,key", list(_neariso_points()))
+@pytest.mark.parametrize(("name", "key"), list(_neariso_points()))
 def test_nearly_isotonic_path_matches_r_neariso(name, key):
     """The path solver must compute the estimator it names.
 

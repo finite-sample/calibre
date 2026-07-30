@@ -16,11 +16,11 @@ from calibre import BaseCalibrator, MonotonicMixin
 # Import calibrators
 from calibre import (
     IsotonicCalibrator,
-    NearlyIsotonicCalibrator, 
+    NearlyIsotonicCalibrator,
     SplineCalibrator,
     RelaxedPAVACalibrator,
     RegularizedIsotonicCalibrator,
-    SmoothedIsotonicCalibrator
+    SmoothedIsotonicCalibrator,
 )
 
 # Import standalone diagnostic functions

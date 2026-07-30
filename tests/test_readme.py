@@ -53,7 +53,9 @@ def test_readme_has_python_blocks():
     assert BLOCKS, "no runnable python blocks found in README.md"
 
 
-@pytest.mark.parametrize("line_no,code", BLOCKS, ids=[f"L{line}" for line, _ in BLOCKS])
+@pytest.mark.parametrize(
+    ("line_no", "code"), BLOCKS, ids=[f"L{line}" for line, _ in BLOCKS]
+)
 def test_readme_block_runs(line_no, code):
     """Every README block must execute standalone without error.
 
@@ -67,7 +69,7 @@ def test_readme_block_runs(line_no, code):
     namespace: dict[str, object] = {"__name__": "__readme__"}
     try:
         exec(compile(code, f"README.md:{line_no}", "exec"), namespace)
-    except Exception as exc:  # noqa: BLE001 - want the original error surfaced
+    except Exception as exc:
         pytest.fail(
             f"README.md block at line {line_no} failed: "
             f"{type(exc).__name__}: {exc}\n\n{code}"
@@ -77,11 +79,13 @@ def test_readme_block_runs(line_no, code):
 # Lines of the form `#> expected output` record what the block above them prints.
 # The README previously claimed an output produced by a classifier that had been
 # deleted, so running the code is not enough -- the claimed numbers must match too.
-_EXPECTED = re.compile(r"^\s*#>\s?(?P<text>.*)$", re.M)
+# `# >` is accepted as well because `ruff format` normalises comment spacing inside
+# Markdown code blocks.
+_EXPECTED = re.compile(r"^\s*#\s?>\s?(?P<text>.*)$", re.M)
 
 
 @pytest.mark.parametrize(
-    "line_no,code",
+    ("line_no", "code"),
     [(line, code) for line, code in BLOCKS if _EXPECTED.search(code)],
     ids=[f"L{line}" for line, code in BLOCKS if _EXPECTED.search(code)],
 )

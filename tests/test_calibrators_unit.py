@@ -5,6 +5,8 @@ This module provides focused unit tests for each calibrator implementation,
 testing basic functionality, parameter validation, and core behavior.
 """
 
+import itertools
+
 import numpy as np
 import pytest
 
@@ -140,7 +142,7 @@ class TestSplineCalibrator:
 
     def test_parameter_variations(self, calibration_data):
         """Test different parameter combinations."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
 
         # Fitted on the identity scale: see test_basic_functionality.
         configs = [
@@ -190,7 +192,7 @@ class TestRelaxedPAVACalibrator:
             totals.append(float(np.sum(np.maximum(0.0, -np.diff(fitted)))))
 
         assert totals[0] == 0.0, "epsilon=0 must be exactly monotone"
-        for lo, hi in zip(totals[:-1], totals[1:], strict=True):
+        for lo, hi in itertools.pairwise(totals):
             assert hi >= lo - 1e-12, f"total decrease fell as epsilon rose: {totals}"
 
     def test_epsilon_zero_equals_isotonic(self, calibration_data):
@@ -248,7 +250,7 @@ class TestRegularizedIsotonicCalibrator:
 
     def test_regularization_strength(self, calibration_data):
         """Test different regularization strengths."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
 
         for alpha in [0.01, 0.1, 1.0]:
             cal = RegularizedIsotonicCalibrator(alpha=alpha, link="identity")
@@ -277,7 +279,7 @@ class TestSmoothedIsotonicCalibrator:
 
     def test_smoothing_parameters(self, calibration_data):
         """Test different smoothing configurations."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
 
         configs = [
             {"window_length": 5, "poly_order": 2},
@@ -311,7 +313,7 @@ class TestCalibratorErrorHandling:
         ]
 
         for cal in calibrators:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match=r"(?i)length|shape|empty"):
                 cal.fit(x_bad, y_good)
 
     def test_empty_arrays(self):
@@ -326,7 +328,7 @@ class TestCalibratorErrorHandling:
         ]
 
         for cal in calibrators:
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match=r"(?i)length|shape|empty"):
                 cal.fit(x_empty, y_empty)
 
     def test_transform_before_fit(self):
