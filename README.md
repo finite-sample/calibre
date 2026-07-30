@@ -132,12 +132,13 @@ print(
     f"{len(calibrated)} calibrated probabilities in "
     f"[{calibrated.min():.3f}, {calibrated.max():.3f}]"
 )
+# > 500 calibrated probabilities in [0.000, 1.000]
 ```
 
 ### Guarantee no ties at all
 
-`min_slope` forces every adjacent pair of scores apart, so the calibrated output can
-never contain a plateau:
+`min_slope` forces a minimum gap between every adjacent pair of scores, so no two
+inputs can come out equal:
 
 ```python
 import numpy as np
@@ -148,9 +149,26 @@ rng = np.random.default_rng(0)
 scores = np.sort(rng.random(500))
 labels = (rng.random(500) < scores).astype(float)
 
-fitted = RelaxedPAVACalibrator(min_slope=1e-4).fit_transform(scores, labels)
-print("strictly increasing:", bool(np.all(np.diff(fitted) > 0)))
+cal = RelaxedPAVACalibrator(min_slope=1e-4, clip_output=False)
+fitted = cal.fit_transform(scores, labels)
+
+steps = np.diff(fitted)
+print("strictly increasing:", bool(np.all(steps > 0)))
+print("smallest step:      ", round(float(steps.min()), 6))
+print(
+    "range:              ",
+    (round(float(fitted.min()), 4), round(float(fitted.max()), 4)),
+)
+# > strictly increasing: True
+# > smallest step:       0.0001
+# > range:               (-0.0011, 1.002)
 ```
+
+Note `clip_output=False`. Forcing 500 points apart by `1e-4` needs at least `0.05` of
+range, so the fit runs slightly outside `[0, 1]` at the ends. Leaving the default
+`clip_output=True` would clamp those tails and flatten them back together — 31 of the
+499 steps become exactly zero — which defeats the point. Either turn clipping off, as
+here, or pick a `min_slope` small enough that the fit stays inside the unit interval.
 
 The same parameter runs the other way: `epsilon` permits decreases of up to that size,
 which buys a closer fit at the cost of reordering some pairs.
@@ -169,6 +187,7 @@ weights = rng.uniform(0.5, 2.0, 300)  # e.g. inverse sampling probabilities
 
 calibrator = CenteredIsotonicCalibrator().fit(scores, labels, sample_weight=weights)
 print("weighted fit:", calibrator.transform(np.array([0.25, 0.75])).round(3))
+# > weighted fit: [0.149 0.671]
 ```
 
 ### Measure it
@@ -188,6 +207,9 @@ y_pred = np.array([0.1, 0.3, 0.6, 0.7, 0.9, 0.2, 0.8, 0.75])
 print(f"Brier          {brier_score(y_true, y_pred):.4f}")  # lower is better
 print(f"ECE            {expected_calibration_error(y_true, y_pred):.4f}")
 print(f"bias           {mean_calibration_error(y_true, y_pred):.4f}")
+# > Brier          0.0628
+# > ECE            0.2313
+# > bias           0.0813
 ```
 
 `brier_score` is a proper scoring rule and the one to optimise.
@@ -221,6 +243,10 @@ for plateau in report["plateaus"][:3]:
         f"  [{low:.3f}, {high:.3f}] -> {plateau['value']:.3f} "
         f"({plateau['n_samples']} samples, {plateau['sample_density']})"
     )
+# > 16 plateaus
+# >   [0.000, 0.006] -> 0.000 (3 samples, very_sparse)
+# >   [0.010, 0.163] -> 0.017 (58 samples, adequate)
+# >   [0.163, 0.280] -> 0.103 (39 samples, adequate)
 ```
 
 Plateaus flagged `very_sparse` rest on few observations. `report["warnings"]` collects

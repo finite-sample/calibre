@@ -85,6 +85,33 @@ _EXPECTED = re.compile(r"^\s*#\s?>\s?(?P<text>.*)$", re.M)
 
 
 @pytest.mark.parametrize(
+    ("line_no", "code"), BLOCKS, ids=[f"L{line}" for line, _ in BLOCKS]
+)
+def test_readme_block_that_prints_declares_its_output(line_no, code):
+    """A block that prints must say what it prints.
+
+    Without this, ``test_readme_block_output_matches`` silently skips any block whose
+    `#>` annotation was never written -- which is how the ``min_slope`` recipe came to
+    print ``strictly increasing: False`` directly beneath prose promising the
+    opposite. Executing the code is not enough; the claim has to be checked.
+
+    Parameters
+    ----------
+    line_no
+        Line of the opening fence.
+    code
+        The block's source.
+    """
+    if "print(" not in code:
+        return
+    assert _EXPECTED.search(code), (
+        f"README.md block at line {line_no} calls print() but declares no expected "
+        "output. Add `#> ...` lines recording exactly what it prints, so that "
+        "test_readme_block_output_matches verifies them."
+    )
+
+
+@pytest.mark.parametrize(
     ("line_no", "code"),
     [(line, code) for line, code in BLOCKS if _EXPECTED.search(code)],
     ids=[f"L{line}" for line, code in BLOCKS if _EXPECTED.search(code)],
