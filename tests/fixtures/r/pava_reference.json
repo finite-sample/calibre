@@ -2,7 +2,7 @@
   "meta": {
     "generated_by": ["experiments/r_reference/gen_fixtures.R"],
     "r_version": ["4.6.0"],
-    "packages": ["1.1.2", "0.0.21", "2.5.1", "1.0", "1.2.22"]
+    "packages": ["1.1.2", "0.0.21", "2.5.1", "1.0", "1.2.22", "0.2.1"]
   },
   "cases": {
     "simple": {

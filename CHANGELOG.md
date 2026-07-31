@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`calibre.evaluation`: CORP reliability diagrams and score decompositions.**
+  Implements Dimitriadis, Gneiting & Jordan (*PNAS* 2021). A binned reliability diagram
+  makes the analyst pick the bins, and the picture changes with the choice; CORP removes
+  the choice by estimating conditional event probabilities with isotonic regression via
+  PAV — machinery this package already owned and already pinned against R.
+  - `corp_reliability(x, y)` — the diagram, with no bin count to tune.
+  - `score_decomposition(x, y, score=...)` — `mean_score = MCB - DSC + UNC`
+    (miscalibration, discrimination, uncertainty) for the Brier or log score.
+    `MCB` and `DSC` are non-negative by construction, and the identity is exact.
+  - `consistency_bands` / `confidence_bands` — resampling-based uncertainty
+    quantification. Resampling only; the paper's asymptotic route is not implemented,
+    and that limit is documented rather than left for a user to discover.
+
+  Pinned against R's `reliabilitydiag` on five datasets (calibrated, overconfident,
+  squashed, heavily tied, rare-event): every component agrees to **1e-16 or better**.
+  The Python ecosystem has no equivalent — the scikit-learn request for this
+  decomposition ([#23767](https://github.com/scikit-learn/scikit-learn/issues/23767))
+  has been open since 2022.
+
+- **`calibre.selection`: cross-validation shared by every calibrator.** Previously the
+  only CV lived inside `SplineCalibrator` as a private method.
+  - `cross_val_calibrate(calibrator, X, y)` — out-of-fold calibrated probabilities.
+    **This is a precondition for honest evaluation, not a refinement of it:** for any
+    isotonic-family calibrator, in-sample `MCB` is *exactly* zero regardless of how the
+    model generalises, because the calibrator and the CORP diagnostic are the same PAV
+    projection and PAV is idempotent. Measured on 1500 points, in-sample MCB is 0.0
+    while the out-of-fold estimate is 0.0028.
+  - `select_by_cv`, `make_folds`, `resolve_auto` — the shared primitives.
+  - Selection scores on a strictly proper scoring rule (log-loss by default, Brier
+    available). ECE is deliberately rejected as a criterion: it is biased and depends on
+    its binning, so selecting on it optimises binning artifacts.
+
+### Changed
+
+- **`lam`, `alpha` and `epsilon` now default to `"auto"`** on
+  `NearlyIsotonicCalibrator`, `RegularizedIsotonicCalibrator` and
+  `RelaxedPAVACalibrator`, resolved by cross-validation at fit time and recorded on
+  `lam_` / `alpha_` / `epsilon_`. Passing a number pins it as before. These are pure
+  bias-variance knobs, so the old fixed defaults (`lam=1.0`, `alpha=0.1`) were not
+  neutral choices but hidden wrong answers — `RegularizedIsotonicCalibrator` even had
+  the same `(n_knots, alpha)` pair that `SplineCalibrator` has always tuned.
+  The constructor arguments are never written back to, so `get_params` still round trips
+  and `clone` still reproduces the estimator.
+- `CDIIsotonicCalibrator` is deliberately excluded from auto-selection: its
+  `thresholds`, `bandwidth` and `gamma` encode economic domain knowledge rather than a
+  bias-variance tradeoff, and tuning them away would defeat the estimator.
+- `RegularizedIsotonicCalibrator` fits now depend on row order, as `SplineCalibrator`
+  already did, because `KFold` assigns folds by position. That is cross-validation
+  behaviour, and the monotonicity guarantees are unaffected.
+
 ## [0.7.1] - 2026-07-30
 
 A follow-up to 0.7.0's correctness work. An audit of what 0.7.0 left behind found one

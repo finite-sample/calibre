@@ -449,3 +449,68 @@ def test_monotone_spline_log_loss_matches_scam(name):
     assert ours < reference_loss * 1.05, (
         f"{name}: log-loss {ours:.6f} vs scam {reference_loss:.6f}"
     )
+
+
+# --------------------------------------------------------------------------- #
+# CORP reliability diagrams and score decompositions
+# --------------------------------------------------------------------------- #
+
+_CORP = _load("corp_reference.json")["cases"]
+
+
+def _scalar(value) -> float:
+    """Unwrap jsonlite's one-element arrays."""
+    return float(np.atleast_1d(value)[0])
+
+
+@pytest.mark.parametrize("name", sorted(_CORP))
+def test_corp_cep_matches_reliabilitydiag(name):
+    """PAV-recalibrated event probabilities must match R observation for observation.
+
+    `reliabilitydiag` is the reference implementation for Dimitriadis, Gneiting &
+    Jordan (2021). Agreement is required to machine precision, not approximately:
+    both sides run the same PAV algorithm on the same pooled data, so any real
+    difference is a bug rather than a numerical detail.
+    """
+    from calibre.evaluation import corp_reliability
+
+    case = _CORP[name]
+    x = np.asarray(case["x"], dtype=float)
+    y = np.asarray(case["y"], dtype=float)
+
+    diagram = corp_reliability(x, y)
+    ours = np.interp(x, diagram.x, diagram.cep)
+
+    np.testing.assert_allclose(
+        ours, np.asarray(case["cep_pav"], dtype=float), atol=1e-12
+    )
+
+
+@pytest.mark.parametrize("name", sorted(_CORP))
+def test_corp_brier_decomposition_matches_reliabilitydiag(name):
+    """MCB, DSC and UNC must match R's summary() to machine precision.
+
+    Only the Brier score is pinned: `reliabilitydiag` ships `brier` as its sole
+    scoring rule and resolves `summary(score=)` through `get()`, so a
+    hand-supplied log score does not return a mean log loss. calibre's log-score
+    decomposition is verified algebraically in tests/test_evaluation.py, where
+    the identity and the non-negativity of MCB and DSC are exact.
+    """
+    from calibre.evaluation import score_decomposition
+
+    case = _CORP[name]
+    x = np.asarray(case["x"], dtype=float)
+    y = np.asarray(case["y"], dtype=float)
+    reference = case["brier"]
+
+    ours = score_decomposition(x, y, score="brier")
+
+    for ours_key, r_key in (
+        ("mean_score", "mean_score"),
+        ("MCB", "miscalibration"),
+        ("DSC", "discrimination"),
+        ("UNC", "uncertainty"),
+    ):
+        assert ours[ours_key] == pytest.approx(_scalar(reference[r_key]), abs=1e-12), (
+            f"{name}: {ours_key} differs from reliabilitydiag"
+        )

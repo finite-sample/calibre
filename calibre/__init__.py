@@ -31,6 +31,14 @@ from .calibrators import (
 # Import diagnostic functions
 from .diagnostics import detect_plateaus, run_plateau_diagnostics
 
+# Import the CORP evaluation stack
+from .evaluation import (
+    confidence_bands,
+    consistency_bands,
+    corp_reliability,
+    score_decomposition,
+)
+
 # Import all metrics functions directly for convenient access
 from .metrics import (
     binned_calibration_error,
@@ -46,6 +54,9 @@ from .metrics import (
     tie_preservation_score,
     unique_value_counts,
 )
+
+# Import the shared cross-validation machinery
+from .selection import cross_val_calibrate, make_folds, select_by_cv
 
 __version__ = importlib.metadata.version("calibre")
 
@@ -67,9 +78,16 @@ __all__ = [
     "brier_score",
     "calibration_curve",
     "calibration_diversity_index",
+    # CORP evaluation
+    "confidence_bands",
+    "consistency_bands",
+    "corp_reliability",
     "correlation_metrics",
+    # Cross-validation
+    "cross_val_calibrate",
     "detect_plateaus",
     "expected_calibration_error",
+    "make_folds",
     "maximum_calibration_error",
     "mean_calibration_error",
     # Modules
@@ -78,6 +96,8 @@ __all__ = [
     "progressive_sampling_diversity",
     # Diagnostic functions
     "run_plateau_diagnostics",
+    "score_decomposition",
+    "select_by_cv",
     "tie_preservation_score",
     "unique_value_counts",
 ]

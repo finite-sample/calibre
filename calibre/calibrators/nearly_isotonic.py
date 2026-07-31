@@ -106,10 +106,17 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     RegularizedIsotonicCalibrator : L2 regularization with strict monotonicity
     """
 
+    #: Candidate lambdas searched when ``lam="auto"``. Spans "essentially the raw
+    #: data" to "essentially isotonic", logarithmically.
+    LAM_GRID = (0.01, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0)
+
     def __init__(
         self,
-        lam: float = 1.0,
+        lam: float | str = "auto",
         method: str = "path",
+        cv: int = 5,
+        scoring: str = "log_loss",
+        random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
     ):
@@ -118,6 +125,9 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         self.lam = lam
         self.method = method
+        self.cv = cv
+        self.scoring = scoring
+        self.random_state = random_state
         self.clip_output = clip_output
 
     def _fit_impl(
@@ -142,10 +152,9 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         """
         self._reject_sample_weight(sample_weight)
         X, y = check_arrays(X, y)
-        if self.lam < 0:
-            raise ValueError(f"lam must be non-negative, got {self.lam}")
         if self.method not in ("path", "cvx"):
             raise ValueError(f"method must be 'path' or 'cvx', got {self.method!r}")
+        self.lam_ = self._resolve_lam(X, y)
         self.X_ = X
         self.y_ = y
 
@@ -157,7 +166,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         if self.method == "path":
             beta = np.asarray(
-                nearly_isotonic_path(y_mean, lam=self.lam, sample_weight=weight)
+                nearly_isotonic_path(y_mean, lam=self.lam_, sample_weight=weight)
             )
         else:
             beta = self._solve_cvx(y_mean, weight)
@@ -167,6 +176,43 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
         self.calibration_curve_ = PiecewiseLinear(x_unique, beta)
         self.n_features_in_ = 1
+
+    def _resolve_lam(self, X: np.ndarray, y: np.ndarray) -> float:
+        """Return the lambda to fit with, selecting it if asked.
+
+        Parameters
+        ----------
+        X
+            Uncalibrated scores.
+        y
+            Targets.
+
+        Returns
+        -------
+        float
+            The penalty to use. Written to ``lam_``; the ``lam`` constructor
+            argument is never modified, so ``get_params`` round trips.
+
+        Raises
+        ------
+        ValueError
+            If ``lam`` is negative, or is a string other than ``"auto"``.
+        """
+        from ..selection import resolve_auto
+
+        return resolve_auto(
+            self.lam,
+            "lam",
+            self.LAM_GRID,
+            lambda **kw: type(self)(
+                method=self.method, clip_output=self.clip_output, **kw
+            ),
+            X,
+            y,
+            cv=self.cv,
+            scoring=self.scoring,
+            random_state=self.random_state,
+        )
 
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Map scores through the fitted calibration curve.
@@ -215,7 +261,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         # Weighted squared error, so pooled ties carry their original mass.
         obj = cp.Minimize(
             cp.sum(cp.multiply(weight, cp.square(beta - y_mean)))
-            + self.lam * monotonicity_penalty
+            + self.lam_ * monotonicity_penalty
         )
         prob = cp.Problem(obj)
 
@@ -243,5 +289,5 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         # The path solver computes the same estimator exactly, so it is a strictly
         # better fallback than switching to a different estimator entirely.
         return np.asarray(
-            nearly_isotonic_path(y_mean, lam=self.lam, sample_weight=weight)
+            nearly_isotonic_path(y_mean, lam=self.lam_, sample_weight=weight)
         )

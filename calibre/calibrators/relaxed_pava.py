@@ -117,10 +117,17 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     NearlyIsotonicCalibrator : Penalises violations instead of bounding them.
     """
 
+    #: Candidate tolerances searched when ``epsilon="auto"``. 0.0 is included so
+    #: selection can return strict isotonic regression when that fits best.
+    EPSILON_GRID = (0.0, 0.001, 0.005, 0.01, 0.02, 0.05, 0.1)
+
     def __init__(
         self,
-        epsilon: float = 0.0,
+        epsilon: float | str = "auto",
         min_slope: float = 0.0,
+        cv: int = 5,
+        scoring: str = "log_loss",
+        random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
     ):
@@ -129,6 +136,9 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
         self.epsilon = epsilon
         self.min_slope = min_slope
+        self.cv = cv
+        self.scoring = scoring
+        self.random_state = random_state
         self.clip_output = clip_output
 
     def _fit_impl(
@@ -153,13 +163,34 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         ValueError
             If ``epsilon`` or ``min_slope`` is negative, or both are non-zero.
         """
+        from ..selection import resolve_auto
+
         X, y = check_arrays(X, y)
 
-        if self.epsilon < 0:
-            raise ValueError(f"epsilon must be non-negative, got {self.epsilon}")
         if self.min_slope < 0:
             raise ValueError(f"min_slope must be non-negative, got {self.min_slope}")
-        if self.epsilon > 0 and self.min_slope > 0:
+
+        # min_slope forbids plateaus and epsilon permits decreases, so selecting
+        # epsilon while min_slope is set would search against the caller's stated
+        # intent. Pin epsilon to 0 in that case rather than tune it.
+        if self.min_slope > 0 and self.epsilon == "auto":
+            self.epsilon_ = 0.0
+        else:
+            self.epsilon_ = resolve_auto(
+                self.epsilon,
+                "epsilon",
+                self.EPSILON_GRID,
+                lambda **kw: type(self)(
+                    min_slope=self.min_slope, clip_output=self.clip_output, **kw
+                ),
+                X,
+                y,
+                cv=self.cv,
+                scoring=self.scoring,
+                random_state=self.random_state,
+            )
+
+        if self.epsilon_ > 0 and self.min_slope > 0:
             raise ValueError(
                 "epsilon and min_slope pull in opposite directions; set at most "
                 f"one (got epsilon={self.epsilon}, min_slope={self.min_slope})"
@@ -171,7 +202,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
         # Lower bound on each increment: negative permits decreases, positive
         # forces strict growth.
-        bound = self.min_slope - self.epsilon
+        bound = self.min_slope - self.epsilon_
         fitted = shift_to_pava(y_mean, weight, L=bound)
 
         if self.clip_output:
