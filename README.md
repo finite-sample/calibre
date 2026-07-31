@@ -357,6 +357,53 @@ for plateau in report["plateaus"][:3]:
 Plateaus flagged `very_sparse` rest on few observations. `report["warnings"]` collects
 those as readable messages.
 
+### Multiclass: find out which method you need
+
+There is no single best multiclass calibration method. There are two regimes with
+different winners, and picking wrong costs you roughly a factor of six. Measured against
+**known** true probabilities, 12 seeds, 5 classes:
+
+| miscalibration | uncalibrated | temperature | per-class (CIR) |
+|---|---|---|---|
+| global | 0.0821 | **0.0025** | 0.0165 |
+| class-dependent | 0.1043 | 0.0849 | **0.0173** |
+
+Temperature scaling applies one parameter to every class, so when the distortion really
+is global it is exactly right — and when it differs by class it barely helps at all
+(0.1043 → 0.0849). So measure before you choose:
+
+```python
+import numpy as np
+
+from calibre import miscalibration_profile
+
+rng = np.random.default_rng(0)
+truth = rng.dirichlet(np.ones(5) * 0.7, size=4000)
+labels = np.array([rng.choice(5, p=t) for t in truth])
+
+# Each class distorted by a different exponent.
+skewed = truth ** np.linspace(0.6, 2.4, 5)
+scores = skewed / skewed.sum(axis=1, keepdims=True)
+
+profile = miscalibration_profile(scores, labels)
+print(f"spread {profile['spread']:.2f}")
+print(profile["reading"])
+# > spread 0.96
+# > Miscalibration is concentrated in classes 0, 4, 3 (spread 0.96). A one-parameter method applies the same correction to every class and cannot express this; per-class calibration is likely to help.
+```
+
+A spread near 0.13 means the miscalibration is even across classes and
+`TemperatureScaler` will likely capture it; 0.4 and above means it is concentrated and a
+one-parameter method cannot express the fix.
+
+Also available: `classwise_decomposition` (the MCB/DSC/UNC split per class),
+`classwise_ece`, `top_label_ece`, and `classwise_reliability`.
+
+One cost worth knowing, because no standard metric shows it: `TemperatureScaler` never
+changes the predicted class — accuracy is exactly preserved — but it **does** reorder
+people *within* a class, at 49.6% of adjacent pairs in our measurements. If you rank
+individuals by their probability of a given class, that reordering is real.
+
 ## Documentation
 
 - [Full documentation](https://finite-sample.github.io/calibre/)

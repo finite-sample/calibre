@@ -106,8 +106,9 @@ convention = "numpy"
 "tests/**" = ["S101", "S102", "D", "T201"]
 # Notebooks print by design, and each cell is linted without the preceding cells in
 # scope, so F821 fires on names that are defined earlier in the notebook.
-# SIM102: notebook cells favour explicit stepwise guards for readability.
-"docs/**/*.ipynb" = ["D", "T201", "F821", "E402", "I001", "B905", "SIM102"]
+# SIM102/SIM108: notebook cells favour explicit stepwise branches for readability,
+# since each branch usually carries the comment explaining what it demonstrates.
+"docs/**/*.ipynb" = ["D", "T201", "F821", "E402", "I001", "B905", "SIM102", "SIM108"]
 "docs/**" = ["D"]
 
 [tool.pytest.ini_options]
