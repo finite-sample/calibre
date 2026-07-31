@@ -217,6 +217,39 @@ print(f"bias           {mean_calibration_error(y_true, y_pred):.4f}")
 bin count and blind to resolution. `mean_calibration_error` is calibration in the
 large, `|mean(prediction) − base rate|`.
 
+Binned ECE is also **biased upward**: part of each bin's gap is sampling noise in the
+label mean rather than miscalibration, and the bias grows with the bin count — precisely
+when you wanted a finer picture. Two estimators correct for it:
+
+```python
+import numpy as np
+
+from calibre import debiased_calibration_error, sweep_calibration_error
+from calibre.metrics import expected_calibration_error
+
+rng = np.random.default_rng(0)
+p = rng.uniform(0, 1, 4000)
+y = rng.binomial(1, p).astype(float)  # calibrated by construction: true error is 0
+
+print(f"plugin ECE  {expected_calibration_error(y, p, n_bins=15):.4f}")
+print(f"debiased    {debiased_calibration_error(y, p, n_bins=15):.4f}")
+print(f"sweep       {sweep_calibration_error(y, p):.4f}")
+# > plugin ECE  0.0163
+# > debiased    0.0000
+# > sweep       0.0155
+```
+
+The true error here is zero, so the plugin's 0.0163 is entirely bias. Debiasing removes
+it. The sweep estimator does not, on this sample — it targets the bin-count problem
+rather than the within-bin bias, and the two are worth reaching for separately.
+
+`debiased_calibration_error` subtracts the per-bin Bernoulli variance (Bröcker 2012;
+Kumar et al. 2019) — verified against Kumar's reference implementation, exact on 18 of
+24 cases. `sweep_calibration_error` chooses the bin count instead of fixing it, adding
+bins while the calibration curve stays monotone and stopping when it doesn't (Roelofs
+et al. 2022). Both use equal-mass bins, and neither ever splits a group of tied
+predictions across a bin boundary.
+
 Also available: `maximum_calibration_error`, `binned_calibration_error`,
 `calibration_curve`, `correlation_metrics`, `unique_value_counts`,
 `calibration_diversity_index`, `tie_preservation_score`, `plateau_quality_score`,

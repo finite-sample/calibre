@@ -46,11 +46,13 @@ from .metrics import (
     calibration_curve,
     calibration_diversity_index,
     correlation_metrics,
+    debiased_calibration_error,
     expected_calibration_error,
     maximum_calibration_error,
     mean_calibration_error,
     plateau_quality_score,
     progressive_sampling_diversity,
+    sweep_calibration_error,
     tie_preservation_score,
     unique_value_counts,
 )
@@ -85,6 +87,7 @@ __all__ = [
     "correlation_metrics",
     # Cross-validation
     "cross_val_calibrate",
+    "debiased_calibration_error",
     "detect_plateaus",
     "expected_calibration_error",
     "make_folds",
@@ -98,6 +101,7 @@ __all__ = [
     "run_plateau_diagnostics",
     "score_decomposition",
     "select_by_cv",
+    "sweep_calibration_error",
     "tie_preservation_score",
     "unique_value_counts",
 ]

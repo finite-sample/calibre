@@ -858,3 +858,277 @@ __all__ = [
     "tie_preservation_score",
     "unique_value_counts",
 ]
+
+
+def _equal_mass_bins(y_pred: np.ndarray, n_bins: int) -> tuple[np.ndarray, int]:
+    """Assign each prediction to an approximately equal-mass bin.
+
+    Parameters
+    ----------
+    y_pred
+        Predicted probabilities.
+    n_bins
+        Requested number of bins. Fewer are returned when ties prevent it.
+
+    Returns
+    -------
+    bin_id : ndarray
+        Bin index per observation.
+    n_used : int
+        Number of bins actually produced.
+
+    Notes
+    -----
+    Equal-mass rather than equal-width because Roelofs et al. (2022) measure
+    consistently smaller bias for equal-mass binning, a point they note is "not
+    well appreciated in the literature" -- equal width is the common practice,
+    including in the debiased estimator's original presentation.
+
+    Bin edges are snapped outward to the end of each run of tied predictions, so
+    identical scores always share a bin. Splitting a tie group would compare a
+    bin's mean prediction against a mean label drawn from an arbitrary subset of
+    observations carrying that same prediction, which measures the sort order
+    rather than calibration. Clipped or rounded scores make this common: a
+    forecast clipped into [0, 1] can put hundreds of observations on a single
+    value. The cost is that bins are only approximately equal in mass, and that
+    heavily tied data supports fewer bins than requested.
+    """
+    order = np.argsort(y_pred, kind="mergesort")
+    sorted_pred = y_pred[order]
+    n = y_pred.size
+
+    # Ideal rank cut points. A cut is moved only when a run of tied predictions
+    # straddles it, and then forward to that run's end; an unconditional snap
+    # would shift every cut by one even on data with no ties at all.
+    ideal = (np.arange(1, n_bins) * n) // n_bins
+    ideal = ideal[(ideal > 0) & (ideal < n)]
+    straddles = sorted_pred[ideal - 1] == sorted_pred[ideal]
+    snapped = np.where(
+        straddles,
+        np.searchsorted(sorted_pred, sorted_pred[ideal], side="right"),
+        ideal,
+    )
+    edges = np.unique(snapped)
+    edges = edges[(edges > 0) & (edges < n)]
+
+    bin_id = np.empty(n, dtype=int)
+    starts = np.concatenate([[0], edges])
+    stops = np.concatenate([edges, [n]])
+    for k, (lo, hi) in enumerate(zip(starts, stops, strict=True)):
+        bin_id[order[lo:hi]] = k
+    return bin_id, len(starts)
+
+
+def _bin_summaries(
+    y_true: np.ndarray, y_pred: np.ndarray, bin_id: np.ndarray, n_bins: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per-bin counts, mean prediction and mean label.
+
+    Parameters
+    ----------
+    y_true
+        Ground truth values.
+    y_pred
+        Predicted probabilities.
+    bin_id
+        Bin index per observation.
+    n_bins
+        Number of bins.
+
+    Returns
+    -------
+    counts : ndarray
+        Observations per bin.
+    mean_pred : ndarray
+        Mean prediction per bin.
+    mean_true : ndarray
+        Mean label per bin.
+    """
+    counts = np.bincount(bin_id, minlength=n_bins).astype(float)
+    safe = np.where(counts > 0, counts, 1.0)
+    mean_pred = np.bincount(bin_id, weights=y_pred, minlength=n_bins) / safe
+    mean_true = np.bincount(bin_id, weights=y_true, minlength=n_bins) / safe
+    return counts, mean_pred, mean_true
+
+
+def debiased_calibration_error(
+    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 15
+) -> float:
+    r"""Calculate the debiased :math:`\ell_2` calibration error.
+
+    The plugin binned estimator is biased upward: each bin contributes the
+    squared gap between mean prediction and mean label, and part of that gap is
+    sampling noise in the label mean rather than miscalibration. The bias is
+    roughly ``n_bins / n``, so it grows as bins are added -- which is exactly
+    when a finer picture of the calibration curve is wanted. Subtracting the
+    per-bin Bernoulli variance removes it.
+
+    .. math::
+        \widehat{\mathrm{CE}}^2 = \sum_k \frac{n_k}{n}
+        \left[ (\bar{f}_k - \bar{y}_k)^2
+             - \frac{\bar{y}_k (1 - \bar{y}_k)}{n_k - 1} \right]
+
+    Parameters
+    ----------
+    y_true
+        Ground truth values (0 or 1).
+    y_pred
+        Predicted probabilities.
+    n_bins
+        Number of equal-mass bins. Defaults to 15, following Guo et al. (2017)
+        as used by Roelofs et al.
+
+    Returns
+    -------
+    float
+        Debiased calibration error. Floored at zero: the correction can drive
+        the sum negative on well-calibrated data, which is evidence of no
+        detectable miscalibration rather than of negative error.
+
+    Raises
+    ------
+    ValueError
+        If the arrays disagree in length or ``n_bins`` is below 1.
+
+    Notes
+    -----
+    This is the :math:`\ell_2` error, so it is not comparable in magnitude to
+    :func:`expected_calibration_error`, which is :math:`\ell_1`.
+
+    References
+    ----------
+    Bröcker (2012); Ferro & Fricker (2012); Kumar, Liang & Ma (2019),
+    "Verified Uncertainty Calibration", NeurIPS.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> rng = np.random.default_rng(0)
+    >>> p = rng.uniform(0, 1, 4000)
+    >>> y = rng.binomial(1, p).astype(float)
+
+    These predictions are calibrated, so the plugin estimator reports error that
+    is not there while the debiased one does not:
+
+    >>> plugin = expected_calibration_error(y, p, n_bins=15)
+    >>> debiased = debiased_calibration_error(y, p, n_bins=15)
+    >>> bool(plugin > 0.01), bool(debiased < 0.01)
+    (True, True)
+
+    See Also
+    --------
+    sweep_calibration_error : Chooses the bin count instead of fixing it.
+    calibre.evaluation.score_decomposition : Avoids binning altogether.
+    """
+    y_true = check_array(y_true, ensure_2d=False)
+    y_pred = check_array(y_pred, ensure_2d=False)
+    if len(y_true) != len(y_pred):
+        raise ValueError("y_true and y_pred must have the same length")
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
+
+    n_bins = min(n_bins, len(y_true))
+    bin_id, n_used = _equal_mass_bins(y_pred, n_bins)
+    counts, mean_pred, mean_true = _bin_summaries(y_true, y_pred, bin_id, n_used)
+
+    # A bin holding one observation has no within-bin variance estimate, so its
+    # plugin term is pure noise with nothing to subtract. It contributes zero
+    # rather than an uncorrectable term, matching the reference implementation
+    # accompanying Kumar et al. (2019).
+    correctable = counts > 1
+    per_bin = np.zeros_like(counts)
+    variance = (
+        mean_true[correctable]
+        * (1.0 - mean_true[correctable])
+        / (counts[correctable] - 1.0)
+    )
+    per_bin[correctable] = (
+        mean_pred[correctable] - mean_true[correctable]
+    ) ** 2 - variance
+
+    total = float(np.sum(counts / len(y_true) * per_bin))
+    return float(np.sqrt(max(total, 0.0)))
+
+
+def sweep_calibration_error(
+    y_true: np.ndarray, y_pred: np.ndarray, p: int = 1
+) -> float:
+    r"""Calculate the monotonic sweep calibration error (``ECE_sweep``).
+
+    Fixing the bin count is the weak point of binned calibration error: too few
+    bins hide miscalibration, too many measure noise, and the best choice depends
+    on the sample size and the score distribution. This estimator chooses instead.
+
+    A true calibration curve is non-decreasing -- a model's accuracy should not
+    fall as its confidence rises. So bins are added while the observed bin heights
+    stay monotone, and the sweep stops at the largest bin count for which they do.
+    Non-monotonicity is the signal that the bins have become fine enough to be
+    reading noise.
+
+    Parameters
+    ----------
+    y_true
+        Ground truth values (0 or 1).
+    y_pred
+        Predicted probabilities.
+    p
+        Norm. 1 gives the familiar weighted mean absolute gap.
+
+    Returns
+    -------
+    float
+        Binned calibration error at the selected bin count.
+
+    Raises
+    ------
+    ValueError
+        If the arrays disagree in length or ``p`` is below 1.
+
+    References
+    ----------
+    Roelofs, Cain, Shlens & Mozer (2022), "Mitigating Bias in Calibration Error
+    Estimation", AISTATS. Algorithm 1.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> rng = np.random.default_rng(0)
+    >>> p = rng.uniform(0, 1, 4000)
+    >>> y = rng.binomial(1, p).astype(float)
+    >>> float(sweep_calibration_error(y, p)) < 0.05
+    True
+
+    See Also
+    --------
+    debiased_calibration_error : Fixes the bin count and corrects the bias.
+    calibre.evaluation.score_decomposition : Lets isotonic regression bin.
+    """
+    y_true = check_array(y_true, ensure_2d=False)
+    y_pred = check_array(y_pred, ensure_2d=False)
+    if len(y_true) != len(y_pred):
+        raise ValueError("y_true and y_pred must have the same length")
+    if p < 1:
+        raise ValueError(f"p must be at least 1, got {p}")
+
+    n = len(y_true)
+    if n < 2:
+        return 0.0
+
+    def error_at(n_bins: int) -> tuple[float, bool]:
+        bin_id, n_used = _equal_mass_bins(y_pred, n_bins)
+        counts, mean_pred, mean_true = _bin_summaries(y_true, y_pred, bin_id, n_used)
+        occupied = counts > 0
+        monotone = bool(np.all(np.diff(mean_true[occupied]) >= 0.0))
+        gaps = np.abs(mean_pred[occupied] - mean_true[occupied]) ** p
+        error = float(np.sum(counts[occupied] / n * gaps) ** (1.0 / p))
+        return error, monotone
+
+    # b = 2 is guaranteed monotone only in the sense that the sweep needs a
+    # starting point; if even it is not, one bin is all the data supports.
+    best = error_at(1)[0]
+    for n_bins in range(2, n + 1):
+        error, monotone = error_at(n_bins)
+        if not monotone:
+            break
+        best = error
+    return best

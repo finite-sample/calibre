@@ -23,6 +23,7 @@ We provide focused, executable Jupyter notebooks for hands-on learning:
    ../notebooks/02_validation_and_evaluation
    ../notebooks/03_diagnostics_and_troubleshooting
    ../notebooks/04_performance_comparison
+   ../notebooks/05_evaluating_calibration
 
 Notebook Overview
 ~~~~~~~~~~~~~~~~~
@@ -42,7 +43,7 @@ Notebook Overview
 🩺 **Diagnostics and Troubleshooting** (:doc:`../notebooks/03_diagnostics_and_troubleshooting`)
    - Plateau diagnostic tools for isotonic regression
    - Distinguishing genuine vs. limited-data flattening
-   - Bootstrap stability analysis and progressive sampling
+   - Progressive sampling: how granularity changes with sample size
    - Decision framework for method selection
 
 ⚡ **Performance Comparison** (:doc:`../notebooks/04_performance_comparison`)
@@ -50,6 +51,13 @@ Notebook Overview
    - Performance on overconfident, underconfident, and distorted predictions
    - Computational efficiency and method ranking
    - Guidelines for choosing the optimal method
+
+📐 **Evaluating Calibration** (:doc:`../notebooks/05_evaluating_calibration`)
+   - CORP reliability diagrams: no bin count to choose
+   - Consistency and confidence bands for uncertainty quantification
+   - The MCB / DSC / UNC decomposition — separating fixable miscalibration
+     from lost discrimination
+   - Why in-sample calibration error is identically zero, and what to use instead
 
 Running the Notebooks
 ~~~~~~~~~~~~~~~~~~~~~~

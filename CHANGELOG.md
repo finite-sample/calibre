@@ -28,6 +28,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decomposition ([#23767](https://github.com/scikit-learn/scikit-learn/issues/23767))
   has been open since 2022.
 
+- **Two bias-aware calibration error estimators** in `calibre.metrics`. The plugin binned
+  ECE is biased upward — part of each bin's gap is sampling noise in the label mean —
+  and the bias grows with the bin count, precisely when a finer picture is wanted. On
+  4000 calibrated observations where the true error is zero, plugin ECE climbs from
+  0.0134 at 5 bins to 0.0313 at 50.
+  - `debiased_calibration_error` subtracts the per-bin Bernoulli variance (Bröcker 2012;
+    Ferro & Fricker 2012; Kumar, Liang & Ma 2019). Checked against Kumar's reference
+    implementation across 24 configurations: exact agreement on 18, worst difference
+    4.3e-03, arising from a different bin-edge rule rather than a different estimator.
+  - `sweep_calibration_error` chooses the bin count instead of fixing it, adding bins
+    while the calibration curve stays monotone and stopping when it does not
+    (Roelofs et al. 2022, Algorithm 1).
+  - Both use equal-mass bins, which Roelofs et al. measure as less biased than the
+    conventional equal-width. **Neither ever splits a group of tied predictions across a
+    bin boundary** — a bin edge through the middle of a tie group compares a mean
+    prediction against labels from an arbitrary subset of observations carrying that
+    same prediction, measuring sort order rather than calibration. Clipping a forecast
+    into `[0, 1]` routinely puts hundreds of observations on one value, so this is the
+    common case rather than an exotic one.
+
 - **`calibre.selection`: cross-validation shared by every calibrator.** Previously the
   only CV lived inside `SplineCalibrator` as a private method.
   - `cross_val_calibrate(calibrator, X, y)` — out-of-fold calibrated probabilities.
