@@ -57,6 +57,16 @@ from .metrics import (
     unique_value_counts,
 )
 
+# Import the multiclass evaluation surface
+from .multiclass import (
+    TemperatureScaler,
+    classwise_decomposition,
+    classwise_ece,
+    classwise_reliability,
+    miscalibration_profile,
+    top_label_ece,
+)
+
 # Import the shared cross-validation machinery
 from .selection import cross_val_calibrate, make_folds, select_by_cv
 
@@ -75,11 +85,15 @@ __all__ = [
     "RelaxedPAVACalibrator",
     "SmoothedIsotonicCalibrator",
     "SplineCalibrator",
+    "TemperatureScaler",
     # Metrics functions
     "binned_calibration_error",
     "brier_score",
     "calibration_curve",
     "calibration_diversity_index",
+    "classwise_decomposition",
+    "classwise_ece",
+    "classwise_reliability",
     # CORP evaluation
     "confidence_bands",
     "consistency_bands",
@@ -95,6 +109,7 @@ __all__ = [
     "mean_calibration_error",
     # Modules
     "metrics",
+    "miscalibration_profile",
     "plateau_quality_score",
     "progressive_sampling_diversity",
     # Diagnostic functions
@@ -103,5 +118,6 @@ __all__ = [
     "select_by_cv",
     "sweep_calibration_error",
     "tie_preservation_score",
+    "top_label_ece",
     "unique_value_counts",
 ]

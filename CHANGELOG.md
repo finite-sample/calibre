@@ -7,6 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`calibre.multiclass`: class-wise evaluation, and the diagnostic that tells you which
+  multiclass method you need.**
+
+  There is no single best multiclass calibration method — there are two regimes with
+  different winners, and picking wrong costs about a factor of six. Measured against
+  **known** true probabilities over 12 seeds on 5 classes:
+
+  | miscalibration | uncalibrated | temperature | per-class (CIR) |
+  |---|---|---|---|
+  | global | 0.0821 | **0.0025** | 0.0165 |
+  | class-dependent | 0.1043 | 0.0849 | **0.0173** |
+  | class-dependent + shift | 0.0373 | 0.0276 | **0.0176** |
+
+  The winner took 12/12 seeds in every row.
+
+  - `miscalibration_profile(P, y)` — the diagnostic. Reports per-class miscalibration,
+    its spread, and a plain-language reading. The spread is ~0.13 when the distortion is
+    global and 0.38–0.92 when it is class-dependent, which is enough to choose a method.
+    Built entirely on 0.8.0's `score_decomposition`.
+  - `classwise_decomposition(P, y)` — the CORP `MCB`/`DSC`/`UNC` split per class. The
+    identity is exact and the components non-negative in every class, inherited from the
+    binary implementation rather than reimplemented; a 2-class problem agrees with
+    `score_decomposition` to 1e-15.
+  - `classwise_ece`, `top_label_ece` — built on the bias-aware, tie-safe estimators added
+    in 0.8.0.
+  - `classwise_reliability(P, y)` — one CORP reliability diagram per class.
+  - `TemperatureScaler` — one parameter fitted by NLL. Ships because it *wins a whole
+    regime*, not for completeness. **Never changes the predicted class**, so accuracy is
+    exactly preserved — asserted on every row in the test suite. Its ceiling is asserted
+    too: a test requires that it *fails* to fix a class-dependent distortion, because
+    one parameter applied to every class cannot express that fix.
+
+  Documented cost that no standard metric reveals: temperature scaling preserves each
+  row's class ordering but reorders people *within* a class, at 49.6% of adjacent pairs.
+  If you rank individuals by their probability of a given class, that is real.
+
+  Scope is deliberate. Only **class-wise** calibration is targeted; canonical
+  calibration is infeasible to verify beyond four or five classes. `OneVsRestCalibrator`
+  is held for a later release — the evidence for it is strong (12/12 in the
+  class-dependent regimes) but ICML 2025 ranks one-vs-rest isotonic *worst of seven* on
+  NLL, so the "when not to use this" documentation is load-bearing and deserves its own
+  release. Rank-preserving projection is out: exact projection does not converge at
+  n=1500 (84s, 3.7e-02 row error), while the ε-relaxed version converges in 0.9s at
+  ε=0.05 — a real result, but one that belongs in `rank-preserving-calibration`.
+
 ## [0.8.0] - 2026-07-31
 
 ### Added
