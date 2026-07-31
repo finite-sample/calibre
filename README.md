@@ -217,10 +217,115 @@ print(f"bias           {mean_calibration_error(y_true, y_pred):.4f}")
 bin count and blind to resolution. `mean_calibration_error` is calibration in the
 large, `|mean(prediction) − base rate|`.
 
+Binned ECE is also **biased upward**: part of each bin's gap is sampling noise in the
+label mean rather than miscalibration, and the bias grows with the bin count — precisely
+when you wanted a finer picture. Two estimators correct for it:
+
+```python
+import numpy as np
+
+from calibre import debiased_calibration_error, sweep_calibration_error
+from calibre.metrics import expected_calibration_error
+
+rng = np.random.default_rng(0)
+p = rng.uniform(0, 1, 4000)
+y = rng.binomial(1, p).astype(float)  # calibrated by construction: true error is 0
+
+print(f"plugin ECE  {expected_calibration_error(y, p, n_bins=15):.4f}")
+print(f"debiased    {debiased_calibration_error(y, p, n_bins=15):.4f}")
+print(f"sweep       {sweep_calibration_error(y, p):.4f}")
+# > plugin ECE  0.0163
+# > debiased    0.0000
+# > sweep       0.0155
+```
+
+The true error here is zero, so the plugin's 0.0163 is entirely bias. Debiasing removes
+it. The sweep estimator does not, on this sample — it targets the bin-count problem
+rather than the within-bin bias, and the two are worth reaching for separately.
+
+`debiased_calibration_error` subtracts the per-bin Bernoulli variance (Bröcker 2012;
+Kumar et al. 2019) — verified against Kumar's reference implementation, exact on 18 of
+24 cases. `sweep_calibration_error` chooses the bin count instead of fixing it, adding
+bins while the calibration curve stays monotone and stopping when it doesn't (Roelofs
+et al. 2022). Both use equal-mass bins, and neither ever splits a group of tied
+predictions across a bin boundary.
+
 Also available: `maximum_calibration_error`, `binned_calibration_error`,
 `calibration_curve`, `correlation_metrics`, `unique_value_counts`,
 `calibration_diversity_index`, `tie_preservation_score`, `plateau_quality_score`,
 `progressive_sampling_diversity`.
+
+### Measure it honestly
+
+Scoring a calibrator on the data it was fit to does not merely flatter it. For any
+isotonic-family calibrator it reports **perfect calibration by construction**, because
+the calibrator and the diagnostic are the same PAV projection and PAV is idempotent. The
+number is zero no matter how badly the model generalises:
+
+```python
+import numpy as np
+
+from calibre import IsotonicCalibrator, cross_val_calibrate, score_decomposition
+
+rng = np.random.default_rng(0)
+scores = rng.uniform(0, 1, 1500)
+labels = rng.binomial(1, scores).astype(float)
+
+in_sample = IsotonicCalibrator().fit(scores, labels).transform(scores)
+out_of_fold = cross_val_calibrate(IsotonicCalibrator(), scores, labels, cv=5)
+
+print(f"MCB in-sample    {score_decomposition(in_sample, labels)['MCB']:.4f}")
+print(f"MCB out-of-fold  {score_decomposition(out_of_fold, labels)['MCB']:.4f}")
+# > MCB in-sample    0.0000
+# > MCB out-of-fold  0.0030
+```
+
+`cross_val_calibrate` returns out-of-fold probabilities: each one comes from a model
+that never saw that observation. Use those for any number you intend to believe.
+
+### Decompose the score
+
+`score_decomposition` splits a proper score into the three things you actually want to
+know, following the CORP approach of Dimitriadis, Gneiting & Jordan (2021). It uses
+isotonic regression to find the bins, so there is no bin count to choose and none to
+tune in your favour:
+
+```python
+import numpy as np
+
+from calibre import score_decomposition
+
+rng = np.random.default_rng(0)
+scores = rng.uniform(0, 1, 3000)
+labels = rng.binomial(1, scores).astype(float)
+overconfident = np.clip(1.6 * (scores - 0.5) + 0.5, 0, 1)
+
+for name, x in (("honest", scores), ("overconfident", overconfident)):
+    d = score_decomposition(x, labels)
+    print(
+        f"{name:14s} Brier {d['mean_score']:.4f} = "
+        f"MCB {d['MCB']:.4f} - DSC {d['DSC']:.4f} + UNC {d['UNC']:.4f}"
+    )
+# > honest         Brier 0.1670 = MCB 0.0030 - DSC 0.0859 + UNC 0.2500
+# > overconfident  Brier 0.1799 = MCB 0.0141 - DSC 0.0841 + UNC 0.2500
+```
+
+`MCB` is what recalibration would save you, `DSC` is what your scores buy over always
+predicting the base rate, and `UNC` is the difficulty of the problem, which no
+forecaster can change.
+
+The split earns its keep here. Overconfidence cost 0.0129 of Brier score, and the
+decomposition says where it went: `MCB` rose by 0.0111 — recoverable, just recalibrate —
+while `DSC` fell by 0.0018, which is not recoverable. That small drop is the clipping at
+0 and 1 collapsing 3000 distinct scores to 1841 and destroying ranking information with
+them. A plain Brier score tells you the model got worse; this tells you which part you
+can fix.
+
+`mean_score = MCB - DSC + UNC` holds exactly, and both `MCB` and `DSC` are non-negative
+by construction.
+
+These numbers are pinned against R's `reliabilitydiag` to 1e-16 in the test suite.
+`consistency_bands` and `confidence_bands` add resampling-based uncertainty.
 
 ### Inspect where a fit went flat
 

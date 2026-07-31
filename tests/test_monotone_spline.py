@@ -621,11 +621,16 @@ def test_monotone_under_tied_scores(cls_name, decimals):
 
 @pytest.mark.parametrize(
     "cls_name",
-    # SplineCalibrator is excluded because it selects (n_knots, alpha) by
-    # cross-validation, and KFold assigns folds by row position, so shuffling
-    # legitimately changes which hyperparameters win. That is CV behaviour, not
-    # tie handling.
-    [c for c in MONOTONE_CALIBRATORS if c != "SplineCalibrator"],
+    # Calibrators that select hyperparameters by cross-validation are excluded:
+    # KFold assigns folds by row position, so shuffling legitimately changes
+    # which candidate wins. That is CV behaviour, not tie handling.
+    # RegularizedIsotonicCalibrator joined this list in 0.8.0, when alpha
+    # stopped being a fixed guess.
+    [
+        c
+        for c in MONOTONE_CALIBRATORS
+        if c not in {"SplineCalibrator", "RegularizedIsotonicCalibrator"}
+    ],
 )
 def test_ties_do_not_depend_on_input_order(cls_name):
     """Shuffling the training rows must not change the fit.

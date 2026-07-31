@@ -120,13 +120,20 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     IsotonicCalibrator : The exact isotonic fit.
     """
 
+    #: Candidate roughness penalties searched when ``alpha="auto"``. Matches the
+    #: grid SplineCalibrator has always used for the same parameter.
+    ALPHA_GRID = (0.0, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0)
+
     def __init__(
         self,
-        alpha: float = 0.1,
+        alpha: float | str = "auto",
         n_knots: int = 10,
         degree: int = 3,
         knots: str = "quantile",
         link: str = "logit",
+        cv: int = 5,
+        scoring: str = "log_loss",
+        random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
     ):
@@ -134,6 +141,9 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         super().__init__(enable_diagnostics=enable_diagnostics)
 
         self.alpha = alpha
+        self.cv = cv
+        self.scoring = scoring
+        self.random_state = random_state
         self.n_knots = n_knots
         self.degree = degree
         self.knots = knots
@@ -162,9 +172,9 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         ValueError
             If the configuration or the targets are invalid.
         """
+        from ..selection import resolve_auto
+
         X, y = check_arrays(X, y)
-        if self.alpha < 0:
-            raise ValueError(f"alpha must be non-negative, got {self.alpha}")
         if self.link not in VALID_LINKS:
             raise ValueError(f"link must be one of {VALID_LINKS}, got {self.link!r}")
         # The Bernoulli likelihood requires y in [0, 1]; least squares on the
@@ -175,6 +185,28 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
                 'Bernoulli likelihood); use link="identity" for unbounded targets'
             )
 
+        # The penalty controls curvature and has no principled fixed value, so
+        # it is selected unless the caller pins it. Stored on alpha_, never
+        # written back onto self.alpha.
+        self.alpha_ = resolve_auto(
+            self.alpha,
+            "alpha",
+            self.ALPHA_GRID,
+            lambda **kw: type(self)(
+                n_knots=self.n_knots,
+                degree=self.degree,
+                knots=self.knots,
+                link=self.link,
+                clip_output=self.clip_output,
+                **kw,
+            ),
+            X,
+            y,
+            cv=self.cv,
+            scoring=self.scoring,
+            random_state=self.random_state,
+        )
+
         basis = monotone_spline_basis(
             n_knots=self.n_knots, degree=self.degree, knots=self.knots
         ).fit(X)
@@ -182,7 +214,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
             basis.design(X),
             y,
             sample_weight=sample_weight,
-            alpha=float(self.alpha),
+            alpha=self.alpha_,
             link=self.link,
         )
 

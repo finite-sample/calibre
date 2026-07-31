@@ -4,7 +4,7 @@
 # Fixtures are committed to tests/fixtures/r/ so CI needs no R installation.
 # Regenerate deliberately:  Rscript experiments/r_reference/gen_fixtures.R
 #
-# Required packages: isotone, Iso, cir, neariso, scam
+# Required packages: isotone, Iso, cir, neariso, scam, reliabilitydiag
 #
 # neariso (CRAN-archived, 2011) does not compile against modern libc++ because
 # R.h's `length` macro expands inside libc++ <locale>. To build it:
@@ -20,6 +20,7 @@ suppressPackageStartupMessages({
   library(Iso)
   library(cir)
   library(neariso)
+  library(reliabilitydiag)
   library(jsonlite)
 })
 
@@ -219,10 +220,46 @@ for (nm in c("logistic", "concave", "steep")) {
   )
 }
 
+# ------------------------------------------------------- CORP decompositions --
+# reliabilitydiag is the reference implementation for Dimitriadis, Gneiting &
+# Jordan (2021). summary() returns the components calibre::score_decomposition
+# must reproduce; cases$CEP_pav is the recalibrated conditional event
+# probability per observation, which pins corp_reliability.
+corp_cases <- list()
+set.seed(20260731)
+corp_inputs <- list(
+  calibrated   = list(n = 500,  distort = function(p) p),
+  overconfident = list(n = 500, distort = function(p) pmin(pmax(1.6 * (p - 0.5) + 0.5, 0), 1)),
+  squashed     = list(n = 500,  distort = function(p) 0.4 * (p - 0.5) + 0.5),
+  tied         = list(n = 600,  distort = function(p) round(p, 1)),
+  rare_event   = list(n = 800,  distort = function(p) p * 0.15)
+)
+for (nm in names(corp_inputs)) {
+  spec <- corp_inputs[[nm]]
+  p <- runif(spec$n)
+  y <- rbinom(spec$n, 1, p)
+  x <- spec$distort(p)
+  rd <- reliabilitydiag(X = x, y = y)
+  # Brier only. reliabilitydiag ships just `brier` as a scoring rule and
+  # resolves summary(score=) with get(); a hand-supplied log score returns a
+  # value that is not the mean log loss, so it is not pinned here. calibre's
+  # log-score decomposition is checked algebraically in tests/test_evaluation.py
+  # instead -- the identity and the non-negativity of MCB/DSC are exact.
+  s <- summary(rd, score = "brier")
+  cases <- as.data.frame(rd$X$cases)
+  cases <- cases[order(cases$case_id), ]
+  corp_cases[[nm]] <- list(
+    x = as.numeric(x), y = as.numeric(y),
+    cep_pav = as.numeric(cases$CEP_pav),
+    brier = list(mean_score = s$mean_score, miscalibration = s$miscalibration,
+                 discrimination = s$discrimination, uncertainty = s$uncertainty)
+  )
+}
+
 meta <- list(
   generated_by = "experiments/r_reference/gen_fixtures.R",
   r_version = paste(R.version$major, R.version$minor, sep = "."),
-  packages = sapply(c("isotone", "Iso", "cir", "neariso", "scam"),
+  packages = sapply(c("isotone", "Iso", "cir", "neariso", "scam", "reliabilitydiag"),
                     function(p) as.character(utils::packageVersion(p)))
 )
 
@@ -235,7 +272,11 @@ write_json(list(meta = meta, cases = ni, out_of_range = ni_oor),
 write_json(list(meta = meta, cases = scam_cases),
            file.path(out_dir, "scam_reference.json"),
            digits = 17, auto_unbox = FALSE, pretty = TRUE, null = "null")
+write_json(list(meta = meta, cases = corp_cases),
+           file.path(out_dir, "corp_reference.json"),
+           digits = 17, auto_unbox = FALSE, pretty = TRUE, null = "null")
 
 cat("wrote", file.path(out_dir, "pava_reference.json"), "\n")
 cat("wrote", file.path(out_dir, "neariso_reference.json"), "\n")
 cat("wrote", file.path(out_dir, "scam_reference.json"), "\n")
+cat("wrote", file.path(out_dir, "corp_reference.json"), "\n")

@@ -5,6 +5,7 @@ Comprehensive tests for metrics module.
 import numpy as np
 import pytest
 
+import calibre.metrics
 from calibre.metrics import (
     binned_calibration_error,
     brier_score,
@@ -366,3 +367,134 @@ class TestEdgeCases:
         # Should either handle NaN gracefully or raise appropriate error
         with pytest.raises((ValueError, TypeError)):
             mean_calibration_error(y_true, y_pred)
+
+
+# --------------------------------------------------------------------------- #
+# Debiased and monotonic-sweep calibration error
+# --------------------------------------------------------------------------- #
+
+
+def _calibrated_sample(seed: int, n: int):
+    """Generate predictions that are calibrated by construction.
+
+    Parameters
+    ----------
+    seed
+        Random seed.
+    n
+        Number of observations.
+
+    Returns
+    -------
+    tuple of ndarray
+        Predictions and outcomes.
+    """
+    rng = np.random.default_rng(seed)
+    p = rng.uniform(0.0, 1.0, n)
+    return p, rng.binomial(1, p).astype(float)
+
+
+def test_equal_mass_bins_never_split_a_tie_group():
+    """Identical predictions must share a bin.
+
+    Splitting a tie group compares a bin's mean prediction against a mean label
+    drawn from an arbitrary subset of observations carrying that same
+    prediction, which measures the sort order rather than calibration. Clipping
+    makes this the common case, not an exotic one.
+    """
+    from calibre.metrics import _equal_mass_bins
+
+    rng = np.random.default_rng(7)
+    p = rng.uniform(0.0, 1.0, 500)
+    clipped = np.clip(1.6 * (p - 0.5) + 0.5, 0.0, 1.0)
+    assert (clipped == 0.0).sum() > 50, "fixture should have heavy ties"
+
+    bin_id, _ = _equal_mass_bins(clipped, 15)
+    for value in np.unique(clipped):
+        assert len(np.unique(bin_id[clipped == value])) == 1
+
+
+def test_equal_mass_bins_are_balanced_without_ties():
+    """With distinct values the bins really are equal mass."""
+    from calibre.metrics import _equal_mass_bins
+
+    rng = np.random.default_rng(1)
+    p = rng.uniform(0.0, 1.0, 1000)
+    bin_id, n_used = _equal_mass_bins(p, 10)
+    counts = np.bincount(bin_id, minlength=n_used)
+    assert n_used == 10
+    assert counts.min() == counts.max() == 100
+
+
+def test_debiasing_removes_error_that_is_not_there():
+    """On calibrated data the plugin estimator reports error; debiasing does not.
+
+    The plugin bias grows with the bin count, so this is checked at 15 bins
+    where it is large enough to be unmistakable.
+    """
+    p, y = _calibrated_sample(0, 4000)
+    plugin = expected_calibration_error(y, p, n_bins=15)
+    debiased = calibre.metrics.debiased_calibration_error(y, p, n_bins=15)
+    assert plugin > 0.01
+    assert debiased < plugin
+
+
+def test_debiased_error_detects_real_miscalibration():
+    """Debiasing must not flatten genuine miscalibration to zero."""
+    p, y = _calibrated_sample(1, 4000)
+    squashed = 0.4 * (p - 0.5) + 0.5
+    assert calibre.metrics.debiased_calibration_error(y, squashed, n_bins=15) > 0.1
+
+
+def test_debiased_error_is_never_negative():
+    """The correction can overshoot; the reported error is floored at zero."""
+    for seed in range(10):
+        p, y = _calibrated_sample(100 + seed, 200)
+        assert calibre.metrics.debiased_calibration_error(y, p, n_bins=15) >= 0.0
+
+
+def test_debiased_error_rejects_mismatched_lengths():
+    """Length mismatch is an error, not a broadcast."""
+    with pytest.raises(ValueError, match="same length"):
+        calibre.metrics.debiased_calibration_error(
+            np.array([0.0, 1.0]), np.array([0.5])
+        )
+
+
+def test_sweep_stops_before_the_bins_read_noise():
+    """ECE_sweep picks a bin count and reports a small error when calibrated."""
+    p, y = _calibrated_sample(2, 4000)
+    assert calibre.metrics.sweep_calibration_error(y, p) < 0.05
+
+
+def test_sweep_detects_real_miscalibration():
+    """A distorted forecast must score much worse than an honest one."""
+    p, y = _calibrated_sample(3, 4000)
+    squashed = 0.4 * (p - 0.5) + 0.5
+    honest = calibre.metrics.sweep_calibration_error(y, p)
+    distorted = calibre.metrics.sweep_calibration_error(y, squashed)
+    assert distorted > honest * 3
+
+
+def test_sweep_is_order_invariant():
+    """Shuffling rows must not change the answer."""
+    p, y = _calibrated_sample(4, 1000)
+    rng = np.random.default_rng(0)
+    perm = rng.permutation(p.size)
+    assert calibre.metrics.sweep_calibration_error(y, p) == pytest.approx(
+        calibre.metrics.sweep_calibration_error(y[perm], p[perm])
+    )
+
+
+def test_sweep_handles_degenerate_input():
+    """One observation supports no binning at all."""
+    assert (
+        calibre.metrics.sweep_calibration_error(np.array([1.0]), np.array([0.5])) == 0.0
+    )
+
+
+def test_sweep_rejects_a_norm_below_one():
+    """p < 1 is not a norm."""
+    p, y = _calibrated_sample(5, 100)
+    with pytest.raises(ValueError, match="p must be at least 1"):
+        calibre.metrics.sweep_calibration_error(y, p, p=0)
