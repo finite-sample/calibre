@@ -24,6 +24,7 @@ We provide focused, executable Jupyter notebooks for hands-on learning:
    ../notebooks/03_diagnostics_and_troubleshooting
    ../notebooks/04_performance_comparison
    ../notebooks/05_evaluating_calibration
+   ../notebooks/06_multiclass
 
 Notebook Overview
 ~~~~~~~~~~~~~~~~~
@@ -58,6 +59,12 @@ Notebook Overview
    - The MCB / DSC / UNC decomposition — separating fixable miscalibration
      from lost discrimination
    - Why in-sample calibration error is identically zero, and what to use instead
+
+🎯 **Multiclass** (:doc:`../notebooks/06_multiclass`)
+   - Two regimes with different winners, measured against known true probabilities
+   - ``miscalibration_profile``: telling which regime your data is in
+   - Why temperature scaling can never change accuracy, and when that is the problem
+   - The within-class reordering that no standard metric reveals
 
 Running the Notebooks
 ~~~~~~~~~~~~~~~~~~~~~~
