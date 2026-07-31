@@ -1,58 +1,90 @@
-"""
-Locally smoothed isotonic regression.
+"""Locally smoothed isotonic regression.
 
-This module provides isotonic regression with Savitzky-Golay smoothing to
-reduce jaggedness while preserving monotonicity.
+Isotonic regression's fitted curve is a staircase. This calibrator runs a
+Savitzky-Golay filter over that staircase to soften the steps, then restores
+monotonicity with a running maximum.
+
+Savitzky-Golay is a local polynomial fit and does **not** preserve monotonicity
+on its own -- a rising staircase can be smoothed into something with a local dip.
+The running maximum afterwards is what makes the result monotone, not the filter.
+
+This estimator is retained for continuity. :class:`CenteredIsotonicCalibrator`
+addresses the same jaggedness with a construction that is monotone by design
+rather than by repair.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 import numpy as np
-from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
-from sklearn.isotonic import IsotonicRegression
 
+from .._core import PiecewiseLinear, aggregate_ties, weighted_pava
 from ..base import (
     DEFAULT_POLY_ORDER,
     MIN_VARIANCE_THRESHOLD,
     BaseCalibrator,
     MonotonicMixin,
 )
-from ..utils import check_arrays, sort_by_x
+from ..utils import check_arrays
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["SmoothedIsotonicCalibrator"]
+
 
 class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
-    """Locally smoothed isotonic regression.
+    """Isotonic regression with Savitzky-Golay smoothing.
 
-    This calibrator applies standard isotonic regression and then smooths
-    the result using a Savitzky-Golay filter, which preserves the monotonicity
-    properties while reducing jaggedness.
+    Fits weighted PAVA on the pooled unique scores, smooths the fitted values,
+    restores monotonicity with a running maximum, and interpolates linearly
+    between the resulting knots.
 
     Parameters
     ----------
     window_length
-        Window length for Savitzky-Golay filter. Should be odd.
-        If None, window_length is set to max(5, len(X)//10)
+        Window length for the Savitzky-Golay filter, in **distinct** scores.
+        Forced odd and capped at the number of distinct scores. If None, uses
+        ``max(5, n_distinct // 10)``.
     poly_order
-        Polynomial order for the Savitzky-Golay filter.
-        Must be less than window_length.
-    interp_method
-        Interpolation method to use ('linear', 'cubic', etc.)
+        Polynomial order for the filter. Values below 1 are raised to 1.
     adaptive
-        Whether to use adaptive window sizes based on local density.
+        Size the window per point from local density instead of using one
+        fixed window.
     min_window
-        Minimum window length when using adaptive=True.
+        Minimum window length when ``adaptive=True``. Values below 3 are
+        raised to 3.
     max_window
-        Maximum window length when using adaptive=True.
-        If None, max_window is set to len(X)//5.
+        Maximum window length when ``adaptive=True``. If None, uses
+        ``n_distinct // 5``.
     enable_diagnostics
-        Whether to enable plateau diagnostics analysis.
+        Run plateau diagnostics after fitting.
 
+    Attributes
+    ----------
+    calibration_curve_ : PiecewiseLinear
+        The fitted calibration map, on the distinct training scores.
+    poly_order_ : int
+        ``poly_order`` after validation.
+    min_window_ : int
+        ``min_window`` after validation.
+    n_features_in_ : int
+        Always 1. Present for scikit-learn compatibility.
+
+    Notes
+    -----
+    Window lengths count *distinct* scores, not observations. Tied scores are
+    pooled before smoothing, because a filter applied across repeated abscissae
+    smooths over points that carry no separate information, and an interpolant
+    cannot be built on repeated abscissae at all.
+
+    This estimator does not preserve granularity well. Restoring monotonicity
+    with a running maximum re-flattens the curve wherever the filter introduced
+    a dip, so plateaus come back: on the package's test datasets it retains
+    roughly 13-16% of the distinct input values, against 100% for
+    :class:`CenteredIsotonicCalibrator`. If granularity is why you are here,
+    use that instead.
 
     Examples
     --------
@@ -64,30 +96,29 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     >>>
     >>> cal = SmoothedIsotonicCalibrator(window_length=7)
     >>> _ = cal.fit(X, y)
-    >>> X_calibrated = cal.transform(X)
+    >>> p = cal.transform(np.array([0.15, 0.45]))
+    >>> bool(p[0] <= p[1])
+    True
 
     See Also
     --------
-    IsotonicCalibrator : Isotonic regression without smoothing
-    RegularizedIsotonicCalibrator : L2 regularization instead of smoothing
+    IsotonicCalibrator : Isotonic regression without smoothing.
+    CenteredIsotonicCalibrator : Smooth by construction rather than by repair.
     """
 
     def __init__(
         self,
         window_length: int | None = None,
         poly_order: int = DEFAULT_POLY_ORDER,
-        interp_method: str = "linear",
         adaptive: bool = False,
         min_window: int = 5,
         max_window: int | None = None,
         enable_diagnostics: bool = False,
     ):
-        # Call base class for diagnostic support
         super().__init__(enable_diagnostics=enable_diagnostics)
 
         self.window_length = window_length
         self.poly_order = poly_order
-        self.interp_method = interp_method
         self.adaptive = adaptive
         self.min_window = min_window
         self.max_window = max_window
@@ -98,194 +129,239 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
     ) -> None:
-        """Implement the smoothed isotonic regression fitting logic.
+        """Fit the smoothed isotonic calibration map.
 
         Parameters
         ----------
         X
-            The training input samples.
+            Uncalibrated scores.
         y
-            The target values.
+            Targets: binary labels, or probabilities in ``[0, 1]``.
+        sample_weight
+            Not supported by this calibrator.
 
         Notes
         -----
-        This method implements the actual fitting logic. Data storage,
-        diagnostics, and return value are handled by the base class fit() method.
+        All of the work happens here so that ``transform`` is a pure lookup.
+        Validated parameters are written to trailing-underscore attributes; the
+        constructor arguments are left untouched so that ``get_params`` round
+        trips and ``sklearn.base.clone`` reproduces the estimator.
         """
         self._reject_sample_weight(sample_weight)
         X, y = check_arrays(X, y)
 
-        if self.poly_order < 1:
+        self.poly_order_ = self.poly_order
+        if self.poly_order_ < 1:
             logger.warning(
-                f"poly_order should be at least 1. Got {self.poly_order}. Setting to 1."
+                f"poly_order should be at least 1. Got {self.poly_order}. Using 1."
             )
-            self.poly_order = 1
+            self.poly_order_ = 1
 
-        if self.min_window < 3:
+        self.min_window_ = self.min_window
+        if self.min_window_ < 3:
             logger.warning(
-                f"min_window should be at least 3. Got {self.min_window}. Setting to 3."
+                f"min_window should be at least 3. Got {self.min_window}. Using 3."
             )
-            self.min_window = 3
+            self.min_window_ = 3
 
-        self.X_ = X
-        self.y_ = y
+        # Pool tied scores first: the estimator is defined on an ordered
+        # sequence, and an interpolant cannot be built on repeated abscissae.
+        x_unique, y_mean, weight = aggregate_ties(X, y)
+        y_iso = weighted_pava(y_mean, weight)
+
+        if self.adaptive:
+            y_smoothed = self._smooth_adaptive(x_unique, y_iso)
+        else:
+            y_smoothed = self._smooth_fixed(y_iso)
+
+        y_smoothed = np.clip(self.enforce_monotonicity(y_smoothed), 0.0, 1.0)
+
+        self.calibration_curve_ = PiecewiseLinear(x_unique, y_smoothed)
+        self.n_features_in_ = 1
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Apply smoothed isotonic calibration to new data.
+        """Map scores through the fitted calibration curve.
 
         Parameters
         ----------
         X
-            The values to be calibrated.
+            Scores to calibrate.
 
         Returns
         -------
-        X_calibrated : array-like of shape (n_samples,)
-            Calibrated values.
+        ndarray of shape (n_samples,)
+            Calibrated probabilities.
+
+        Raises
+        ------
+        AttributeError
+            If called before :meth:`fit`.
         """
-        X = np.asarray(X).ravel()
-        if self.adaptive:
-            y_smoothed = self._transform_adaptive()
-        else:
-            y_smoothed = self._transform_fixed()
+        if not hasattr(self, "calibration_curve_"):
+            raise AttributeError(
+                f"{type(self).__name__} is not fitted yet. Call fit() first."
+            )
+        return self.calibration_curve_(np.asarray(X, dtype=float).ravel())
 
-        # A two-tuple fill_value sets the below-range and above-range values
-        # separately. scipy's stub declares the parameter as a single float, so the
-        # tuple form needs the annotation loosened rather than the call changed.
-        edge_fill: Any = (float(np.min(y_smoothed)), float(np.max(y_smoothed)))
-        cal_func = interp1d(
-            self.X_,
-            y_smoothed,
-            kind=self.interp_method,
-            bounds_error=False,
-            fill_value=edge_fill,
-        )
+    def _smooth_fixed(self, y_iso: np.ndarray) -> np.ndarray:
+        """Smooth the isotonic fit with one window length.
 
-        return np.asarray(np.clip(cal_func(X), 0, 1))
+        Parameters
+        ----------
+        y_iso
+            Isotonic fit on the distinct scores.
 
-    def _transform_fixed(self) -> np.ndarray:
-        """Implement smoothed isotonic regression with fixed window size."""
-        order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
-        ir = IsotonicRegression(out_of_bounds="clip")
-        y_iso = ir.fit_transform(X_sorted, y_sorted)
-
-        n = len(X_sorted)
+        Returns
+        -------
+        ndarray
+            Smoothed values, not yet made monotone.
+        """
+        m = y_iso.size
         window_length = (
-            self.window_length if self.window_length is not None else max(5, n // 10)
+            self.window_length if self.window_length is not None else max(5, m // 10)
         )
         if window_length % 2 == 0:
             window_length += 1
-        window_length = min(window_length, n - (n % 2 == 0))
-        poly_order = min(self.poly_order, window_length - 1)
+        window_length = min(window_length, m - (m % 2 == 0))
+        poly_order = min(self.poly_order_, window_length - 1)
 
-        if n >= window_length:
-            try:
-                y_smoothed = np.asarray(
-                    savgol_filter(y_iso, window_length, poly_order), dtype=float
-                )
-                # Check for low variance in the smoothed output
-                if np.var(y_smoothed) < MIN_VARIANCE_THRESHOLD:
-                    logger.warning(
-                        "Smoothed output has low variance; falling back to isotonic regression result."
-                    )
-                    y_smoothed = y_iso
-                else:
-                    # Enforce monotonicity post-smoothing
-                    y_smoothed = self.enforce_monotonicity(y_smoothed)
-            except Exception as e:
-                logger.warning(f"Savitzky-Golay smoothing failed: {e}")
-                y_smoothed = y_iso
-        else:
+        if m < window_length or window_length < 3:
             logger.info(
-                f"Not enough points for smoothing (need {window_length}, have {n}). Using isotonic regression without smoothing."
+                f"Not enough distinct scores for smoothing (need {window_length}, "
+                f"have {m}). Using the isotonic fit."
             )
-            y_smoothed = y_iso
+            return y_iso
 
-        y_result = np.empty_like(y_smoothed)
-        y_result[order] = y_smoothed
-        return np.asarray(np.clip(y_result, 0, 1))
+        try:
+            y_smoothed = np.asarray(
+                savgol_filter(y_iso, window_length, poly_order), dtype=float
+            )
+        except Exception as e:
+            logger.warning(f"Savitzky-Golay smoothing failed: {e}")
+            return y_iso
 
-    def _transform_adaptive(self) -> np.ndarray:
-        """Implement smoothed isotonic regression with adaptive window size."""
-        order, X_sorted, y_sorted = sort_by_x(self.X_, self.y_)
-        ir = IsotonicRegression(out_of_bounds="clip")
-        y_iso = ir.fit_transform(X_sorted, y_sorted)
+        # A near-constant smoothed curve means the filter has flattened the fit
+        # rather than softened it; the isotonic values are the better answer.
+        if np.var(y_smoothed) < MIN_VARIANCE_THRESHOLD:
+            logger.warning(
+                "Smoothed output has low variance; falling back to the isotonic fit."
+            )
+            return y_iso
+        return y_smoothed
 
-        n = len(X_sorted)
+    def _smooth_adaptive(self, x: np.ndarray, y_iso: np.ndarray) -> np.ndarray:
+        """Smooth the isotonic fit with a per-point window from local density.
+
+        Parameters
+        ----------
+        x
+            Distinct scores, strictly increasing.
+        y_iso
+            Isotonic fit on those scores.
+
+        Returns
+        -------
+        ndarray
+            Smoothed values, not yet made monotone.
+        """
+        m = y_iso.size
+        if m <= 1:
+            return y_iso
+
+        x_range = x[-1] - x[0]
+        if x_range <= 0:
+            return y_iso
+
         max_window = (
             self.max_window
             if self.max_window is not None
-            else max(self.min_window, n // 5)
+            else max(self.min_window_, m // 5)
         )
         if max_window % 2 == 0:
             max_window += 1
 
-        y_smoothed = np.array(y_iso)
-        if n <= 1:
-            y_result = np.empty_like(y_smoothed)
-            y_result[order] = y_smoothed
-            return y_result
-
-        x_range = X_sorted[-1] - X_sorted[0]
-        if x_range <= 0:
-            return np.asarray(np.clip(y_iso, 0, 1))
-        x_norm = (X_sorted - X_sorted[0]) / x_range
-
-        for i in range(n):
+        x_norm = (x - x[0]) / x_range
+        y_smoothed = np.array(y_iso, dtype=float)
+        for i in range(m):
             distances = np.abs(x_norm[i] - x_norm)
             window_size = self._find_optimal_window_size(
-                distances, self.min_window, max_window, n
+                distances, self.min_window_, max_window, m
             )
             if window_size >= 5:
-                y_smoothed[i] = self._apply_local_smoothing(
-                    i, window_size, X_sorted, y_iso, n
-                )
-
-        # Enforce monotonicity
-        y_smoothed = self.enforce_monotonicity(y_smoothed)
-
-        y_result = np.empty_like(y_smoothed)
-        y_result[order] = y_smoothed
-        return np.asarray(np.clip(y_result, 0, 1))
+                y_smoothed[i] = self._apply_local_smoothing(i, window_size, y_iso, m)
+        return y_smoothed
 
     def _find_optimal_window_size(
-        self, distances: np.ndarray, min_window: int, max_window: int, n: int
+        self, distances: np.ndarray, min_window: int, max_window: int, m: int
     ) -> int:
+        """Return the largest window whose span holds at least that many points.
+
+        Parameters
+        ----------
+        distances
+            Normalised distances from the point of interest to every score.
+        min_window
+            Smallest window to consider.
+        max_window
+            Largest window to consider.
+        m
+            Number of distinct scores.
+
+        Returns
+        -------
+        int
+            Chosen window length.
+        """
         window_size = min_window
         for w in range(min_window, max_window + 2, 2):
-            width = w / n
-            count = np.sum(distances <= width)
-            if count >= w:
+            if np.sum(distances <= w / m) >= w:
                 window_size = w
             else:
                 break
         return window_size
 
     def _apply_local_smoothing(
-        self, i: int, window_size: int, X_sorted: np.ndarray, y_iso: np.ndarray, n: int
+        self, i: int, window_size: int, y_iso: np.ndarray, m: int
     ) -> float:
+        """Smooth one point against its local window.
+
+        Parameters
+        ----------
+        i
+            Index of the point to smooth.
+        window_size
+            Window length to centre on ``i``.
+        y_iso
+            Isotonic fit on the distinct scores.
+        m
+            Number of distinct scores.
+
+        Returns
+        -------
+        float
+            Smoothed value, or the isotonic value if the window is too small.
+        """
         half_window = window_size // 2
         start_idx = max(0, i - half_window)
-        end_idx = min(n, i + half_window + 1)
-        if end_idx - start_idx < 5:
-            return float(y_iso[i])
+        end_idx = min(m, i + half_window + 1)
 
-        x_local = X_sorted[start_idx:end_idx]
-        y_local = y_iso[start_idx:end_idx]
-        window_len = len(x_local)
+        window_len = end_idx - start_idx
         if window_len % 2 == 0:
             window_len -= 1
         if window_len < 5:
             return float(y_iso[i])
 
-        poly_ord = min(self.poly_order, window_len - 1)
+        poly_ord = min(self.poly_order_, window_len - 1)
         try:
             y_local_smooth = np.asarray(
-                savgol_filter(y_local, window_len, poly_ord), dtype=float
+                savgol_filter(y_iso[start_idx:end_idx], window_len, poly_ord),
+                dtype=float,
             )
-            local_idx = i - start_idx
-            if 0 <= local_idx < len(y_local_smooth):
-                return float(y_local_smooth[local_idx])
         except Exception as e:
             logger.debug(f"Local smoothing failed for point {i}: {e}")
+            return float(y_iso[i])
+
+        local_idx = i - start_idx
+        if 0 <= local_idx < y_local_smooth.size:
+            return float(y_local_smooth[local_idx])
         return float(y_iso[i])

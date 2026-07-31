@@ -266,9 +266,7 @@ class TestSmoothedIsotonicCalibrator:
     def test_basic_functionality(self, calibration_data):
         """Test SmoothedIsotonicCalibrator basic operations."""
         x, y_observed, y_true = calibration_data
-        cal = SmoothedIsotonicCalibrator(
-            window_length=7, poly_order=3, interp_method="linear"
-        )
+        cal = SmoothedIsotonicCalibrator(window_length=7, poly_order=3)
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 

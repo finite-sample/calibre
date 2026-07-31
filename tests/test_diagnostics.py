@@ -81,7 +81,7 @@ def test_standalone_run_plateau_diagnostics(plateau_data):
     y_calibrated = cal.transform(X)
 
     # Run standalone diagnostics
-    diagnostics = run_plateau_diagnostics(X, y_binary, y_calibrated)
+    diagnostics = run_plateau_diagnostics(X, y_calibrated)
 
     assert isinstance(diagnostics, dict)
     assert "n_plateaus" in diagnostics
@@ -125,7 +125,7 @@ def test_diagnostic_workflow_comparison():
     cal_standalone = IsotonicCalibrator()
     cal_standalone.fit(X, y)
     y_calibrated = cal_standalone.transform(X)
-    standalone_diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
+    standalone_diagnostics = run_plateau_diagnostics(X, y_calibrated)
 
     # Should have same structure
     assert builtin_diagnostics.keys() == standalone_diagnostics.keys()
@@ -134,19 +134,11 @@ def test_diagnostic_workflow_comparison():
 
 def test_edge_cases():
     """Test edge cases for diagnostics."""
-    # Empty arrays
-    X_empty = np.array([])
-    y_empty = np.array([])
-    y_cal_empty = np.array([])
-
-    # Should handle gracefully
-    try:
-        diagnostics = run_plateau_diagnostics(X_empty, y_empty, y_cal_empty)
-        # If it doesn't raise an error, check it returns reasonable results
-        assert isinstance(diagnostics, dict)
-    except (ValueError, IndexError):
-        # It's okay if it raises an error for empty arrays
-        pass
+    # Empty arrays: an empty curve has no flat regions, so the diagnosis is
+    # empty rather than an error. Asserted exactly, not caught-and-ignored.
+    empty = np.array([])
+    diagnostics = run_plateau_diagnostics(empty, empty)
+    assert diagnostics == {"n_plateaus": 0, "plateaus": [], "warnings": []}
 
     # Single value
     np.array([0.5])

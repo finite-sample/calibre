@@ -7,6 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-30
+
+A follow-up to 0.7.0's correctness work. An audit of what 0.7.0 left behind found one
+calibrator still breaking the package's central guarantee, three public parameters that
+were accepted and ignored, and a test suite that converted its own failures into skips.
+
+### 💥 BREAKING CHANGES
+
+- **`SmoothedIsotonicCalibrator` was not monotone on tied scores** — in its *default*
+  configuration. It was the last module still building its interpolant with
+  `scipy.interpolate.interp1d` directly on the training scores, duplicates and all,
+  which keeps whichever tied point survived the sort. Measured on 600 scores rounded to
+  two decimals: 34 monotonicity violations, worst −0.0268. Tied scores are the ordinary
+  case in calibration — tree ensembles and any rounded or binned score produce them. It
+  now pools ties with `aggregate_ties` and interpolates with `PiecewiseLinear`, like
+  every other calibrator. Zero violations.
+  - `interp_method` is **removed**. Its documented `"cubic"` value produced 1424
+    violations out of 4999 (worst −0.1127): monotonicity was enforced on the knots and
+    cubic interpolation put the overshoot back between them. `"linear"` was the only
+    safe value, so the parameter was a footgun with no valid alternative. No test ever
+    passed anything but `"linear"`.
+  - The fit now happens in `fit`. `transform` previously re-ran isotonic regression and
+    Savitzky-Golay smoothing on every call.
+  - Window lengths now count *distinct* scores rather than observations.
+- **`run_plateau_diagnostics` no longer takes `y`, `n_bootstraps` or `random_state`.**
+  All three were accepted and ignored — `n_bootstraps` and `random_state` were even
+  commented as such in the source while the docstring documented them as live. The
+  diagnosis is structural: it reads the calibrated curve, not the outcomes. Old
+  three-argument calls now raise `TypeError` rather than silently rebinding.
+- **`analyze_plateau_simple` no longer takes `y_calibrated`**, which it never read.
+
+### Fixed
+
+- **`fit()` no longer mutates constructor parameters.** `SmoothedIsotonicCalibrator`
+  wrote coerced `poly_order` and `min_window` values back onto the instance, so
+  `get_params()` did not round trip and `sklearn.base.clone` produced a different
+  estimator. Validated values now live on `poly_order_` and `min_window_`.
+- **`CDIIsotonicCalibrator` exposed fitted state as hyperparameters.** As a
+  `@dataclass`, its "fitted attributes" (`_fitted`, `_L`, `_R`, `_z_fit`, …) landed in
+  the generated `__init__`, which is what scikit-learn inspects — so `get_params()`
+  returned fitted arrays, `clone()` copied a fit into a supposedly fresh estimator, and
+  `repr()` printed the arrays. They are now `field(init=False, repr=False)`.
+
+### Changed
+
+- **The test suite no longer converts failures into skips.** Nine
+  `except Exception: pytest.skip(...)` handlers were hiding three failing assertions,
+  and because `skip` aborts the whole test, every calibrator after the first failure in
+  each loop went unchecked. Expectations that were simply wrong have been corrected
+  rather than suppressed: `NearlyIsotonicCalibrator` is asserted to reduce violations as
+  lambda rises (measured 82 → 49 → 0) instead of being held to a fixed tolerance it
+  cannot meet by design, and the granularity floor is applied only to the calibrators
+  that claim granularity preservation.
+- `SmoothedIsotonicCalibrator` is now documented as *not* preserving granularity: the
+  running maximum that restores monotonicity re-flattens the curve wherever the filter
+  dipped, retaining roughly 13–16% of distinct input values. This is long-standing
+  behaviour, identical in 0.7.0; it was simply never measured.
+- Docs no longer advertise diagnostics that do not exist. `CLAUDE.md` and the
+  diagnostics notebook claimed bootstrap tie stability, conditional AUC among tied
+  pairs, and minimum detectable difference; none were ever implemented.
+- **Every example notebook ran end to end for the first time in several releases.** All
+  four were failing at their import cell — 0.7.0 dropped `matplotlib` and `pandas` as
+  runtime dependencies without adding them to the docs group, and
+  `03_diagnostics_and_troubleshooting` had no import cell at all. 27 of 33 code cells
+  raised, and the tracebacks were published to the docs site as cell output because
+  `nbsphinx_allow_errors` was `True`. That flag is now `False`, so a failing cell fails
+  the build; `matplotlib` and `pandas` are in the `docs` dependency group; and
+  `boxplot(labels=...)` is updated to matplotlib 3.9's `tick_labels`. All 33 cells now
+  execute cleanly and the plots render.
+
 ## [0.7.0] - 2026-07-30
 
 Correctness release. Several estimators did not compute what they claimed; each of

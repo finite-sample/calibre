@@ -38,7 +38,7 @@ p_test = cal.transform(scores_test)
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -228,16 +228,26 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
     normalize_scores: bool = True
     clip_output: bool = True
 
-    # Fitted attributes
-    _fitted: bool = False
-    _s_min: float = 0.0
-    _s_max: float = 1.0
-    _x_unique: np.ndarray | None = None  # unique sorted scores (train scale)
-    _x_unique_scaled: np.ndarray | None = None  # scaled to [0,1] if normalize_scores
-    _z_fit: np.ndarray | None = None  # calibrated values per unique score
-    _L: np.ndarray | None = None  # local bounds per adjacency
-    _R: np.ndarray | None = None  # cumulative shift
-    _w_block: np.ndarray | None = None  # weights per unique score (counts)
+    # Fitted attributes. `init=False` keeps them out of the generated __init__,
+    # which is what sklearn's BaseEstimator inspects to decide what a
+    # hyperparameter is. Without it these appear in get_params(), so clone()
+    # copies fitted state into a supposedly fresh estimator and repr() prints
+    # the whole fitted arrays.
+    _fitted: bool = field(default=False, init=False, repr=False)
+    _s_min: float = field(default=0.0, init=False, repr=False)
+    _s_max: float = field(default=1.0, init=False, repr=False)
+    # unique sorted scores (train scale)
+    _x_unique: np.ndarray | None = field(default=None, init=False, repr=False)
+    # scaled to [0,1] if normalize_scores
+    _x_unique_scaled: np.ndarray | None = field(default=None, init=False, repr=False)
+    # calibrated values per unique score
+    _z_fit: np.ndarray | None = field(default=None, init=False, repr=False)
+    # local bounds per adjacency
+    _L: np.ndarray | None = field(default=None, init=False, repr=False)
+    # cumulative shift
+    _R: np.ndarray | None = field(default=None, init=False, repr=False)
+    # weights per unique score (counts)
+    _w_block: np.ndarray | None = field(default=None, init=False, repr=False)
 
     # ----------------------------- core API -------------------------------- #
 
