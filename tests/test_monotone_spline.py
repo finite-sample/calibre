@@ -23,6 +23,23 @@ BASIS_CONFIGS = [
 
 LINKS = ["logit", "identity"]
 
+# Every exported calibrator.
+ALL_CALIBRATORS = [
+    "CDIIsotonicCalibrator",
+    "CenteredIsotonicCalibrator",
+    "IsotonicCalibrator",
+    "NearlyIsotonicCalibrator",
+    "RegularizedIsotonicCalibrator",
+    "RelaxedPAVACalibrator",
+    "SmoothedIsotonicCalibrator",
+    "SplineCalibrator",
+]
+
+# NearlyIsotonicCalibrator is deliberately absent: it penalises monotonicity
+# violations rather than forbidding them, so a violation there is the estimator
+# working, not failing.
+MONOTONE_CALIBRATORS = [c for c in ALL_CALIBRATORS if c != "NearlyIsotonicCalibrator"]
+
 
 def _dataset(seed: int, n: int = 500, shape: str = "logistic"):
     """Generate a miscalibrated score/label pair.
@@ -440,11 +457,38 @@ def test_regularized_alpha_preserves_mean_calibration():
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize(
-    "cls_name", ["SplineCalibrator", "RegularizedIsotonicCalibrator"]
-)
+def _same_params(a: dict, b: dict) -> bool:
+    """Compare two get_params() mappings elementwise.
+
+    ``==`` is not enough: some calibrators take array-valued parameters (CDI's
+    ``thresholds``), and comparing those with ``==`` yields an array, which
+    ``assert`` cannot evaluate.
+
+    Parameters
+    ----------
+    a
+        Parameters before fitting.
+    b
+        Parameters after fitting.
+
+    Returns
+    -------
+    bool
+        True if every parameter is unchanged.
+    """
+    if a.keys() != b.keys():
+        return False
+    return all(np.array_equal(np.asarray(a[k]), np.asarray(b[k])) for k in a)
+
+
+@pytest.mark.parametrize("cls_name", ALL_CALIBRATORS)
 def test_fit_does_not_mutate_constructor_params(cls_name):
-    """fit() must leave get_params() untouched, or clone/GridSearchCV break."""
+    """fit() must leave get_params() untouched, or clone/GridSearchCV break.
+
+    ``SmoothedIsotonicCalibrator`` used to coerce ``poly_order`` and
+    ``min_window`` onto the instance inside fit, so a cloned estimator did not
+    match the one it was cloned from.
+    """
     import calibre
 
     cls = getattr(calibre, cls_name)
@@ -453,7 +497,36 @@ def test_fit_does_not_mutate_constructor_params(cls_name):
     cal = cls()
     before = dict(cal.get_params())
     cal.fit(x, y)
-    assert cal.get_params() == before
+    assert _same_params(before, cal.get_params())
+
+
+@pytest.mark.parametrize("cls_name", ALL_CALIBRATORS)
+def test_fit_does_not_mutate_out_of_range_params(cls_name):
+    """Out-of-range arguments are corrected for the fit, not written back.
+
+    The coercion path is the one that mutated state, so it needs its own case:
+    passing valid values would never have caught the original bug.
+    """
+    from sklearn.base import clone
+
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    x, y = _dataset(15, n=300)
+
+    # Only some calibrators take these; the rest exercise the default path.
+    kwargs = {}
+    params = cls().get_params()
+    if "poly_order" in params:
+        kwargs["poly_order"] = 0
+    if "min_window" in params:
+        kwargs["min_window"] = 1
+
+    cal = cls(**kwargs)
+    before = dict(cal.get_params())
+    cal.fit(x, y)
+    assert _same_params(before, cal.get_params())
+    assert _same_params(before, clone(cal).get_params())
 
 
 @pytest.mark.parametrize(
@@ -486,3 +559,91 @@ def test_invalid_params_rejected_by_fit(kwargs):
     x, y = _dataset(14, n=200)
     with pytest.raises(ValueError, match=r"(?i)must be"):
         SplineCalibrator(**kwargs).fit(x, y)
+
+
+# --------------------------------------------------------------------------- #
+# Monotonicity under tied scores
+# --------------------------------------------------------------------------- #
+
+
+def _tied_dataset(seed: int, n: int = 600, decimals: int = 2):
+    """Generate scores with heavy ties, as a rounded or binned model produces.
+
+    Parameters
+    ----------
+    seed
+        Random seed.
+    n
+        Number of observations.
+    decimals
+        Rounding applied to the scores; fewer decimals means more ties.
+
+    Returns
+    -------
+    tuple of ndarray
+        Scores with repeated values, and binary labels.
+    """
+    rng = np.random.default_rng(seed)
+    x = np.round(rng.uniform(0.0, 1.0, n), decimals)
+    y = rng.binomial(1, x).astype(float)
+    return x, y
+
+
+@pytest.mark.parametrize("cls_name", MONOTONE_CALIBRATORS)
+@pytest.mark.parametrize("decimals", [1, 2])
+def test_monotone_under_tied_scores(cls_name, decimals):
+    """Tied input scores must not break monotonicity.
+
+    Tied scores are the ordinary case in calibration -- tree ensembles and any
+    rounded or binned score produce them. ``SmoothedIsotonicCalibrator`` built
+    its interpolant directly on the training scores with duplicates present,
+    which silently discarded all but one observation per tie group and produced
+    34 violations on this data in its default configuration.
+
+    Zero violations, not a tolerance: every calibrator here is monotone by
+    construction.
+    """
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    x, y = _tied_dataset(seed=7, decimals=decimals)
+
+    cal = cls().fit(x, y)
+    grid = np.linspace(0.0, 1.0, 4000)
+    diffs = np.diff(cal.transform(grid))
+
+    n_violations = int((diffs < -1e-9).sum())
+    assert n_violations == 0, (
+        f"{cls_name} produced {n_violations} violations on tied scores "
+        f"(decimals={decimals}), worst {diffs.min():+.6f}"
+    )
+
+
+@pytest.mark.parametrize(
+    "cls_name",
+    # SplineCalibrator is excluded because it selects (n_knots, alpha) by
+    # cross-validation, and KFold assigns folds by row position, so shuffling
+    # legitimately changes which hyperparameters win. That is CV behaviour, not
+    # tie handling.
+    [c for c in MONOTONE_CALIBRATORS if c != "SplineCalibrator"],
+)
+def test_ties_do_not_depend_on_input_order(cls_name):
+    """Shuffling the training rows must not change the fit.
+
+    An interpolant built on duplicated abscissae keeps whichever tied point
+    survived the sort, which makes the result depend on row order. Pooling ties
+    first removes that dependence.
+    """
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    x, y = _tied_dataset(seed=11)
+
+    grid = np.linspace(0.0, 1.0, 500)
+    first = cls().fit(x, y).transform(grid)
+
+    rng = np.random.default_rng(3)
+    perm = rng.permutation(len(x))
+    second = cls().fit(x[perm], y[perm]).transform(grid)
+
+    np.testing.assert_allclose(first, second, atol=1e-9)

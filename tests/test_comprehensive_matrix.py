@@ -222,8 +222,9 @@ class TestMatrix:
         """Test core combinations of calibrators and patterns."""
         result = self._run_single_test(calibrator_name, pattern, n_samples, noise_level)
 
-        if not result["success"]:
-            pytest.skip(f"Test failed: {result['error']}")
+        assert result["success"], (
+            f"{calibrator_name} raised on {pattern}: {result['error']}"
+        )
 
         # Core requirements
         assert result["bounds_valid"], (

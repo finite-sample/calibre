@@ -148,7 +148,9 @@ html_sidebars = {
 # -- Options for nbsphinx ---------------------------------------------------
 
 nbsphinx_execute = "auto"  # Execute notebooks that don't have outputs
-nbsphinx_allow_errors = True
+# A failing cell must fail the build. This was True, so every notebook shipped
+# to the docs site with its tracebacks rendered as output for several releases.
+nbsphinx_allow_errors = False
 nbsphinx_kernel_name = "python3"
 nbsphinx_requirejs_path = ""
 nbsphinx_requirejs_options = {"paths": {"https://unpkg.com": "https://unpkg.com"}}

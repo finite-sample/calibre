@@ -91,7 +91,6 @@ class TestFullCalibrationWorkflow:
                 "kwargs": {
                     "window_length": 7,
                     "poly_order": 3,
-                    "interp_method": "linear",
                 },
                 "name": "smoothed",
             },

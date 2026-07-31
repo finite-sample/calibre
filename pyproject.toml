@@ -47,6 +47,10 @@ docs = [
     "sphinx-autodoc-typehints>=1.25",
     "nbsphinx>=0.9.0",
     "ipykernel>=6.0",
+    # Used by the example notebooks only. Dropped as runtime dependencies in
+    # 0.7.0, which left every notebook failing at its import cell until 0.7.1.
+    "matplotlib>=3.9",
+    "pandas>=2.0",
 ]
 
 [tool.pyright]

@@ -298,11 +298,10 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 - **Formatting**: Automatic via `ruff format`
 - **Testing**: Comprehensive test coverage with realistic data generators
 
-### Key Diagnostic Features (v0.4.1)
-- **Plateau classification**: Automatic classification as supported/limited-data/inconclusive
-- **Bootstrap analysis**: Tie stability across resamples (P̂_tie ∈ [0,1])
-- **Conditional AUC**: Discrimination among tied pairs (AUC_tie = P(S⁺ > S⁻ | (i,j) ∈ T))
-- **Statistical power**: Minimum detectable difference calculations
-- **Progressive sampling**: How diversity changes with sample size
-- **Local slope testing**: Uses smooth monotone fits to validate genuine flatness
-- **Decision framework**: Guides when to trust isotonic regression vs. consider alternatives
+### Diagnostics: what exists
+See the `calibre/diagnostics.py` section above for the authoritative list. Only two
+things are implemented: plateau detection with a sample-count density label, and
+`diversity_learning_curve` / `progressive_sampling_diversity`. Earlier CHANGELOGs
+advertised bootstrap tie stability, conditional AUC among tied pairs, minimum
+detectable difference, and a supported/limited-data/inconclusive classifier; none of
+those were ever written. Do not restate them here or anywhere else.

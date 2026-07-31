@@ -17,10 +17,7 @@ logger = logging.getLogger(__name__)
 
 def run_plateau_diagnostics(
     X: np.ndarray,
-    y: np.ndarray,
     y_calibrated: np.ndarray,
-    n_bootstraps: int = 100,  # Kept for API compatibility but unused
-    random_state: int | None = None,  # Kept for API compatibility but unused
 ) -> dict:
     """
     Detect and analyze plateaus (flat regions) in calibration curves.
@@ -29,18 +26,17 @@ def run_plateau_diagnostics(
     value for multiple inputs, and flags potentially problematic plateaus based
     on simple, interpretable criteria like sample count.
 
+    The diagnosis is purely structural: it counts how many samples support each
+    flat region. It does not take the true labels, because it makes no claim
+    about whether a plateau is *justified* by the outcomes -- only about whether
+    enough data sits underneath it to say anything at all.
+
     Parameters
     ----------
     X
         Original predicted probabilities.
-    y
-        True labels.
     y_calibrated
         Calibrated probabilities.
-    n_bootstraps
-        Kept for API compatibility, currently unused.
-    random_state
-        Kept for API compatibility, currently unused.
 
     Returns
     -------
@@ -59,9 +55,8 @@ def run_plateau_diagnostics(
     Examples
     --------
     >>> X = np.array([0.1, 0.2, 0.3, 0.7, 0.8, 0.9])
-    >>> y = np.array([0, 0, 0, 1, 1, 1])
     >>> y_cal = np.array([0.2, 0.2, 0.2, 0.8, 0.8, 0.8])
-    >>> diagnostics = run_plateau_diagnostics(X, y, y_cal)
+    >>> diagnostics = run_plateau_diagnostics(X, y_cal)
     >>> print(diagnostics['n_plateaus'])
     2
     >>> for warning in diagnostics['warnings']:
@@ -82,9 +77,7 @@ def run_plateau_diagnostics(
     warnings = []
 
     for i, (start_idx, end_idx, value) in enumerate(plateau_indices):
-        plateau_info = analyze_plateau_simple(
-            X_sorted, y_cal_sorted, start_idx, end_idx, value, i
-        )
+        plateau_info = analyze_plateau_simple(X_sorted, start_idx, end_idx, value, i)
         plateaus.append(plateau_info)
 
         # Generate warnings for problematic plateaus
@@ -165,7 +158,6 @@ def detect_plateaus(
 
 def analyze_plateau_simple(
     X: np.ndarray,
-    y_calibrated: np.ndarray,
     start_idx: int,
     end_idx: int,
     value: float,
@@ -178,8 +170,6 @@ def analyze_plateau_simple(
     ----------
     X
         Sorted input predictions.
-    y_calibrated
-        Sorted calibrated predictions.
     start_idx
         Start index of plateau (inclusive).
     end_idx

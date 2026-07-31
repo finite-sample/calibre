@@ -234,7 +234,7 @@ scores = np.sort(rng.random(400))
 labels = (rng.random(400) < scores).astype(float)
 
 calibrator = IsotonicCalibrator().fit(scores, labels)
-report = run_plateau_diagnostics(scores, labels, calibrator.transform(scores))
+report = run_plateau_diagnostics(scores, calibrator.transform(scores))
 
 print(f"{report['n_plateaus']} plateaus")
 for plateau in report["plateaus"][:3]:

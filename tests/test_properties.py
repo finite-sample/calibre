@@ -55,23 +55,23 @@ class TestProbabilityBounds:
     """Test that all calibrators produce outputs in [0, 1] range."""
 
     def _test_bounds_helper(self, calibrators, test_cases, test_name):
-        """Helper method to test bounds across multiple scenarios."""
+        """Helper method to test bounds across multiple scenarios.
+
+        No try/except: every calibrator here clips to [0, 1], so a raise or an
+        out-of-range value is the finding, not a reason to skip.
+        """
         for case_name, (y_pred, y_true) in test_cases.items():
             for cal_name, calibrator in calibrators.items():
-                try:
-                    calibrator.fit(y_pred, y_true)
-                    y_calib = calibrator.transform(y_pred)
+                calibrator.fit(y_pred, y_true)
+                y_calib = calibrator.transform(y_pred)
 
-                    assert np.all(y_calib >= 0), (
-                        f"{cal_name} negative values in {case_name}"
-                    )
-                    assert np.all(y_calib <= 1), f"{cal_name} values > 1 in {case_name}"
-                    assert len(y_calib) == len(y_pred), (
-                        f"{cal_name} length changed in {case_name}"
-                    )
-
-                except Exception as e:
-                    pytest.skip(f"{cal_name} failed on {case_name}: {e}")
+                assert np.all(y_calib >= 0), (
+                    f"{cal_name} negative values in {case_name}"
+                )
+                assert np.all(y_calib <= 1), f"{cal_name} values > 1 in {case_name}"
+                assert len(y_calib) == len(y_pred), (
+                    f"{cal_name} length changed in {case_name}"
+                )
 
     @pytest.mark.parametrize(
         "pattern",
@@ -104,13 +104,10 @@ class TestProbabilityBounds:
         y_pred_test = np.linspace(0.0, 1.0, 50)
 
         for cal_name, calibrator in core_calibrators.items():
-            try:
-                calibrator.fit(y_pred_train, y_true_train)
-                y_calib = calibrator.transform(y_pred_test)
-                assert np.all(y_calib >= 0), f"{cal_name} extrapolated below 0"
-                assert np.all(y_calib <= 1), f"{cal_name} extrapolated above 1"
-            except Exception as e:
-                pytest.skip(f"{cal_name} failed on extrapolation: {e}")
+            calibrator.fit(y_pred_train, y_true_train)
+            y_calib = calibrator.transform(y_pred_test)
+            assert np.all(y_calib >= 0), f"{cal_name} extrapolated below 0"
+            assert np.all(y_calib <= 1), f"{cal_name} extrapolated above 1"
 
         # Test other cases
         del test_cases["extrapolation"]
@@ -120,40 +117,75 @@ class TestProbabilityBounds:
 class TestMonotonicity:
     """Test monotonicity properties of calibration algorithms."""
 
-    def _check_monotonicity(self, calibrator, y_pred, y_true, max_violation_rate=0.0):
-        """Helper to check monotonicity violations."""
+    def _check_monotonicity(
+        self, calibrator, y_pred, y_true, max_violation_rate=0.0, x_test=None
+    ):
+        """Helper to check monotonicity violations.
+
+        The -1e-10 floor is representation noise, not a tolerance on the
+        property: a monotone fit routinely produces one adjacent difference of
+        around -5e-17, which is a single unit in the last place, not a decrease.
+        """
         calibrator.fit(y_pred, y_true)
-        x_test = np.linspace(0, 1, 50)
+        if x_test is None:
+            x_test = np.linspace(0, 1, 50)
         y_calib = calibrator.transform(x_test)
 
-        violations = np.sum(np.diff(y_calib) < 0)
+        violations = np.sum(np.diff(y_calib) < -1e-10)
         violation_rate = violations / (len(y_calib) - 1) if len(y_calib) > 1 else 0
 
         return violation_rate <= max_violation_rate, violation_rate
 
-    def test_strict_vs_relaxed_monotonicity(self, data_generator, extended_calibrators):
-        """Test monotonicity behavior across strict and relaxed calibrators."""
-        patterns = ["overconfident_nn", "multi_modal"]
+    @pytest.mark.parametrize("pattern", ["overconfident_nn", "multi_modal"])
+    @pytest.mark.parametrize("alpha", [0.01, 1.0])
+    def test_regularized_is_monotone_at_every_alpha(
+        self, data_generator, pattern, alpha
+    ):
+        """RegularizedIsotonicCalibrator is monotone by construction.
 
-        for pattern in patterns:
-            y_pred, y_true = data_generator.generate_dataset(pattern, n_samples=200)
+        The penalty controls curvature, not the order constraint, so no value of
+        alpha may produce a violation. Exactly zero, not a tolerance.
+        """
+        y_pred, y_true = data_generator.generate_dataset(pattern, n_samples=200)
+        _, violation_rate = self._check_monotonicity(
+            RegularizedIsotonicCalibrator(alpha=alpha), y_pred, y_true
+        )
+        assert violation_rate == 0.0, (
+            f"alpha={alpha} produced violations at rate {violation_rate:.3f} "
+            f"on {pattern}"
+        )
 
-            for name, calibrator in extended_calibrators.items():
-                try:
-                    # Set different expectations based on calibrator type
-                    # "strong" settings promise strict monotonicity.
-                    max_violations = 0.0 if "strong" in name else 0.1
+    @pytest.mark.parametrize("pattern", ["overconfident_nn", "multi_modal"])
+    def test_nearly_isotonic_violations_shrink_with_lambda(
+        self, data_generator, pattern
+    ):
+        """NearlyIsotonicCalibrator trades monotonicity for fit, by design.
 
-                    is_monotonic, violation_rate = self._check_monotonicity(
-                        calibrator, y_pred, y_true, max_violations
-                    )
+        Violations are the point of the estimator, so a fixed tolerance would be
+        asserting the wrong thing -- an earlier version of this test demanded a
+        rate below 0.1 and swallowed the resulting failure with pytest.skip. The
+        property that actually holds is that raising lambda cannot increase the
+        violation rate.
+        """
+        y_pred, y_true = data_generator.generate_dataset(pattern, n_samples=200)
 
-                    assert is_monotonic, (
-                        f"{name} violations {violation_rate:.3f} > {max_violations} on {pattern}"
-                    )
+        # Measured on the fitted curve at the training scores, not on a coarse
+        # uniform grid: sampling a near-step function at 50 evenly spaced points
+        # counts grid artifacts rather than the estimator's own violations.
+        x_test = np.sort(y_pred)
+        rates = [
+            self._check_monotonicity(
+                NearlyIsotonicCalibrator(lam=lam, method="path"),
+                y_pred,
+                y_true,
+                x_test=x_test,
+            )[1]
+            for lam in (0.1, 1.0, 10.0)
+        ]
 
-                except Exception as e:
-                    pytest.skip(f"{name} failed on {pattern}: {e}")
+        assert rates[0] >= rates[1] >= rates[2], (
+            f"violation rate must be non-increasing in lambda, got {rates} on {pattern}"
+        )
 
     def test_monotonicity_preservation(self, data_generator, core_calibrators):
         """Test that calibrators preserve general monotonic trend."""
@@ -162,18 +194,12 @@ class TestMonotonicity:
         )
 
         for name, calibrator in core_calibrators.items():
-            try:
-                calibrator.fit(y_pred, y_true)
-                x_test = np.linspace(0, 1, 50)
-                y_calib = calibrator.transform(x_test)
+            calibrator.fit(y_pred, y_true)
+            x_test = np.linspace(0, 1, 50)
+            y_calib = calibrator.transform(x_test)
 
-                correlation = np.corrcoef(x_test, y_calib)[0, 1]
-                assert correlation > 0.7, (
-                    f"{name} correlation {correlation:.3f} too low"
-                )
-
-            except Exception as e:
-                pytest.skip(f"{name} failed: {e}")
+            correlation = np.corrcoef(x_test, y_calib)[0, 1]
+            assert correlation > 0.7, f"{name} correlation {correlation:.3f} too low"
 
 
 class TestCalibrationImprovement:
@@ -195,25 +221,21 @@ class TestCalibrationImprovement:
         total_count = 0
 
         for name, calibrator in core_calibrators.items():
-            try:
-                calibrator.fit(y_pred, y_true)
-                y_calib = calibrator.transform(y_pred)
+            calibrator.fit(y_pred, y_true)
+            y_calib = calibrator.transform(y_pred)
 
-                # Test ECE improvement
-                calibrated_ece = expected_calibration_error(y_true, y_calib)
-                if calibrated_ece <= original_ece * 1.1:  # 10% tolerance
-                    improved_count += 1
-                total_count += 1
+            # Test ECE improvement
+            calibrated_ece = expected_calibration_error(y_true, y_calib)
+            if calibrated_ece <= original_ece * 1.1:  # 10% tolerance
+                improved_count += 1
+            total_count += 1
 
-                # Test Brier score bounds
-                calibrated_brier = brier_score(y_true, y_calib)
-                assert calibrated_brier <= 0.5, f"{name} poor Brier on {pattern}"
-                assert calibrated_brier <= original_brier * 2.0, (
-                    f"{name} deteriorated Brier on {pattern}"
-                )
-
-            except Exception as e:
-                pytest.skip(f"{name} failed on {pattern}: {e}")
+            # Test Brier score bounds
+            calibrated_brier = brier_score(y_true, y_calib)
+            assert calibrated_brier <= 0.5, f"{name} poor Brier on {pattern}"
+            assert calibrated_brier <= original_brier * 2.0, (
+                f"{name} deteriorated Brier on {pattern}"
+            )
 
         # At least 60% should improve ECE
         improvement_rate = improved_count / max(total_count, 1)
@@ -233,22 +255,16 @@ class TestCalibrationImprovement:
         }
 
         for name, calibrator in calibrators.items():
-            try:
-                calibrator.fit(y_pred, y_true)
-                y_calib = calibrator.transform(y_pred)
+            calibrator.fit(y_pred, y_true)
+            y_calib = calibrator.transform(y_pred)
 
-                # Use utility function for reliability calculation
-                original_reliability = calculate_calibration_reliability(y_true, y_pred)
-                calibrated_reliability = calculate_calibration_reliability(
-                    y_true, y_calib
-                )
+            # Use utility function for reliability calculation
+            original_reliability = calculate_calibration_reliability(y_true, y_pred)
+            calibrated_reliability = calculate_calibration_reliability(y_true, y_calib)
 
-                assert calibrated_reliability <= original_reliability * 1.2, (
-                    f"{name} degraded reliability"
-                )
-
-            except Exception as e:
-                pytest.skip(f"{name} failed: {e}")
+            assert calibrated_reliability <= original_reliability * 1.2, (
+                f"{name} degraded reliability"
+            )
 
 
 class TestGranularityPreservation:
@@ -262,33 +278,47 @@ class TestGranularityPreservation:
         y_pred, y_true = data_generator.generate_dataset(pattern, n_samples=400)
         original_unique = len(np.unique(np.round(y_pred, 6)))
 
-        for name, calibrator in core_calibrators.items():
-            try:
-                calibrator.fit(y_pred, y_true)
-                y_calib = calibrator.transform(y_pred)
+        # Which calibrators are held to the granularity floor, and why the other
+        # two are not. An earlier version applied the floor to everything and hid
+        # the failures behind pytest.skip -- which also meant the loop aborted at
+        # the first calibrator, so the ones after it were never checked at all.
+        #
+        #   nearly_isotonic: lambda is a knob on how hard to pool. At lam=1.0 it
+        #     pools these datasets to three levels, by design.
+        #   smoothed: smooths the isotonic staircase and then repairs the result
+        #     with a running maximum, which re-flattens wherever the filter dipped.
+        #     Measured ratios are 0.13 (multi_modal) and 0.16 (weather_forecasting),
+        #     and the same numbers come out of the released 0.7.0 wheel -- this is
+        #     the estimator's long-standing behaviour, not a regression.
+        #     CenteredIsotonicCalibrator is the granularity-preserving answer.
+        granularity_preserving = {"spline", "relaxed_pava", "regularized"}
 
-                # Test granularity preservation
+        for name, calibrator in core_calibrators.items():
+            calibrator.fit(y_pred, y_true)
+            y_calib = calibrator.transform(y_pred)
+
+            if name in granularity_preserving:
                 calibrated_unique = len(np.unique(np.round(y_calib, 6)))
                 preservation_ratio = calibrated_unique / original_unique
                 assert 0.3 <= preservation_ratio <= 3.0, (
                     f"{name} granularity ratio {preservation_ratio:.3f} on {pattern}"
                 )
 
-                # Test ranking preservation
+                # A correlation floor only means something once granularity is
+                # preserved. At lam=1.0 nearly_isotonic pools these datasets to
+                # three levels, so its correlation with a continuous score is
+                # near 0.5 by construction -- for Spearman as much as Pearson.
                 rank_correlation = np.corrcoef(y_pred, y_calib)[0, 1]
                 assert rank_correlation >= 0.7, (
                     f"{name} ranking correlation {rank_correlation:.3f} on {pattern}"
                 )
 
-                # Test high/low ordering preservation
-                high_mask, low_mask = y_pred >= 0.8, y_pred <= 0.2
-                if np.sum(high_mask) > 0 and np.sum(low_mask) > 0:
-                    assert np.mean(y_calib[high_mask]) > np.mean(y_calib[low_mask]), (
-                        f"{name} inverted ordering on {pattern}"
-                    )
-
-            except Exception as e:
-                pytest.skip(f"{name} failed on {pattern}: {e}")
+            # Ordering must hold for every calibrator, pooling or not.
+            high_mask, low_mask = y_pred >= 0.8, y_pred <= 0.2
+            if np.sum(high_mask) > 0 and np.sum(low_mask) > 0:
+                assert np.mean(y_calib[high_mask]) > np.mean(y_calib[low_mask]), (
+                    f"{name} inverted ordering on {pattern}"
+                )
 
 
 class TestEdgeCases:
@@ -298,25 +328,19 @@ class TestEdgeCases:
         """Helper to test multiple edge cases."""
         for case_name, (y_pred, y_true, extra_checks) in test_cases.items():
             for cal_name, calibrator in calibrators.items():
-                try:
-                    calibrator.fit(y_pred, y_true)
-                    y_calib = calibrator.transform(y_pred)
+                calibrator.fit(y_pred, y_true)
+                y_calib = calibrator.transform(y_pred)
 
-                    # Common checks
-                    assert len(y_calib) == len(y_pred), (
-                        f"{cal_name} length change in {case_name}"
-                    )
-                    assert np.all(y_calib >= 0), f"{cal_name} below 0 in {case_name}"
-                    assert np.all(y_calib <= 1), f"{cal_name} above 1 in {case_name}"
+                # Common checks
+                assert len(y_calib) == len(y_pred), (
+                    f"{cal_name} length change in {case_name}"
+                )
+                assert np.all(y_calib >= 0), f"{cal_name} below 0 in {case_name}"
+                assert np.all(y_calib <= 1), f"{cal_name} above 1 in {case_name}"
 
-                    # Case-specific checks
-                    if extra_checks:
-                        extra_checks(cal_name, y_calib, y_pred, y_true)
-
-                except Exception as e:
-                    if case_name == "small_sample" and len(y_pred) < 10:
-                        continue  # Expected for very small samples
-                    pytest.skip(f"{cal_name} failed on {case_name}: {e}")
+                # Case-specific checks
+                if extra_checks:
+                    extra_checks(cal_name, y_calib, y_pred, y_true)
 
     def test_challenging_scenarios(self, core_calibrators):
         """Test various challenging scenarios in a consolidated test."""
