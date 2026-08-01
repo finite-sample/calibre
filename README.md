@@ -458,3 +458,13 @@ MIT — see [LICENSE](LICENSE).
 - [gojiplus/rmcp](https://github.com/gojiplus/rmcp) — R MCP Server
 - [gojiplus/bloomjoin](https://github.com/gojiplus/bloomjoin) — bloomjoin: An R package implementing Bloom filter-based joins for improved performance with large datasets.
 - [gojiplus/incline](https://github.com/gojiplus/incline) — Estimate Trend at a Point in a Noisy Time Series
+
+## 🔗 Adjacent Repositories
+
+- [finite-sample/streamcal](https://github.com/finite-sample/streamcal) — Always‑On Probability Calibration via Multiplicative‑Weights. Comparison to Batch Platt & Isotonic
+- [finite-sample/rank-preserving-calibration](https://github.com/finite-sample/rank-preserving-calibration) — Rank preserving calibration of multiclass prob.
+- [finite-sample/optimal-classification-cutoffs](https://github.com/finite-sample/optimal-classification-cutoffs) — Cutoffs for max. multiclass F1-score, etc.
+- [finite-sample/winference](https://github.com/finite-sample/winference) — Calibrating pairwise rankings with accomodations for non-transitivity
+- [finite-sample/tworeg](https://github.com/finite-sample/tworeg) — Two Regressions
+
+✨ _Powered by [Adjacent](https://github.com/gojiplus/adjacent)_ 🚀
