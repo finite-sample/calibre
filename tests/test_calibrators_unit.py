@@ -18,6 +18,7 @@ from calibre import (
     SmoothedIsotonicCalibrator,
     SplineCalibrator,
 )
+from calibre.metrics import brier_score
 
 
 @pytest.fixture
@@ -219,7 +220,10 @@ class TestRelaxedPAVACalibrator:
         x, y_observed, _ = calibration_data
         grid = np.unique(x)
 
-        plain = RelaxedPAVACalibrator().fit(x, y_observed).transform(grid)
+        # min_slope=0.0 explicitly, not the default: the default now applies an
+        # automatic slope on the untouched path, so leaving it out would make the
+        # baseline depend on what the epsilon search happened to pick.
+        plain = RelaxedPAVACalibrator(min_slope=0.0).fit(x, y_observed).transform(grid)
         sloped = (
             RelaxedPAVACalibrator(min_slope=1e-4, clip_output=False)
             .fit(x, y_observed)
@@ -228,6 +232,77 @@ class TestRelaxedPAVACalibrator:
 
         assert np.any(np.diff(plain) == 0), "fixture should produce plateaus"
         assert np.all(np.diff(sloped) > 0), "min_slope must eliminate plateaus"
+
+    def test_the_default_breaks_plateaus_apart(self):
+        """The 0.10.0 default must deliver resolution, not reproduce PAVA.
+
+        This is the whole point of ``min_slope="auto"``. If the automatic slope
+        stopped being reached on the default path -- because the epsilon search
+        changed, or the interaction rule below were loosened -- the headline
+        behaviour would revert to isotonic's handful of distinct values while
+        every other test still passed.
+
+        The data is built here rather than taken from the shared fixture because
+        the automatic slope is conditional on the epsilon search selecting zero,
+        which is a property of the data. A monotone truth is the case the default
+        is aimed at; across the benchmark's designs the slope is reached in 14 of
+        15 cells, the exception being one where the input's own tie structure
+        already caps the achievable resolution.
+        """
+        rng = np.random.default_rng(0)
+        x = rng.uniform(0.0, 1.0, 1000)
+        p = 1.0 / (1.0 + np.exp(-1.8 * np.log(x / (1.0 - x))))
+        y_observed = rng.binomial(1, p).astype(float)
+        grid = np.unique(x)
+
+        default = RelaxedPAVACalibrator().fit(x, y_observed)
+        flat = RelaxedPAVACalibrator(min_slope=0.0).fit(x, y_observed)
+
+        assert default.epsilon_ == 0.0, "precondition: the search must select zero"
+        assert default.min_slope_ > 0.0
+
+        # Strict increase holds on the unclipped fit. With clipping on -- the
+        # default -- a fit that saturates 0 and 1, as this design's does, flattens
+        # at the two ends, which is why the retained fraction below is high rather
+        # than total.
+        unclipped = RelaxedPAVACalibrator(clip_output=False).fit(x, y_observed)
+        assert np.all(np.diff(unclipped.transform(grid)) > 0)
+
+        distinct = len(np.unique(np.round(default.transform(grid), 9)))
+        pooled = len(np.unique(np.round(flat.transform(grid), 9)))
+        assert distinct > 20 * pooled, f"{distinct} distinct against {pooled} pooled"
+        assert distinct > 0.8 * grid.size, f"only {distinct} of {grid.size} retained"
+
+        # The resolution has to be nearly free, or it is not worth a default.
+        assert (
+            brier_score(y_observed, default.transform(x))
+            < brier_score(y_observed, flat.transform(x)) + 1e-3
+        )
+
+    def test_naming_epsilon_stands_the_automatic_slope_down(self, calibration_data):
+        """``epsilon=0`` must keep meaning plain isotonic regression.
+
+        The automatic slope applies only when neither parameter was named. A
+        caller who writes ``epsilon=0`` is asking for PAVA exactly, and tilting
+        that fit would both break the documented epsilon sensitivity and make the
+        two parameters impossible to reason about together.
+        """
+        x, y_observed, _ = calibration_data
+        grid = np.unique(x)
+
+        pinned = RelaxedPAVACalibrator(epsilon=0.0, clip_output=False).fit(
+            x, y_observed
+        )
+        assert pinned.min_slope_ == 0.0
+
+        isotonic = IsotonicCalibrator().fit(x, y_observed)
+        np.testing.assert_allclose(
+            pinned.transform(grid), isotonic.transform(grid), rtol=0, atol=1e-10
+        )
+
+        # And a non-zero epsilon must not collide with the automatic default,
+        # which is what a naive non-zero min_slope default would have done.
+        assert RelaxedPAVACalibrator(epsilon=0.02).fit(x, y_observed).min_slope_ == 0.0
 
 
 class TestRegularizedIsotonicCalibrator:

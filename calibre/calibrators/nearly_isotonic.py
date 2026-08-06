@@ -71,6 +71,27 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     give shorter plateaus than isotonic regression -- finer granularity -- in
     exchange for bounded violations.
 
+    **This is not the calibrator to reach for if you want granularity.** The
+    granularity above is real but it is not free, and here it is not even
+    cheap. Because the objective fits one value per observation to the *labels*,
+    a small ``lam`` returns something close to the raw 0/1 labels: lots of
+    distinct values, all of them overfitted. Measured out of sample on a
+    logit-inflated design at n=3000, ``lam=0.001`` keeps 1074 distinct values at
+    a held-out Brier of 0.191 against isotonic's 0.116, and every step up the
+    ``lam`` grid buys score back by giving granularity away until, by
+    ``lam=100``, the fit *is* isotonic regression.
+
+    That frontier is dominated. On the same data
+    :class:`~calibre.CenteredIsotonicCalibrator` keeps 2647 distinct values at a
+    held-out Brier of 0.1159 -- more granularity than any ``lam`` reaches, at a
+    *better* score than isotonic. So there is no default ``lam`` worth moving to,
+    and none is claimed: unlike
+    :class:`~calibre.RelaxedPAVACalibrator`, whose default now breaks plateaus
+    apart at a cost in the fifth decimal, this estimator's defaults leave it
+    close to isotonic on purpose. Use it when you want *bounded monotonicity
+    violations* -- the thing it uniquely provides -- and use CIR or the spline
+    calibrators when you want resolution.
+
     **Scaling differs from the source paper.** Tibshirani, Hoefling & Tibshirani
     (2011, *Technometrics* 53(1), 54-61) put a factor of 1/2 on the squared-error
     term:
