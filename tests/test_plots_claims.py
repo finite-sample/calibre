@@ -371,3 +371,61 @@ def test_profile_reports_the_spread_in_the_title():
     profile = miscalibration_profile(truth, y)
     ax = plot_miscalibration_profile(profile)
     assert f"{profile['spread']:.2f}" in ax.get_title()
+
+
+def test_frontier_labels_never_land_on_a_marker():
+    """Labels must stay clear of every point, not just their own.
+
+    Three earlier schemes each looked right on a toy example and collided on real
+    benchmark output: alternating offsets fail past two coincident points;
+    per-cluster ladders cannot see other clusters, so two nearby stacks
+    interleave; and nudging each label off its own marker walks it straight
+    across its neighbours' markers inside a dense cluster.
+
+    The invariant that catches all three: every label sits outside the horizontal
+    span of the markers on its own side of the plot.
+    """
+    from calibre.plots import plot_resolution_frontier
+
+    # The shape that broke the earlier attempts: two tight clusters, four decades
+    # apart, with several methods sharing a score to within a rounding error.
+    results = {
+        "isotonic": (49, 0.15305),
+        "sklearn_isotonic": (49, 0.15305),
+        "nearly": (51, 0.15312),
+        "relaxed": (1356, 0.15304),
+        "centered": (1514, 0.15272),
+        "regularized": (1596, 0.15246),
+        "spline": (1588, 0.15243),
+        "platt": (1599, 0.15213),
+        "temperature": (1599, 0.15216),
+        "uncalibrated": (1594, 0.16037),
+    }
+    ax = plot_resolution_frontier(results)
+
+    counts = [count for count, _ in results.values()]
+    midpoint = float(np.mean(np.log10(counts)))
+    left = [c for c in counts if np.log10(c) <= midpoint]
+    right = [c for c in counts if np.log10(c) > midpoint]
+
+    placed = {a.get_text(): a.get_position()[0] for a in ax.texts}
+    assert set(placed) == set(results), "every method must be labelled exactly once"
+
+    for name, (count, _) in results.items():
+        label_x = placed[name]
+        if np.log10(count) > midpoint:
+            assert label_x < min(right), f"{name} label sits inside the right cluster"
+        else:
+            assert label_x > max(left), f"{name} label sits inside the left cluster"
+
+
+def test_frontier_labels_do_not_overlap_each_other():
+    """Ten methods at nearly one score must still produce ten readable labels."""
+    from calibre.plots import plot_resolution_frontier
+
+    results = {f"m{i}": (1000 + i, 0.1500 + 1e-6 * i) for i in range(10)}
+    ax = plot_resolution_frontier(results)
+
+    heights = sorted(a.get_position()[1] for a in ax.texts)
+    gaps = np.diff(heights)
+    assert np.all(gaps > 0), f"labels share a height: {gaps}"

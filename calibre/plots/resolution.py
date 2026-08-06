@@ -258,34 +258,75 @@ def plot_resolution_frontier(
     highlighted = set(highlight)
 
     # Methods that keep similar resolution land on top of each other -- which is
-    # the point of the plot, and also what makes their labels collide. Alternating
-    # the offset is not enough once several methods share a spot, which is the
-    # normal case: a benchmark comparing ten calibrators typically has two tight
-    # clusters. So points are grouped by position and each cluster's labels are
-    # stacked in a ladder, which needs no layout solver and cannot overlap.
+    # the point of the plot, and also what makes their labels collide. Two
+    # simpler schemes were tried and both failed on real benchmark output:
+    # alternating the offset breaks down past two coincident points, and
+    # laddering within position-clusters cannot see *other* clusters, so two
+    # nearby stacks interleave. What follows instead packs the labels exactly, in
+    # data coordinates, which cannot overlap by construction.
     ordered = sorted(results.items(), key=lambda item: (item[1][1], item[1][0]))
 
-    spread_x = max(np.ptp(np.log10([c for c, _ in results.values()])), 1e-9)
     spread_y = max(np.ptp([s for _, s in results.values()]), 1e-12)
 
-    offsets: list[tuple[float, float]] = []
-    clusters: list[tuple[float, float, int]] = []
-    for n_distinct, score in (value for _, value in ordered):
-        position = (np.log10(n_distinct), score)
-        for index, (cx, cy, count) in enumerate(clusters):
-            near = (
-                abs(position[0] - cx) < 0.06 * spread_x
-                and abs(position[1] - cy) < 0.06 * spread_y
-            )
-            if near:
-                offsets.append((8.0, 4.0 - 11.0 * count))
-                clusters[index] = (cx, cy, count + 1)
-                break
-        else:
-            offsets.append((8.0, 4.0))
-            clusters.append((position[0], position[1], 1))
+    # Labels point at the middle of the plot rather than always trailing right,
+    # so the right-hand cluster -- where the resolution-preserving methods sit,
+    # and the ones a reader most wants to identify -- does not run off the edge.
+    # Each side is packed separately: labels on opposite sides are far enough
+    # apart horizontally that they cannot collide.
+    midpoint_x = float(np.mean(np.log10([c for c, _ in results.values()])))
+    minimum_gap = 0.055 * spread_y
 
-    for (name, (n_distinct, score)), offset in zip(ordered, offsets, strict=True):
+    sides = {
+        leftward: [
+            (name, count, score)
+            for name, (count, score) in ordered
+            if bool(np.log10(count) > midpoint_x) is leftward
+        ]
+        for leftward in (False, True)
+    }
+
+    # Each side's labels share one x, placed just inside its innermost marker so
+    # the whole column sits in the empty middle of the plot. Nudging each label
+    # individually off its own marker is not enough: within a dense cluster a
+    # label then runs across its *neighbours'* markers instead. Multiplicative
+    # because the axis is logarithmic, so it is a constant pixel gap at any x.
+    nudge = 1.11
+    columns = {
+        leftward: (
+            min(c for _, c, _ in side) / nudge
+            if leftward
+            else max(c for _, c, _ in side) * nudge
+        )
+        for leftward, side in sides.items()
+        if side
+    }
+    # Two clusters close together in x would put the columns on the wrong sides
+    # of each other. Fall back to a per-marker nudge, which is worse but never
+    # inverted.
+    if len(columns) == 2 and columns[False] >= columns[True]:
+        columns = {}
+
+    placements: dict[str, tuple[float, float, str]] = {}
+    for leftward, side in sides.items():
+        if not side:
+            continue
+        # Pack upward from the lowest label, then shift the whole stack back down
+        # by half of whatever it grew, so a crowded side stays centred on its
+        # points instead of drifting off the top of the axes.
+        packed: list[float] = []
+        for _, _, score in side:
+            floor = packed[-1] + minimum_gap if packed else -np.inf
+            packed.append(max(score, floor))
+        drift = (packed[-1] - side[-1][2]) / 2.0
+        for (name, count, _), label_y in zip(side, packed, strict=True):
+            fallback = count / nudge if leftward else count * nudge
+            placements[name] = (
+                columns.get(leftward, fallback),
+                label_y - drift,
+                "right" if leftward else "left",
+            )
+
+    for name, (n_distinct, score) in ordered:
         color = SEMANTIC["highlight"] if name in highlighted else SEMANTIC["calibre"]
         if errorbars is not None and name in errorbars:
             low, high = errorbars[name]
@@ -305,16 +346,26 @@ def plot_resolution_frontier(
             zorder=3,
             label="_calibre:frontier",
         )
+        label_x, label_y, alignment = placements[name]
+        # A hairline back to the marker, drawn only when the label had to move
+        # far enough that which point it belongs to stops being obvious.
+        displaced = abs(label_y - score) > 0.4 * minimum_gap
         axes.annotate(
             name,
             xy=(n_distinct, score),
-            xytext=offset,
-            textcoords="offset points",
+            xytext=(label_x, label_y),
+            textcoords="data",
             fontsize="small",
+            ha=alignment,
+            va="center",
+            zorder=4,
+            arrowprops=dict(arrowstyle="-", linewidth=0.5, color="0.6", shrinkB=6.0)
+            if displaced
+            else None,
         )
 
-    # Room on the right for labels that trail off the last point.
-    axes.margins(x=0.12)
+    # Room on both sides now that labels point inward from either edge.
+    axes.margins(x=0.14, y=0.10)
 
     axes.set_xscale("log")
     finalize(

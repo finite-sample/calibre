@@ -67,6 +67,23 @@ def _float(value: str) -> float:
         return float("nan")
 
 
+def _save(figure, stem: str) -> None:
+    """Write one figure as both SVG and PNG.
+
+    The docs use the SVG. The README needs the PNG: it is rendered by GitHub and
+    by PyPI, and neither handles remote SVG reliably.
+
+    Parameters
+    ----------
+    figure
+        Figure to write.
+    stem
+        File name without extension.
+    """
+    figure.savefig(FIGURES / f"{stem}.svg", bbox_inches="tight")
+    figure.savefig(FIGURES / f"{stem}.png", dpi=140, bbox_inches="tight")
+
+
 def frontier(summary: list[dict[str, str]], dataset: str, model: str) -> None:
     """Held-out score against distinct values retained.
 
@@ -103,7 +120,7 @@ def frontier(summary: list[dict[str, str]], dataset: str, model: str) -> None:
             score_label="held-out Brier score",
         )
         ax.set_title(f"{dataset} / {model}")
-        ax.figure.savefig(FIGURES / "resolution_frontier.svg", bbox_inches="tight")
+        _save(ax.figure, "resolution_frontier")
         plt.close(ax.figure)
 
 
@@ -154,7 +171,7 @@ def paired_deltas(paired: list[dict[str, str]], dataset: str, model: str) -> Non
         ax.set_title(f"{dataset} / {model}   (right of the line is better)")
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
-        figure.savefig(FIGURES / "brier_deltas.svg", bbox_inches="tight")
+        _save(figure, "brier_deltas")
         plt.close(figure)
 
 
@@ -186,6 +203,7 @@ def resolution_barcode(dataset: str, model: str, seed: int) -> None:
         "calibre_centered",
         "calibre_spline",
         "calibre_regularized",
+        "calibre_relaxed_pava",
     ]
     outputs = {
         name: methods.calibrate(name, fit_scores, fit_labels, test_scores)
@@ -194,7 +212,7 @@ def resolution_barcode(dataset: str, model: str, seed: int) -> None:
     with style_context():
         ax = plot_resolution_loss(outputs, test_scores)
         ax.set_title(f"what each calibrator did to resolution ({dataset}/{model})")
-        ax.figure.savefig(FIGURES / "resolution_loss.svg", bbox_inches="tight")
+        _save(ax.figure, "resolution_loss")
         plt.close(ax.figure)
 
 
@@ -233,7 +251,7 @@ def decomposition(summary: list[dict[str, str]], dataset: str, model: str) -> No
     with style_context():
         ax = plot_mcb_dsc_plane(decompositions)
         ax.set_title(f"{dataset} / {model}")
-        ax.figure.savefig(FIGURES / "mcb_dsc_plane.svg", bbox_inches="tight")
+        _save(ax.figure, "mcb_dsc_plane")
         plt.close(ax.figure)
 
 
