@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal, overload
+
 import numpy as np
 from scipy.stats import spearmanr
 from sklearn.isotonic import IsotonicRegression
@@ -844,22 +846,6 @@ def progressive_sampling_diversity(
     return sample_sizes, diversities
 
 
-__all__ = [
-    "binned_calibration_error",
-    "brier_score",
-    "calibration_curve",
-    "calibration_diversity_index",
-    "correlation_metrics",
-    "expected_calibration_error",
-    "maximum_calibration_error",
-    "mean_calibration_error",
-    "plateau_quality_score",
-    "progressive_sampling_diversity",
-    "tie_preservation_score",
-    "unique_value_counts",
-]
-
-
 def _equal_mass_bins(y_pred: np.ndarray, n_bins: int) -> tuple[np.ndarray, int]:
     """Assign each prediction to an approximately equal-mass bin.
 
@@ -951,8 +937,104 @@ def _bin_summaries(
     return counts, mean_pred, mean_true
 
 
+def plugin_calibration_error(
+    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 15, p: int = 2
+) -> float:
+    r"""Calculate the uncorrected :math:`\ell_p` binned calibration error.
+
+    .. math::
+        \widehat{\mathrm{CE}}_p = \left[ \sum_k \frac{n_k}{n}
+        \left| \bar{f}_k - \bar{y}_k \right|^p \right]^{1/p}
+
+    This is the plain plugin estimator: the quantity
+    :func:`debiased_calibration_error` corrects and
+    :func:`sweep_calibration_error` chooses a bin count for. It exists so those
+    three can be compared on equal terms.
+
+    That comparison is otherwise a trap. :func:`expected_calibration_error` is
+    :math:`\ell_1` on **uniform-width** bins, :func:`debiased_calibration_error`
+    is :math:`\ell_2` on **equal-mass** bins, and
+    :func:`sweep_calibration_error` is :math:`\ell_1` on equal-mass bins by
+    default -- so plotting them against each other compares three different
+    quantities and reads as disagreement between estimators. This function takes
+    both the norm and the bin count as arguments and uses the same equal-mass,
+    tie-safe binning as the bias-aware estimators, so the only thing that differs
+    is the bias correction.
+
+    Parameters
+    ----------
+    y_true
+        Ground truth values (0 or 1).
+    y_pred
+        Predicted probabilities.
+    n_bins
+        Number of equal-mass bins. Fewer are used when ties prevent it.
+    p
+        Norm. 1 gives the familiar weighted mean absolute gap; 2 matches
+        :func:`debiased_calibration_error`.
+
+    Returns
+    -------
+    float
+        The uncorrected calibration error. Biased upward, and increasingly so as
+        ``n_bins`` grows.
+
+    Raises
+    ------
+    ValueError
+        If the arrays disagree in length, ``n_bins`` is below 1, or ``p`` is
+        below 1.
+
+    See Also
+    --------
+    debiased_calibration_error : The same quantity at ``p=2``, bias-corrected.
+    sweep_calibration_error : Chooses ``n_bins`` rather than fixing it.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> rng = np.random.default_rng(0)
+    >>> p_hat = rng.uniform(0, 1, 4000)
+    >>> y = rng.binomial(1, p_hat).astype(float)
+
+    These are calibrated by construction, so the true error is zero and whatever
+    the plugin reports is bias -- which grows with the bin count:
+
+    >>> coarse = plugin_calibration_error(y, p_hat, n_bins=5)
+    >>> fine = plugin_calibration_error(y, p_hat, n_bins=50)
+    >>> bool(fine > coarse)
+    True
+
+    Debiasing removes it:
+
+    >>> bool(debiased_calibration_error(y, p_hat, n_bins=50) < fine)
+    True
+    """
+    y_true = check_array(y_true, ensure_2d=False)
+    y_pred = check_array(y_pred, ensure_2d=False)
+    if len(y_true) != len(y_pred):
+        raise ValueError("y_true and y_pred must have the same length")
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
+    if p < 1:
+        raise ValueError(f"p must be at least 1, got {p}")
+
+    n = len(y_true)
+    if n == 0:
+        return 0.0
+
+    n_bins = min(n_bins, n)
+    bin_id, n_used = _equal_mass_bins(y_pred, n_bins)
+    counts, mean_pred, mean_true = _bin_summaries(y_true, y_pred, bin_id, n_used)
+
+    occupied = counts > 0
+    gaps = np.abs(mean_pred[occupied] - mean_true[occupied]) ** p
+    total = float(np.sum(counts[occupied] / n * gaps))
+    return float(total ** (1.0 / p))
+
+
 def debiased_calibration_error(
-    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 15
+    y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 15, squared: bool = False
 ) -> float:
     r"""Calculate the debiased :math:`\ell_2` calibration error.
 
@@ -974,6 +1056,10 @@ def debiased_calibration_error(
         Ground truth values (0 or 1).
     y_pred
         Predicted probabilities.
+    squared
+        Return the estimate of the **squared** error instead, without the square
+        root or the floor at zero. This is the quantity the correction actually
+        makes unbiased, and it may legitimately come out negative -- see Notes.
     n_bins
         Number of equal-mass bins. Defaults to 15, following Guo et al. (2017)
         as used by Roelofs et al.
@@ -983,7 +1069,8 @@ def debiased_calibration_error(
     float
         Debiased calibration error. Floored at zero: the correction can drive
         the sum negative on well-calibrated data, which is evidence of no
-        detectable miscalibration rather than of negative error.
+        detectable miscalibration rather than of negative error. With
+        ``squared=True`` the unfloored sum is returned instead.
 
     Raises
     ------
@@ -994,6 +1081,28 @@ def debiased_calibration_error(
     -----
     This is the :math:`\ell_2` error, so it is not comparable in magnitude to
     :func:`expected_calibration_error`, which is :math:`\ell_1`.
+
+    **The correction is unbiased on the squared scale, not on the error scale.**
+    Measured on 400 perfectly calibrated samples of 1500 observations, where the
+    true error is exactly zero (``tests/test_monte_carlo.py``):
+
+    ==========================================  =========  ===================
+    quantity                                    mean       distance from zero
+    ==========================================  =========  ===================
+    ``squared=True`` (the sum itself)           +4.5e-05   1.3 standard errors
+    default (``sqrt`` of the floored sum)       +0.0106    15.7 standard errors
+    ==========================================  =========  ===================
+
+    The sum is unbiased, exactly as intended, and comes out **negative on 53% of
+    calibrated samples** -- what an unbiased estimate of zero should do. The floor
+    then discards that half, and no amount of data removes the resulting upward
+    bias in the reported error. (The square root pulls the other way, being
+    concave: ``E[sqrt(W)]`` of 0.0106 against ``sqrt(E[W])`` of 0.0172.)
+
+    So: to *report* an error, use the default, and read a small positive value on
+    well-calibrated data as the floor rather than as evidence. To **average across
+    folds, compare two models, or do anything else that assumes unbiasedness**,
+    use ``squared=True`` and take the square root at the very end, if at all.
 
     References
     ----------
@@ -1047,12 +1156,36 @@ def debiased_calibration_error(
     ) ** 2 - variance
 
     total = float(np.sum(counts / len(y_true) * per_bin))
+    if squared:
+        return total
     return float(np.sqrt(max(total, 0.0)))
 
 
+@overload
 def sweep_calibration_error(
-    y_true: np.ndarray, y_pred: np.ndarray, p: int = 1
-) -> float:
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    p: int = ...,
+    return_n_bins: Literal[False] = ...,
+) -> float: ...
+
+
+@overload
+def sweep_calibration_error(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    p: int = ...,
+    *,
+    return_n_bins: Literal[True],
+) -> tuple[float, int]: ...
+
+
+def sweep_calibration_error(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    p: int = 1,
+    return_n_bins: bool = False,
+) -> float | tuple[float, int]:
     r"""Calculate the monotonic sweep calibration error (``ECE_sweep``).
 
     Fixing the bin count is the weak point of binned calibration error: too few
@@ -1073,11 +1206,17 @@ def sweep_calibration_error(
         Predicted probabilities.
     p
         Norm. 1 gives the familiar weighted mean absolute gap.
+    return_n_bins
+        Also return the bin count the sweep settled on. That number is half of
+        what the estimator has to say -- it is the sweep's answer to "how fine
+        can these data support?" -- and reporting only the error hides it.
 
     Returns
     -------
-    float
-        Binned calibration error at the selected bin count.
+    float or tuple of (float, int)
+        Binned calibration error at the selected bin count, and that bin count
+        when ``return_n_bins`` is True. The count is the number of bins actually
+        occupied, which ties can hold below the number the sweep reached.
 
     Raises
     ------
@@ -1112,23 +1251,327 @@ def sweep_calibration_error(
 
     n = len(y_true)
     if n < 2:
-        return 0.0
+        return (0.0, int(n)) if return_n_bins else 0.0
 
-    def error_at(n_bins: int) -> tuple[float, bool]:
+    def error_at(n_bins: int) -> tuple[float, bool, int]:
         bin_id, n_used = _equal_mass_bins(y_pred, n_bins)
         counts, mean_pred, mean_true = _bin_summaries(y_true, y_pred, bin_id, n_used)
         occupied = counts > 0
         monotone = bool(np.all(np.diff(mean_true[occupied]) >= 0.0))
         gaps = np.abs(mean_pred[occupied] - mean_true[occupied]) ** p
         error = float(np.sum(counts[occupied] / n * gaps) ** (1.0 / p))
-        return error, monotone
+        return error, monotone, int(np.count_nonzero(occupied))
 
     # b = 2 is guaranteed monotone only in the sense that the sweep needs a
     # starting point; if even it is not, one bin is all the data supports.
-    best = error_at(1)[0]
+    best, _, best_bins = error_at(1)
     for n_bins in range(2, n + 1):
-        error, monotone = error_at(n_bins)
+        error, monotone, occupied = error_at(n_bins)
         if not monotone:
             break
-        best = error
-    return best
+        best, best_bins = error, occupied
+    return (best, best_bins) if return_n_bins else best
+
+
+def _reflect_and_convolve(values: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    """Convolve on the unit interval with reflecting boundaries.
+
+    Parameters
+    ----------
+    values
+        Gridded mass, length ``m``.
+    kernel
+        Kernel evaluated on the same grid, length ``m``.
+
+    Returns
+    -------
+    ndarray
+        The smoothed grid, length ``m``.
+
+    Notes
+    -----
+    Predictions pile up at 0 and 1 -- a clipped or confident model puts real mass
+    exactly on the bounds -- and a plain convolution would let that mass leak off
+    the ends, understating error precisely where models are most overconfident.
+    Reflecting the grid at both ends keeps it inside.
+    """
+    m = values.size
+    extended = np.concatenate([np.flip(values)[:-1], values, np.flip(values)[1:]])
+    return np.convolve(extended, kernel, "valid")[m // 2 : m // 2 + m]
+
+
+def _gaussian_kernel(sigma: float, n_points: int) -> np.ndarray:
+    """Evaluate a Gaussian kernel of width ``sigma`` on a unit grid.
+
+    Parameters
+    ----------
+    sigma
+        Kernel bandwidth.
+    n_points
+        Grid size.
+
+    Returns
+    -------
+    ndarray
+        Kernel values, centred on the grid.
+    """
+    t = np.linspace(0.0, 1.0, n_points)
+    return np.exp(-((t - 0.5) ** 2) / (2.0 * sigma**2)) / (np.sqrt(2.0 * np.pi) * sigma)
+
+
+def _spread_to_grid(y_pred: np.ndarray, values: np.ndarray, m: int) -> np.ndarray:
+    """Bin ``values`` onto a regular grid, splitting each linearly between neighbours.
+
+    Parameters
+    ----------
+    y_pred
+        Positions in ``[0, 1]``.
+    values
+        Mass carried by each position.
+    m
+        Grid size.
+
+    Returns
+    -------
+    ndarray
+        Gridded mass, length ``m``.
+    """
+    grid = np.zeros(m)
+    scaled = y_pred * (m - 1)
+    lower = scaled.astype(int).clip(0, m - 2)
+    frac = scaled - lower
+    np.add.at(grid, lower, (1.0 - frac) * values)
+    np.add.at(grid, lower + 1, frac * values)
+    return grid
+
+
+def _interpolate_grid(t: np.ndarray, grid: np.ndarray) -> np.ndarray:
+    """Linearly interpolate a gridded function at ``t``.
+
+    Parameters
+    ----------
+    t
+        Evaluation points in ``[0, 1]``.
+    grid
+        Function values on a regular grid over ``[0, 1]``.
+
+    Returns
+    -------
+    ndarray
+        Interpolated values.
+    """
+    n = grid.size
+    index = (t * (n - 1)).astype(int).clip(0, n - 2)
+    residual = t * (n - 1) - index
+    return grid[index] * (1.0 - residual) + grid[index + 1] * residual
+
+
+def _smooth_at(
+    y_pred: np.ndarray, values: np.ndarray, t: np.ndarray, sigma: float
+) -> np.ndarray:
+    """Kernel-smooth ``values`` located at ``y_pred``, evaluated at ``t``.
+
+    Parameters
+    ----------
+    y_pred
+        Positions in ``[0, 1]``.
+    values
+        Mass carried by each position.
+    t
+        Evaluation points.
+    sigma
+        Kernel bandwidth.
+
+    Returns
+    -------
+    ndarray
+        Smoothed values at ``t``.
+    """
+    m = max(2000, round(20.0 / sigma)) // 2 + 1
+    gridded = _spread_to_grid(y_pred, values, m)
+    smoothed = _reflect_and_convolve(gridded, _gaussian_kernel(sigma, m))
+    return _interpolate_grid(t, smoothed)
+
+
+@overload
+def smooth_calibration_error(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    sigma: float | None = ...,
+    return_sigma: Literal[False] = ...,
+) -> float: ...
+
+
+@overload
+def smooth_calibration_error(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    sigma: float | None = ...,
+    *,
+    return_sigma: Literal[True],
+) -> tuple[float, float]: ...
+
+
+def smooth_calibration_error(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    sigma: float | None = None,
+    return_sigma: bool = False,
+) -> float | tuple[float, float]:
+    r"""Calculate the smooth calibration error (smECE).
+
+    Binned calibration error has no consistent limit: refine the bins and the
+    estimate keeps climbing on data that is perfectly calibrated. smECE replaces
+    the bins with a Gaussian kernel and, crucially, chooses its own bandwidth, so
+    there is no knob at all -- not a bin count, not a bandwidth.
+
+    .. math::
+        \mathrm{smECE}_\sigma(f, y) =
+        \frac{\int \left| (K_\sigma \star \nu)(t) \right| \, dt}
+             {\int (K_\sigma \star \rho)(t) \, dt},
+        \qquad
+        \nu = \sum_i (f_i - y_i)\, \delta_{f_i},
+        \quad \rho = \sum_i \delta_{f_i}
+
+    The bandwidth is the fixed point :math:`\sigma = \mathrm{smECE}_\sigma`, found
+    by bisection. Below that width the kernel is resolving noise; above it, it is
+    smoothing away real miscalibration.
+
+    This is a *consistent* calibration measure in the sense of Blasiok, Gopalan,
+    Hu and Nakkiran (2023): it is bounded above and below by polynomial functions
+    of the true distance to the nearest perfectly calibrated predictor. Binned ECE
+    is not, which is why it can report a large error for a predictor that is
+    almost calibrated and a small one for a predictor that is not.
+
+    Parameters
+    ----------
+    y_true
+        Ground truth values (0 or 1).
+    y_pred
+        Predicted probabilities in ``[0, 1]``.
+    sigma
+        Kernel bandwidth. When None, the fixed point above is used, which is the
+        recommended behaviour and what makes the estimator hyperparameter-free.
+    return_sigma
+        Also return the bandwidth used. Worth reporting: it is an interpretable
+        scale, roughly the resolution at which miscalibration is detectable.
+
+    Returns
+    -------
+    float or tuple of (float, float)
+        The smooth calibration error, and the bandwidth when ``return_sigma``.
+
+    Raises
+    ------
+    ValueError
+        If the arrays disagree in length, ``y_pred`` falls outside ``[0, 1]``, or
+        ``sigma`` is not positive.
+
+    See Also
+    --------
+    debiased_calibration_error : Bias-corrected, but still needs a bin count.
+    calibre.evaluation.score_decomposition : Avoids binning by using isotonic
+        regression, and decomposes the score rather than summarising the error.
+
+    References
+    ----------
+    Blasiok & Nakkiran (2024), "Smooth ECE: Principled Reliability Diagrams via
+    Kernel Smoothing", ICLR. Blasiok, Gopalan, Hu & Nakkiran (2023), "A Unifying
+    Theory of Distance from Calibration", STOC.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> rng = np.random.default_rng(0)
+    >>> p = rng.uniform(0, 1, 2000)
+    >>> y = rng.binomial(1, p).astype(float)
+
+    Calibrated by construction, so the error is near zero:
+
+    >>> bool(smooth_calibration_error(y, p) < 0.03)
+    True
+
+    An overconfident predictor is caught:
+
+    >>> squashed = np.clip(2.0 * (p - 0.5) + 0.5, 0, 1)
+    >>> bool(smooth_calibration_error(y, squashed) > 0.05)
+    True
+
+    Unlike a binned estimator there is no bin count to justify; the bandwidth is
+    chosen by the data:
+
+    >>> error, width = smooth_calibration_error(y, p, return_sigma=True)
+    >>> bool(0.0 < width <= 1.0)
+    True
+    """
+    y_true = check_array(y_true, ensure_2d=False)
+    y_pred = check_array(y_pred, ensure_2d=False)
+    if len(y_true) != len(y_pred):
+        raise ValueError("y_true and y_pred must have the same length")
+    if sigma is not None and sigma <= 0.0:
+        raise ValueError(f"sigma must be positive, got {sigma}")
+
+    y_true = np.asarray(y_true, dtype=float).ravel()
+    y_pred = np.asarray(y_pred, dtype=float).ravel()
+    if y_pred.size == 0:
+        return (0.0, 1.0) if return_sigma else 0.0
+    if np.any(y_pred < 0.0) or np.any(y_pred > 1.0):
+        raise ValueError("y_pred must lie in [0, 1]")
+
+    residual = y_pred - y_true
+
+    def error_at(width: float) -> float:
+        n_eval = max(round(10.0 / width), 200)
+        t = np.linspace(0.0, 1.0, n_eval)
+        smoothed = _smooth_at(y_pred, residual, t, width)
+        # The 1e-4 floor keeps the ratio finite where the kernel reaches a region
+        # holding no predictions at all.
+        density = _smooth_at(y_pred, np.ones_like(residual), t, width) + 1e-4
+        return float(np.sum(np.abs(smoothed)) / np.sum(density))
+
+    if sigma is not None:
+        value = error_at(sigma)
+        return (value, float(sigma)) if return_sigma else value
+
+    # Bisect for the fixed point sigma = smECE_sigma. `resolved(w)` is True once
+    # the kernel is at least as wide as the error it measures, so the smallest
+    # such width is the self-consistent one.
+    def resolved(width: float) -> bool:
+        return width < 1e-3 or width < error_at(width)
+
+    width = 1.0
+    if not resolved(width):
+        low, high = 1.0, 0.0
+        for _ in range(10):
+            mid = (low + high) / 2.0
+            if resolved(mid):
+                high = mid
+            else:
+                low = mid
+        width = low
+
+    value = error_at(width)
+    return (value, float(width)) if return_sigma else value
+
+
+# Declared at the end of the module so that every public name above is already
+# defined. Declared near the top, this list silently omitted the two bias-aware
+# estimators from ``from calibre.metrics import *``.
+__all__ = [
+    "binned_calibration_error",
+    "brier_score",
+    "calibration_curve",
+    "calibration_diversity_index",
+    "correlation_metrics",
+    "debiased_calibration_error",
+    "expected_calibration_error",
+    "maximum_calibration_error",
+    "mean_calibration_error",
+    "plateau_quality_score",
+    "plugin_calibration_error",
+    "progressive_sampling_diversity",
+    "smooth_calibration_error",
+    "sweep_calibration_error",
+    "tie_preservation_score",
+    "unique_value_counts",
+]
