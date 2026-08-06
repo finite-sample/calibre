@@ -14,19 +14,22 @@ right 60% of the time. Isotonic regression is the standard fix, and it works, bu
 pays for accuracy with resolution: it is a step function, so it collapses many
 distinct scores into a handful of values.
 
-On a 2,000-point held-out set, isotonic regression turns 2,000 distinct scores into
-**56**. Everything inside a step becomes indistinguishable — which matters as soon as
-you rank, threshold, or bucket the output.
+On the 2,000-point held-out set in the example below, isotonic regression turns
+2,000 distinct scores into **82**. Everything inside a step becomes
+indistinguishable — which matters as soon as you rank, threshold, or bucket the
+output.
 
 calibre gives you calibrators that fix the probabilities *and* keep the ordering.
 
 ## Install
 
 ```bash
-pip install calibre
+pip install calibre           # core
+pip install 'calibre[plots]'  # adds matplotlib for calibre.plots
 ```
 
-Python 3.12+. Depends on numpy, scipy, scikit-learn and cvxpy.
+Python 3.12+. Depends on numpy, scipy, scikit-learn and cvxpy. matplotlib is
+optional and imported only when you use `calibre.plots`.
 
 ## The problem, in 20 lines
 
@@ -70,8 +73,8 @@ non-parametric, has nothing to tune, is monotone, and has no plateaus.
 | A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing by CV on log-loss. |
 | A smooth curve with smoothing you control | `RegularizedIsotonicCalibrator` | Same model, you set `alpha` instead of tuning it. Fast. |
 | Exactly scikit-learn's isotonic behaviour | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
-| Guaranteed strictly increasing output | `RelaxedPAVACalibrator(min_slope=...)` | Forces a minimum step between adjacent scores. |
-| To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. |
+| Guaranteed strictly increasing output | `RelaxedPAVACalibrator` | Forces a minimum step between adjacent scores. Since 0.10.0 its default picks that step for you. |
+| To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. Not the one to reach for if you want resolution — see its docstring. |
 | Accuracy near specific decision thresholds | `CDIIsotonicCalibrator` | Research-grade; needs your operating thresholds. |
 
 Every calibrator follows the scikit-learn transformer API: `.fit(scores, labels)` and
@@ -79,26 +82,55 @@ Every calibrator follows the scikit-learn transformer API: `.fit(scores, labels)
 
 ## What you actually get
 
-Held out over 30 random datasets (an overconfident logistic model; fit on one half,
-scored on the other). Lower Brier is better; ΔBrier is the improvement over leaving
-the model uncalibrated.
+Every number below comes from [`benchmarks/`](benchmarks/), whose results are
+committed — `python -m benchmarks.run` reproduces them. This is the
+`overconfident` design (a model reporting `1.8 * z` for true log-odds `z`), thirty
+seeds, scored on a held-out half that nothing was tuned on. Lower Brier is better;
+ΔBrier is the improvement over leaving the model uncalibrated.
 
-| Method | Brier | ΔBrier | ECE | Distinct values |
-|---|---|---|---|---|
-| Uncalibrated | 0.1581 | — | 0.0826 | 2000 |
-| `IsotonicCalibrator` | 0.1515 | +0.0066 | 0.0265 | **56** |
-| `CenteredIsotonicCalibrator` | 0.1511 | +0.0070 | 0.0272 | 1874 |
-| `SplineCalibrator` | **0.1509** | **+0.0072** | 0.0258 | 1999 |
-| `RelaxedPAVACalibrator(min_slope=1e-5)` | 0.1515 | +0.0066 | 0.0269 | 1941 |
+| Method | Brier | ΔBrier | smECE | Distinct values | Beats isotonic |
+|---|---|---|---|---|---|
+| Uncalibrated | 0.1604 | — | 0.0835 | 1594 | — |
+| `IsotonicCalibrator` | 0.1530 | +0.0073 | 0.0270 | **49** | baseline |
+| `NearlyIsotonicCalibrator` | 0.1531 | +0.0072 | 0.0270 | 51 | 4/30 |
+| `RelaxedPAVACalibrator` | 0.1530 | +0.0073 | 0.0270 | 1356 | 28/30 |
+| `CenteredIsotonicCalibrator` | 0.1527 | +0.0076 | 0.0284 | 1514 | 25/30 |
+| `RegularizedIsotonicCalibrator` | 0.1525 | +0.0079 | 0.0264 | 1596 | 24/30 |
+| `SplineCalibrator` | 0.1524 | +0.0079 | 0.0259 | 1588 | 28/30 |
+| Platt scaling (sklearn `method="sigmoid"`) | **0.1521** | **+0.0082** | 0.0251 | 1599 | 26/30 |
+| Temperature scaling (sklearn `method="temperature"`) | 0.1522 | +0.0082 | 0.0251 | 1599 | 26/30 |
 
-Against plain isotonic on held-out Brier: `CenteredIsotonicCalibrator` wins 24/30
-seeds, `SplineCalibrator` 26/30, `RelaxedPAVACalibrator` 28/30.
+Read three things off it honestly.
 
-Two things worth reading honestly off that table. The Brier gains over isotonic are
-**small** — the large win is the last column, ~1900 distinct values instead of 56. And
-ECE barely moves, because ECE is computed on bins and is largely blind to the
-resolution you just recovered; that is a reason to be careful with ECE, not a reason
-to prefer isotonic.
+**The Brier gains over isotonic are small.** The large win is the distinct-value
+column: ~1400–1600 values instead of 49, at a Brier difference in the fourth
+decimal. `RelaxedPAVACalibrator` is the cleanest case — it beats isotonic on 28 of
+30 seeds by an average of 0.00001, which is to say it costs nothing, and keeps 29
+times the resolution.
+
+**scikit-learn's parametric methods win this design outright.** Both are
+`CalibratedClassifierCV` options — `method="sigmoid"`, and `method="temperature"`
+since 1.8. Both score better than anything in calibre, and against the *known*
+truth they are four times more accurate (0.0064 and 0.0040, against 0.0169 for the
+best calibre method). That is not an artefact: the distortion here is a pure
+temperature change, so a one-parameter model is exactly specified and a
+non-parametric one is paying for flexibility it does not need. If you know your
+miscalibration has that shape, use them. calibre is for when you don't.
+
+**smECE barely separates the methods**, because it is a calibration measure and
+resolution is not miscalibration. That is a reason to look at more than one number,
+which is what `calibration_report` below is for.
+
+The cost is fit time: isotonic fits in 1.3 ms, `RelaxedPAVACalibrator` in 113 ms,
+`RegularizedIsotonicCalibrator` in 0.6 s and `SplineCalibrator` in 2.3 s, the last
+two because they cross-validate their own hyperparameters.
+
+`nonmonotone` is in the grid because monotone methods should lose there. They
+don't: `RegularizedIsotonicCalibrator` scores 0.2156 against Platt's 0.2224,
+because the parametric methods cannot follow the dip either and give up more. And
+on `breast_cancer/logreg`, *not calibrating at all* beats isotonic by 0.0013 with a
+bootstrap interval clear of zero — the model was already close to calibrated and
+the test half is small, so pooling costs more than it buys.
 
 ## Recipes
 
@@ -137,8 +169,13 @@ print(
 
 ### Guarantee no ties at all
 
-`min_slope` forces a minimum gap between every adjacent pair of scores, so no two
-inputs can come out equal:
+Since 0.10.0 `RelaxedPAVACalibrator` does this by default: `min_slope="auto"`
+picks a step of `0.01 / n_unique`, small enough to be invisible in the score and
+large enough to keep the fit strictly increasing. On the benchmark grid that takes
+it from 11 distinct values to 124 on `breast_cancer/logreg` while the Brier score
+moves in the fifth decimal.
+
+Set `min_slope` yourself when you need a specific guaranteed gap:
 
 ```python
 import numpy as np
@@ -254,6 +291,82 @@ Also available: `maximum_calibration_error`, `binned_calibration_error`,
 `calibration_curve`, `correlation_metrics`, `unique_value_counts`,
 `calibration_diversity_index`, `tie_preservation_score`, `plateau_quality_score`,
 `progressive_sampling_diversity`.
+
+### Get every number at once
+
+`calibration_report` runs the whole battery and prints it, so you do not pick the
+one metric that flatters the model:
+
+```python
+import numpy as np
+
+from calibre import calibration_report
+
+rng = np.random.default_rng(0)
+p = rng.uniform(0, 1, 2000)
+y = rng.binomial(1, np.clip(p * 1.2, 0, 1)).astype(float)
+
+print(calibration_report(y, p))
+# > CalibrationReport  n=2,000  base rate 0.5760
+# >
+# >   Brier            0.1480
+# >     = MCB          0.0110   (recalibration recovers this)
+# >     - DSC          0.1072   (earned by the forecasts)
+# >     + UNC          0.2442   (irreducible)
+# >
+# >   bias             0.0771   (mean forecast 0.4989)
+# >   smECE            0.0769   (bandwidth 0.0771, chosen)
+# >   debiased ECE     0.0871   (15 bins)
+# >   plugin ECE       0.0929   (15 bins, uncorrected)
+# >   sweep ECE        0.0771   (10 bins, chosen)
+# >
+# >   distinct values  2,000 of 2,000 (100.0%)
+```
+
+`smooth_calibration_error` is smECE, from Błasiok & Nakkiran (2024). It is the one
+to reach for if you want a single number: unlike binned ECE it is *consistent* —
+it goes to zero if and only if the forecaster is calibrated — and it has no bin
+count for you to choose, which means no bin count for you to choose badly. calibre
+pins it against the authors' own `relplot` implementation to 1.1e-16.
+
+Every field is also available as an attribute (`report.brier`, `report.smece`, …)
+rather than only as text.
+
+### Put an interval on it
+
+A calibration error computed on 2,000 rows is an estimate, and estimates deserve
+intervals:
+
+```python
+import numpy as np
+
+from calibre import bootstrap_ci
+from calibre.metrics import brier_score, smooth_calibration_error
+
+rng = np.random.default_rng(0)
+p = rng.uniform(0, 1, 2000)
+y = rng.binomial(1, p).astype(float)  # calibrated by construction
+
+for name, metric in (("Brier", brier_score), ("smECE", smooth_calibration_error)):
+    ci = bootstrap_ci(metric, y, p, n_resamples=400, random_state=0)
+    print(f"{name:6s} {ci['estimate']:.4f}  [{ci['lower']:.4f}, {ci['upper']:.4f}]")
+# > Brier  0.1604  [0.1516, 0.1684]
+# > smECE  0.0223  [0.0199, 0.0226]
+```
+
+Look at the smECE row: the point estimate sits at the *top* of its interval. That
+is not a bug, it is the correction working. **The naive bootstrap is biased upward
+on calibration errors, and worst exactly when the model is well calibrated** —
+which is when you most want to trust the number.
+
+The reason is Jensen's inequality. Miscalibration is a convex functional of the
+empirical distribution, so averaging it over resamples overshoots its value at the
+centre. The truth here is zero by construction, and the percentile interval would
+not contain it. `bootstrap_ci` therefore defaults to the bias-corrected interval
+(`method="bc"`; `"percentile"`, `"basic"` and `"bca"` are also available). The
+predicted inflation factor of √2 is measured at 1.40–1.42 and is invariant in `n`;
+`experiments/bootstrap_bias/` reproduces the whole argument, including the linear
+control — Brier, being linear, shows no bias at all.
 
 ### Measure it honestly
 
@@ -403,6 +516,63 @@ One cost worth knowing, because no standard metric shows it: `TemperatureScaler`
 changes the predicted class — accuracy is exactly preserved — but it **does** reorder
 people *within* a class, at 49.6% of adjacent pairs in our measurements. If you rank
 individuals by their probability of a given class, that reordering is real.
+
+## See it
+
+```bash
+pip install 'calibre[plots]'
+```
+
+matplotlib is an optional extra. Importing calibre pulls in nothing new without it,
+and a subprocess test enforces that.
+
+**The collapse barcode.** One thin tick per distinct output value, one strip per
+method, drawn over the input range. The number of ticks *is* the number of distinct
+values, so the loss is not asserted — it is visible.
+
+![Resolution retained by each calibrator](https://raw.githubusercontent.com/finite-sample/calibre/main/docs/source/_static/bench/resolution_loss.png)
+
+scikit-learn's isotonic strip is sparse enough to count by eye. The calibre strips
+are solid ink. Same data, same held-out Brier to the fourth decimal.
+
+**The frontier.** The obvious objection to the barcode is that the extra values
+might be noise. If they were, the methods keeping them would sit higher on the
+score axis:
+
+![Held-out score against distinct values retained](https://raw.githubusercontent.com/finite-sample/calibre/main/docs/source/_static/bench/resolution_frontier.png)
+
+They do not. The frontier is flat: two clusters four decades apart in resolution,
+at the same height.
+
+```python
+import matplotlib
+
+matplotlib.use("Agg")  # not needed interactively
+import numpy as np
+
+from calibre import CenteredIsotonicCalibrator, IsotonicCalibrator
+from calibre.plots import plot_resolution_loss
+
+rng = np.random.default_rng(0)
+scores = rng.uniform(0, 1, 2000)
+labels = rng.binomial(1, scores).astype(float)
+
+ax = plot_resolution_loss({
+    "isotonic": IsotonicCalibrator().fit_transform(scores, labels),
+    "centered": CenteredIsotonicCalibrator().fit_transform(scores, labels),
+}, scores)
+print("strips:", [t.get_text() for t in ax.get_yticklabels()])
+# > strips: ['isotonic', 'centered']
+```
+
+Nine functions in all: `plot_reliability_diagram` (the CORP diagram, with
+consistency or confidence bands), `plot_score_decomposition`, `plot_mcb_dsc_plane`,
+`plot_resolution_loss`, `plot_resolution_frontier`, `plot_calibrator_comparison`,
+`plot_ece_bin_sensitivity`, `plot_miscalibration_profile` and
+`plot_classwise_reliability`.
+Every one returns the `Axes` or `Figure`, so you keep full control of titles,
+limits and saving. The palette is Okabe-Ito, which stays legible with any common
+form of colour blindness.
 
 ## Documentation
 
