@@ -178,3 +178,6 @@ test_env/
 # Documentation build directory
 docs/build/
 
+
+# R graphics device artifact, written by Rscript when a fixture is regenerated
+Rplots.pdf
