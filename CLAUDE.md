@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Calibre is a Python package for advanced probability calibration techniques in machine learning. It provides alternative calibration methods to traditional isotonic regression that better preserve probability granularity while maintaining monotonicity constraints.
 
-**Current Version**: 0.7.0 (correctness release — see CHANGELOG)
+**Current Version**: 0.9.0 (see CHANGELOG)
 
 ### Import Structure
 ```python
@@ -25,6 +25,9 @@ from calibre import (
 
 # Import standalone diagnostic functions
 from calibre.diagnostics import run_plateau_diagnostics, detect_plateaus
+
+# Plotting (optional: pip install 'calibre[plots]')
+from calibre.plots import plot_reliability_diagram, plot_resolution_loss
 ```
 
 ## Development Commands
@@ -165,7 +168,12 @@ supported/limited-data/inconclusive classifier do not exist. `n_bootstraps` and
 - `mean_calibration_error()`: Bias, |E[p] - E[y]|. Changed in 0.7.0; it used to
   return mean absolute error, which is not a calibration error.
 - `binned_calibration_error()`: Binned approach with uniform/quantile strategies
-- `expected_calibration_error()`: Expected calibration error (ECE)
+- `plugin_calibration_error()`: The uncorrected ℓp estimator on equal-mass bins.
+  Exists so plugin, debiased and sweep can be compared at one norm and one binning
+  rule; the other three public estimators differ in both, which makes any plot of
+  them together show different quantities rather than different bias.
+- `expected_calibration_error()`: Expected calibration error (ECE). ℓ1 on
+  **uniform-width** bins, unlike the bias-aware estimators.
 - `maximum_calibration_error()`: Maximum calibration error (MCE)
 - `brier_score()`: Brier score computation
 - `calibration_curve()`: Calibration curve generation
@@ -175,6 +183,33 @@ supported/limited-data/inconclusive classifier do not exist. `n_bootstraps` and
 - `plateau_quality_score()`: Overall quality assessment of plateau regions
 - `calibration_diversity_index()`: Measures granularity preservation
 - `progressive_sampling_diversity()`: Analyzes how diversity changes with sample size
+
+**calibre/plots/**: Plotting. matplotlib is an **optional** extra
+(`pip install 'calibre[plots]'`) and must stay one:
+- No module-level `import matplotlib` anywhere under `calibre/`. Every plot function
+  starts `require_matplotlib()` (`plots/_deps.py`). `calibre/__init__.py` exposes
+  `plots` through a PEP 562 `__getattr__`, so `import calibre` imports nothing new.
+  `tests/test_plots_deps.py` enforces this in a subprocess — an in-process check
+  would pass regardless, because the test session has matplotlib loaded.
+- matplotlib is also in the `dev` and `test` groups, so plots tests always run and
+  never skip. Its lower bound is stated in four places (`plots` extra, `dev`, `test`,
+  `docs`); PEP 735 groups cannot reference a project's own extras, so bump together.
+- **Plots draw; they do not compute.** Functions take an already-computed object.
+  Bands are a parameter, never an implicit flag — `consistency_bands` is a thousand
+  PAV refits. `plot_calibrator_comparison` refuses an unfitted calibrator rather than
+  fitting it. Two deliberate exceptions where sweeping *is* the plot:
+  `plot_ece_bin_sensitivity`, `plot_resolution_frontier`.
+- Single panel → `ax=None`, returns that `Axes` (the same object when supplied).
+  Multi-panel → `axes=None`, returns a `Figure`.
+- `plt` is touched in exactly one place: `_style.get_axes()`, `ax is None` branch.
+  `plt.show()`, `plt.gca()`, `plt.style.use()` and `rcParams` assignment are banned
+  and tested against.
+- Every artist carries a stable label; internal ones are prefixed `_calibre:`, which
+  matplotlib hides from legends. This is what makes the tests tractable.
+- **No baseline-image tests.** Three OSes × three Pythons, and a pixel diff tests
+  antialiasing rather than meaning. Assert the *claim* instead: barcode tick count ==
+  distinct-value count exactly; decomposition panels reproduce the identity to 1e-12;
+  plugin ECE rises with bin count while debiased does not.
 
 **calibre/utils/**: A package, not a module. `validation.py` and `array_ops.py`:
 - `check_arrays()`, `check_array_1d()`, `check_fitted()`, `check_consistent_length()`,
@@ -243,7 +278,40 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 - Uses pytest fixtures for test data generation
 - Coverage reporting via pytest-cov
 - Tests must fail rather than skip. Do not add `except Exception: pytest.skip(...)`.
-- Total tests: 484, all passing (includes 52 doctests, collected via --doctest-modules)
+- Total tests: 1054, all passing (includes doctests, collected via --doctest-modules)
+- `-n auto` is in `addopts`: the suite is ~170s with coverage against ~600s serial,
+  with identical results. It was added because the CI job timeout is 15 minutes.
+- A repo-root `conftest.py` sets `MPLBACKEND=Agg` and closes figures after each test.
+  It must import nothing but the standard library: setting the backend only works
+  before matplotlib is first imported.
+
+## Benchmarks
+
+`benchmarks/` is an importable package, not shipped in the wheel. It produces the
+numbers in README.md and `docs/source/examples/benchmarks.rst`; both read its
+committed CSVs, so **the docs build never re-runs the benchmark and never hits the
+network**.
+
+```bash
+python -m benchmarks.run --quick      # offline, ~1 min, what CI exercises
+python -m benchmarks.run --n-jobs 8   # the committed grid, ~5 min
+python -m benchmarks.aggregate        # raw.csv -> summary.csv, paired.csv
+python -m benchmarks.figures          # -> docs/source/_static/bench/
+```
+
+Everything tunable lives in `benchmarks/config.py`. **Do not change it and the
+committed results in the same commit without saying why in the message.**
+
+If you change a calibrator's defaults, re-run the grid and re-aggregate — the
+committed results go stale silently otherwise. `docs/source/_static/bench/headline.csv`
+is generated by `figures.py` and included by the docs page, so the table cannot
+drift from the results.
+
+The harness carries guards that fail loudly rather than promises: `calibre_isotonic`
+must reproduce `sklearn_isotonic` to 1e-12, `aggregate.py` refuses to summarise a
+cell missing seeds, and figures are drawn through `calibre.plots` so a plotting
+regression breaks the benchmark build. `tests/test_benchmarks.py` covers the schema
+and those guards.
 
 ## Configuration
 - **pyproject.toml**: Modern Python packaging configuration

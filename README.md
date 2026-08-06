@@ -557,10 +557,13 @@ rng = np.random.default_rng(0)
 scores = rng.uniform(0, 1, 2000)
 labels = rng.binomial(1, scores).astype(float)
 
-ax = plot_resolution_loss({
-    "isotonic": IsotonicCalibrator().fit_transform(scores, labels),
-    "centered": CenteredIsotonicCalibrator().fit_transform(scores, labels),
-}, scores)
+ax = plot_resolution_loss(
+    {
+        "isotonic": IsotonicCalibrator().fit_transform(scores, labels),
+        "centered": CenteredIsotonicCalibrator().fit_transform(scores, labels),
+    },
+    scores,
+)
 print("strips:", [t.get_text() for t in ax.get_yticklabels()])
 # > strips: ['isotonic', 'centered']
 ```

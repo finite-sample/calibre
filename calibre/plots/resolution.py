@@ -359,7 +359,12 @@ def plot_resolution_frontier(
             ha=alignment,
             va="center",
             zorder=4,
-            arrowprops=dict(arrowstyle="-", linewidth=0.5, color="0.6", shrinkB=6.0)
+            arrowprops={
+                "arrowstyle": "-",
+                "linewidth": 0.5,
+                "color": "0.6",
+                "shrinkB": 6.0,
+            }
             if displaced
             else None,
         )

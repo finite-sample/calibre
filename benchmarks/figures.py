@@ -255,6 +255,62 @@ def decomposition(summary: list[dict[str, str]], dataset: str, model: str) -> No
         plt.close(ax.figure)
 
 
+def headline_table(
+    summary: list[dict[str, str]],
+    paired: list[dict[str, str]],
+    dataset: str,
+    model: str,
+) -> None:
+    """Write the docs page's table as a CSV the page includes directly.
+
+    Generated rather than typed so the table and the results cannot drift apart.
+    The docs build reads this file; it never re-runs the benchmark.
+
+    Parameters
+    ----------
+    summary
+        Rows from ``summary.csv``.
+    paired
+        Rows from ``paired.csv``.
+    dataset
+        Dataset to tabulate.
+    model
+        Model to tabulate.
+    """
+    rows = [r for r in summary if r["dataset"] == dataset and r["model"] == model]
+    if not rows:
+        return
+    wins = {
+        r["method"]: f"{r['wins']}/{r['n_seeds']}"
+        for r in paired
+        if r["dataset"] == dataset and r["model"] == model
+    }
+    baseline = _float(next(r["brier"] for r in rows if r["method"] == "uncalibrated"))
+    rows.sort(key=lambda r: _float(r["brier"]))
+
+    out = RESULTS.parent.parent / "docs" / "source" / "_static" / "bench"
+    with (out / "headline.csv").open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            ["Method", "Brier", "dBrier", "smECE", "Distinct", "vs known truth", "Wins"]
+        )
+        for row in rows:
+            method = row["method"]
+            delta = baseline - _float(row["brier"])
+            truth = _float(row["true_error"])
+            writer.writerow(
+                [
+                    method,
+                    f"{_float(row['brier']):.4f}",
+                    "--" if method == "uncalibrated" else f"{delta:+.4f}",
+                    f"{_float(row['smece']):.4f}",
+                    f"{_float(row['n_distinct']):.0f}",
+                    "--" if not np.isfinite(truth) else f"{truth:.4f}",
+                    wins.get(method, "baseline"),
+                ]
+            )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Draw every figure.
 
@@ -284,6 +340,7 @@ def main(argv: list[str] | None = None) -> int:
     paired_deltas(paired, args.dataset, args.model)
     decomposition(summary, args.dataset, args.model)
     resolution_barcode(args.dataset, args.model, args.seed)
+    headline_table(summary, paired, args.dataset, args.model)
     print(f"wrote figures to {FIGURES}")
     return 0
 

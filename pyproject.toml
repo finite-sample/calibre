@@ -147,6 +147,11 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--doctest-modules",
+    # The suite is ~600s serial, against a 15-minute CI job timeout -- close
+    # enough that a slow runner would start failing on the clock rather than on
+    # the code. At -n 8 it is ~110s with identical results.
+    "-n",
+    "auto",
     "--cov=calibre",
     "--cov-report=term-missing",
     "--cov-report=html",
