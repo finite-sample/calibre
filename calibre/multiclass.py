@@ -50,6 +50,49 @@ __all__ = [
 _EPS = np.finfo(float).eps
 
 
+def _check_probability_matrix(
+    P: np.ndarray, n_classes: int | None = None
+) -> np.ndarray:
+    """Validate a matrix of class probabilities.
+
+    Parameters
+    ----------
+    P
+        Predicted probabilities, shape ``(n_samples, n_classes)``.
+    n_classes
+        Expected number of columns, when validating data at transform time.
+
+    Returns
+    -------
+    ndarray
+        Validated probabilities as float.
+
+    Raises
+    ------
+    ValueError
+        If ``P`` is not 2-D, has the wrong width, contains non-finite or
+        negative values, or has rows that do not sum to one.
+    """
+    P = np.asarray(P, dtype=float)
+    if P.ndim != 2:
+        raise ValueError(f"P must be 2-D (n_samples, n_classes), got shape {P.shape}")
+    if P.shape[0] == 0 or P.shape[1] == 0:
+        raise ValueError("P must contain at least one sample and one class")
+    if n_classes is not None and P.shape[1] != n_classes:
+        raise ValueError(
+            f"P has {P.shape[1]} classes but the scaler was fit on {n_classes}"
+        )
+    if not np.all(np.isfinite(P)):
+        raise ValueError("P contains non-finite values")
+    if np.any(P < 0.0):
+        raise ValueError("P must contain non-negative probabilities")
+
+    row_sums = P.sum(axis=1)
+    if not np.allclose(row_sums, 1.0, rtol=1e-8, atol=1e-8):
+        raise ValueError("rows of P must sum to 1")
+    return P
+
+
 def _check_matrix(P: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Validate a probability matrix and its integer labels.
 
@@ -70,20 +113,28 @@ def _check_matrix(P: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
     Raises
     ------
     ValueError
-        If ``P`` is not 2-D, the lengths disagree, the labels fall outside the
-        class range, or ``P`` holds non-finite values.
+        If ``P`` is not 2-D, the lengths disagree, labels are non-integer or
+        outside the class range, or ``P`` is not a valid probability matrix.
     """
-    P = np.asarray(P, dtype=float)
-    y = np.asarray(y)
+    P = _check_probability_matrix(P)
+    y_raw = np.asarray(y)
+    if y_raw.ndim == 0:
+        raise ValueError("y must be a 1-D array of integer class labels")
 
-    if P.ndim != 2:
-        raise ValueError(f"P must be 2-D (n_samples, n_classes), got shape {P.shape}")
-    if P.shape[0] != y.shape[0]:
-        raise ValueError(f"P has {P.shape[0]} rows but y has {y.shape[0]} entries")
-    if not np.all(np.isfinite(P)):
-        raise ValueError("P contains non-finite values")
+    try:
+        y_float = np.asarray(y_raw, dtype=float).ravel()
+    except (TypeError, ValueError) as exc:
+        raise ValueError("labels must be finite integers") from exc
+    if P.shape[0] != y_float.shape[0]:
+        raise ValueError(
+            f"P has {P.shape[0]} rows but y has {y_float.shape[0]} entries"
+        )
+    if not np.all(np.isfinite(y_float)):
+        raise ValueError("labels must be finite integers")
+    if not np.all(y_float == np.floor(y_float)):
+        raise ValueError("labels must be integers")
 
-    y = y.astype(int, copy=False).ravel()
+    y = y_float.astype(int, copy=False)
     n_classes = P.shape[1]
     if y.size and (y.min() < 0 or y.max() >= n_classes):
         raise ValueError(
@@ -564,14 +615,7 @@ class TemperatureScaler:
             raise AttributeError(
                 f"{type(self).__name__} is not fitted yet. Call fit() first."
             )
-        P = np.asarray(P, dtype=float)
-        if P.ndim != 2:
-            raise ValueError(f"P must be 2-D, got shape {P.shape}")
-        if P.shape[1] != self.n_features_in_:
-            raise ValueError(
-                f"P has {P.shape[1]} classes but the scaler was fit on "
-                f"{self.n_features_in_}"
-            )
+        P = _check_probability_matrix(P, n_classes=self.n_features_in_)
         return self._softmax(self._logits(P), self.temperature_)
 
     def fit_transform(self, P: np.ndarray, y: np.ndarray) -> np.ndarray:

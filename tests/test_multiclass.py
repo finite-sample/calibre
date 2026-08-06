@@ -294,12 +294,28 @@ def test_invalid_bound_is_rejected():
     ("P", "y", "match"),
     [
         (np.zeros((5,)), np.zeros(5), "2-D"),
-        (np.zeros((5, 3)), np.zeros(4), "rows"),
-        (np.zeros((5, 3)), np.array([0, 1, 2, 3, 0]), "labels must lie"),
+        (np.empty((0, 3)), np.empty(0), "at least one sample"),
+        (np.full((5, 3), 1 / 3), np.zeros(4), "rows"),
+        (np.full((5, 3), 1 / 3), np.array([0, 1, 2, 3, 0]), "labels must lie"),
+        (np.full((5, 3), 1 / 3), np.array([0, 1.9, 2, 1, 0]), "integers"),
         (np.full((5, 3), np.nan), np.zeros(5), "non-finite"),
+        (np.array([[1.1, -0.1, 0.0]] * 5), np.zeros(5), "non-negative"),
+        (np.full((5, 3), 0.2), np.zeros(5), "sum to 1"),
     ],
 )
 def test_malformed_input_is_rejected(P, y, match):
-    """Bad shapes and out-of-range labels raise rather than produce a number."""
+    """Bad probabilities and labels raise rather than produce a number."""
     with pytest.raises(ValueError, match=match):
         classwise_decomposition(P, y)
+
+
+def test_temperature_transform_rejects_malformed_probability_rows():
+    """Transform-time data must obey the same probability contract as fit data."""
+    truth, y = _truth_and_labels(8, n=500, J=3)
+    scaler = TemperatureScaler().fit(truth, y)
+
+    with pytest.raises(ValueError, match="sum to 1"):
+        scaler.transform(np.full((5, 3), 0.2))
+
+    with pytest.raises(ValueError, match="non-negative"):
+        scaler.transform(np.array([[1.1, -0.1, 0.0]] * 5))

@@ -205,6 +205,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
             cv=self.cv,
             scoring=self.scoring,
             random_state=self.random_state,
+            sample_weight=sample_weight,
         )
 
         basis = monotone_spline_basis(

@@ -359,6 +359,22 @@ def test_links_agree_closely_on_log_loss():
         )
 
 
+def test_monotone_spline_solver_rejects_invalid_weights():
+    """The low-level spline solver should not optimise an invalid objective."""
+    from calibre._core import fit_monotone_spline, monotone_spline_basis
+
+    x, y = _dataset(17, n=100)
+    basis = monotone_spline_basis(n_knots=5, degree=3).fit(x)
+
+    with pytest.raises(ValueError, match="finite non-negative"):
+        fit_monotone_spline(
+            basis.design(x), y, sample_weight=np.r_[np.ones(99), np.nan]
+        )
+
+    with pytest.raises(ValueError, match="at least one positive"):
+        fit_monotone_spline(basis.design(x), y, sample_weight=np.zeros_like(y))
+
+
 # --------------------------------------------------------------------------- #
 # Boundary behaviour, ranges, and scale
 # --------------------------------------------------------------------------- #
@@ -559,6 +575,24 @@ def test_invalid_params_rejected_by_fit(kwargs):
     x, y = _dataset(14, n=200)
     with pytest.raises(ValueError, match=r"(?i)must be"):
         SplineCalibrator(**kwargs).fit(x, y)
+
+
+@pytest.mark.parametrize(
+    ("sample_weight", "match"),
+    [
+        (np.ones(199), "same shape"),
+        (np.r_[np.ones(199), np.nan], "finite non-negative"),
+        (np.r_[np.ones(199), -1.0], "finite non-negative"),
+        (np.zeros(200), "at least one positive"),
+    ],
+)
+def test_spline_calibrator_rejects_malformed_sample_weights(sample_weight, match):
+    """Spline fitting and its CV search need valid observation weights."""
+    from calibre import SplineCalibrator
+
+    x, y = _dataset(16, n=200)
+    with pytest.raises(ValueError, match=match):
+        SplineCalibrator(alpha=None, cv=4).fit(x, y, sample_weight=sample_weight)
 
 
 # --------------------------------------------------------------------------- #

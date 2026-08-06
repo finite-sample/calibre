@@ -88,6 +88,12 @@ def aggregate_ties(
         if sample_weight is None
         else np.asarray(sample_weight, dtype=float).ravel()
     )
+    if w.shape != y.shape:
+        raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
+    if np.sum(w) <= 0.0:
+        raise ValueError("sample_weight must contain at least one positive weight")
 
     x_unique, inverse = np.unique(x, return_inverse=True)
     n_groups = x_unique.size
@@ -152,8 +158,8 @@ def weighted_pava(y: np.ndarray, sample_weight: np.ndarray | None = None) -> np.
     )
     if w.shape != y.shape:
         raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
-    if np.any(w < 0.0):
-        raise ValueError("sample_weight must be non-negative")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
 
     # Block stacks. means[k] is non-decreasing in k by construction.
     means = np.empty(y.size, dtype=float)
@@ -422,8 +428,8 @@ def nearly_isotonic_path(
     )
     if w.shape != y.shape:
         raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
-    if np.any(w < 0.0):
-        raise ValueError("sample_weight must be non-negative")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
 
     # Block state. Blocks are consecutive runs; `size` counts original indices so
     # the result can be expanded at the end.
@@ -1027,8 +1033,10 @@ def fit_monotone_spline(
     )
     if w.shape != y.shape:
         raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
-    if np.any(w < 0):
-        raise ValueError("sample_weight must be non-negative")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
+    if np.sum(w) <= 0.0:
+        raise ValueError("sample_weight must contain at least one positive weight")
 
     n, p = M.shape
     D = _difference_matrix(p)

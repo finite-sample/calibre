@@ -282,6 +282,12 @@ def select_by_cv(
         if sample_weight is None
         else np.asarray(sample_weight, dtype=float).ravel()
     )
+    if w.shape != y.shape:
+        raise ValueError("sample_weight must have the same shape as y")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
+    if np.sum(w) <= 0.0:
+        raise ValueError("sample_weight must contain at least one positive weight")
 
     if max_cv_samples is not None and y.size > max_cv_samples:
         rng = np.random.default_rng(random_state)
@@ -299,7 +305,14 @@ def select_by_cv(
         for train_idx, val_idx in folds:
             try:
                 model = factory(**params)
-                model.fit(X[train_idx], y[train_idx])
+                if sample_weight is None:
+                    model.fit(X[train_idx], y[train_idx])
+                else:
+                    model.fit(
+                        X[train_idx],
+                        y[train_idx],
+                        sample_weight=w[train_idx],
+                    )
                 pred = model.transform(X[val_idx])
             except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:
                 logger.debug("fold failed at %s: %s", params, exc)
@@ -401,6 +414,7 @@ def resolve_auto(
     scoring: str = "log_loss",
     random_state: int | None = 0,
     minimum: float = 0.0,
+    sample_weight: np.ndarray | None = None,
 ) -> float:
     """Resolve one parameter that may be a number or ``"auto"``.
 
@@ -430,6 +444,8 @@ def resolve_auto(
         Seed for folds.
     minimum
         Smallest permitted numeric value.
+    sample_weight
+        Non-negative per-observation weights used during selection.
 
     Returns
     -------
@@ -466,6 +482,7 @@ def resolve_auto(
             cv=cv,
             scoring=scoring,
             random_state=random_state,
+            sample_weight=sample_weight,
         )
         return float(best[name])
 

@@ -128,6 +128,24 @@ def test_single_distinct_forecast_gives_the_base_rate():
     assert diagram.cep[0] == pytest.approx(0.4)
 
 
+def test_diagram_rejects_negative_weights_even_when_ties_cancel_them():
+    """Observation weights must be valid before tied forecasts are pooled."""
+    x = np.array([0.2, 0.2, 0.8])
+    y = np.array([0.0, 1.0, 1.0])
+    w = np.array([2.0, -1.0, 1.0])
+
+    with pytest.raises(ValueError, match="finite non-negative"):
+        corp_reliability(x, y, sample_weight=w)
+
+
+def test_diagram_rejects_unidentified_all_zero_weights():
+    """A reliability diagram needs at least one weighted observation."""
+    x, y = _calibrated(17, n=20)
+
+    with pytest.raises(ValueError, match="at least one positive"):
+        corp_reliability(x, y, sample_weight=np.zeros_like(y))
+
+
 # --------------------------------------------------------------------------- #
 # The score decomposition
 # --------------------------------------------------------------------------- #
@@ -298,19 +316,28 @@ def test_wider_level_gives_wider_bands():
     assert np.all(wide["upper"] >= narrow["upper"] - 1e-12)
 
 
-@pytest.mark.slow
-def test_consistency_bands_have_approximately_nominal_coverage():
-    """Reproduces the paper's coverage study at a small scale.
+def test_consistency_bands_are_not_a_simultaneous_envelope():
+    """A cheap guard on the pointwise-versus-simultaneous distinction.
 
-    Bands are a statistical claim, so this is the one assertion here stated as a
-    range rather than an identity.
+    The quantitative coverage study lives in ``tests/test_monte_carlo.py``, where
+    the unit of replication is the dataset and the tolerance is a Monte Carlo
+    standard error. This one pins only the qualitative fact the docstring warns
+    about, at a cost of a second rather than half a minute: on calibrated data the
+    diagram leaves a nominal band *somewhere* almost always, so the bands must not
+    be read as an envelope.
+
+    Replaces an assertion of ``0.5 <= covered / trials <= 1.0`` at a nominal 0.9,
+    which a band covering half the time would have passed.
     """
-    covered = 0
-    trials = 60
+    exits = 0
+    trials = 12
     for seed in range(trials):
-        x, y = _calibrated(1000 + seed, n=500)
-        band = consistency_bands(x, y, level=0.9, n_resamples=200, random_state=seed)
+        x, y = _calibrated(1000 + seed, n=400)
+        band = consistency_bands(x, y, level=0.9, n_resamples=100, random_state=seed)
         diagram = corp_reliability(x, y)
         inside = (band["lower"] <= diagram.cep) & (diagram.cep <= band["upper"])
-        covered += int(inside.mean() >= 0.9)
-    assert 0.5 <= covered / trials <= 1.0
+        exits += int(not inside.all())
+    assert exits >= trials - 1, (
+        f"only {exits}/{trials} calibrated samples left the band; if the bands "
+        "have become simultaneous, the docstring warning is now wrong"
+    )

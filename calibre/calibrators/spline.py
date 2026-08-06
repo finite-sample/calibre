@@ -262,6 +262,12 @@ class SplineCalibrator(BaseCalibrator):
             if sample_weight is None
             else np.asarray(sample_weight, dtype=float).ravel()
         )
+        if w.shape != y.shape:
+            raise ValueError("sample_weight must have the same shape as y")
+        if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+            raise ValueError("sample_weight must contain finite non-negative values")
+        if np.sum(w) <= 0.0:
+            raise ValueError("sample_weight must contain at least one positive weight")
 
         if self.alpha is None:
             n_knots, alpha = self._select_hyperparameters(X, y, w)

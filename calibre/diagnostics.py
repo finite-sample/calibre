@@ -42,15 +42,19 @@ def run_plateau_diagnostics(
     -------
     diagnostics : dict
         Dictionary containing:
-        - 'n_plateaus': Number of plateaus detected
-        - 'plateaus': List of plateau information dicts, each containing:
-            - 'plateau_id': Unique identifier (0-indexed)
-            - 'x_range': Tuple of (min, max) input values in plateau
-            - 'value': The constant output value of the plateau
-            - 'width': Number of samples in the plateau
-            - 'n_samples': Number of samples (same as width)
-            - 'sample_density': 'adequate', 'sparse', or 'very_sparse'
-        - 'warnings': List of warning messages about problematic plateaus
+
+        - ``'n_plateaus'``: Number of plateaus detected.
+        - ``'plateaus'``: List of plateau information dicts, each containing:
+
+          - ``'plateau_id'``: Unique identifier (0-indexed).
+          - ``'x_range'``: Tuple of (min, max) input values in the plateau.
+          - ``'value'``: The constant output value of the plateau.
+          - ``'width'``: Number of samples in the plateau.
+          - ``'n_samples'``: Number of samples (same as width).
+          - ``'sample_density'``: ``'adequate'``, ``'sparse'`` or
+            ``'very_sparse'``.
+
+        - ``'warnings'``: List of warning messages about problematic plateaus.
 
     Examples
     --------
