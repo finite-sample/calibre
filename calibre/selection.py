@@ -48,17 +48,12 @@ _LOG_EPS = np.finfo(float).eps
 def _log_loss(y: np.ndarray, p: np.ndarray) -> np.ndarray:
     """Pointwise log loss.
 
-    Parameters
-    ----------
-    y
-        Targets in ``[0, 1]``.
-    p
-        Predicted probabilities.
+    Args:
+        y: Targets in ``[0, 1]``.
+        p: Predicted probabilities.
 
-    Returns
-    -------
-    ndarray
-        Per-observation loss.
+    Returns:
+        ndarray: Per-observation loss.
     """
     p = np.clip(p, _LOG_EPS, 1.0 - _LOG_EPS)
     return -(y * np.log(p) + (1.0 - y) * np.log1p(-p))
@@ -67,17 +62,12 @@ def _log_loss(y: np.ndarray, p: np.ndarray) -> np.ndarray:
 def _brier(y: np.ndarray, p: np.ndarray) -> np.ndarray:
     """Pointwise squared error.
 
-    Parameters
-    ----------
-    y
-        Targets.
-    p
-        Predicted probabilities.
+    Args:
+        y: Targets.
+        p: Predicted probabilities.
 
-    Returns
-    -------
-    ndarray
-        Per-observation loss.
+    Returns:
+        ndarray: Per-observation loss.
     """
     return (p - y) ** 2
 
@@ -88,20 +78,14 @@ _SCORINGS = {"log_loss": _log_loss, "brier": _brier}
 def _resolve_scoring(scoring: str) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
     """Look up a selection criterion by name.
 
-    Parameters
-    ----------
-    scoring
-        ``"log_loss"`` or ``"brier"``.
+    Args:
+        scoring: ``"log_loss"`` or ``"brier"``.
 
-    Returns
-    -------
-    callable
-        Pointwise loss, lower being better.
+    Returns:
+        callable: Pointwise loss, lower being better.
 
-    Raises
-    ------
-    ValueError
-        If the name is unknown. ECE is deliberately absent.
+    Raises:
+        ValueError: If the name is unknown. ECE is deliberately absent.
     """
     try:
         return _SCORINGS[scoring]
@@ -121,41 +105,30 @@ def make_folds(
 ) -> list[tuple[np.ndarray, np.ndarray]]:
     """Build cross-validation folds, stratifying binary targets.
 
-    Parameters
-    ----------
-    X
-        Uncalibrated scores.
-    y
-        Targets: binary labels, or values in ``[0, 1]``.
-    cv
-        Requested number of folds. Reduced when the data cannot support it.
-    random_state
-        Seed for the shuffle.
+    Args:
+        X: Uncalibrated scores.
+        y: Targets: binary labels, or values in ``[0, 1]``.
+        cv: Requested number of folds. Reduced when the data cannot support it.
+        random_state: Seed for the shuffle.
 
-    Returns
-    -------
-    list of (ndarray, ndarray)
-        ``(train_index, validation_index)`` pairs.
+    Returns:
+        list of (ndarray, ndarray): ``(train_index, validation_index)`` pairs.
 
-    Raises
-    ------
-    ValueError
-        If ``cv`` is below 2.
+    Raises:
+        ValueError: If ``cv`` is below 2.
 
-    Notes
-    -----
-    With binary targets the fold count is capped by the rarer class, so a rare
-    positive appears in every training split rather than leaving a fold with no
-    positives at all.
+    Notes:
+        With binary targets the fold count is capped by the rarer class, so a rare
+        positive appears in every training split rather than leaving a fold with no
+        positives at all.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.selection import make_folds
-    >>> x = np.linspace(0, 1, 20)
-    >>> y = (x > 0.5).astype(float)
-    >>> len(make_folds(x, y, cv=4))
-    4
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.selection import make_folds
+        >>> x = np.linspace(0, 1, 20)
+        >>> y = (x > 0.5).astype(float)
+        >>> len(make_folds(x, y, cv=4))
+        4
     """
     if cv < 2:
         raise ValueError(f"cv must be at least 2, got {cv}")
@@ -184,15 +157,11 @@ def make_folds(
 def _grid_points(param_grid: dict[str, Sequence[Any]]) -> list[dict[str, Any]]:
     """Expand a parameter grid into candidate dictionaries.
 
-    Parameters
-    ----------
-    param_grid
-        Mapping from parameter name to candidate values.
+    Args:
+        param_grid: Mapping from parameter name to candidate values.
 
-    Returns
-    -------
-    list of dict
-        One dictionary per combination, in a deterministic order.
+    Returns:
+        list of dict: One dictionary per combination, in a deterministic order.
     """
     names = list(param_grid)
     return [
@@ -218,56 +187,39 @@ def select_by_cv(
     the data, which matters: keeping a fold's model would ship an estimator that
     had seen only ``(cv-1)/cv`` of the sample.
 
-    Parameters
-    ----------
-    factory
-        Called with a candidate's keyword arguments, returning an unfitted
-        calibrator.
-    param_grid
-        Mapping from parameter name to candidate values.
-    X
-        Uncalibrated scores.
-    y
-        Targets.
-    sample_weight
-        Non-negative per-observation weights.
-    cv
-        Number of folds.
-    scoring
-        ``"log_loss"`` (default) or ``"brier"``.
-    max_cv_samples
-        Subsample above this size before searching. Selection only has to rank
-        candidates, so its cost is bounded; None disables.
-    random_state
-        Seed for folds and subsampling.
+    Args:
+        factory: Called with a candidate's keyword arguments, returning an unfitted calibrator.
+        param_grid: Mapping from parameter name to candidate values.
+        X: Uncalibrated scores.
+        y: Targets.
+        sample_weight: Non-negative per-observation weights.
+        cv: Number of folds.
+        scoring: ``"log_loss"`` (default) or ``"brier"``.
+        max_cv_samples: Subsample above this size before searching. Selection only has to rank candidates, so its cost is bounded; None disables.
+        random_state: Seed for folds and subsampling.
 
-    Returns
-    -------
-    dict
-        The winning parameters, ready to splat into ``factory``.
+    Returns:
+        dict: The winning parameters, ready to splat into ``factory``.
 
-    Raises
-    ------
-    ValueError
-        If the grid is empty, ``scoring`` is unknown, or every candidate failed.
+    Raises:
+        ValueError: If the grid is empty, ``scoring`` is unknown, or every candidate failed.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import NearlyIsotonicCalibrator
-    >>> from calibre.selection import select_by_cv
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.uniform(0, 1, 300)
-    >>> y = rng.binomial(1, x).astype(float)
-    >>> best = select_by_cv(
-    ...     lambda **kw: NearlyIsotonicCalibrator(**kw),
-    ...     {"lam": [0.1, 1.0, 10.0]},
-    ...     x,
-    ...     y,
-    ...     cv=3,
-    ... )
-    >>> sorted(best)
-    ['lam']
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import NearlyIsotonicCalibrator
+        >>> from calibre.selection import select_by_cv
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.uniform(0, 1, 300)
+        >>> y = rng.binomial(1, x).astype(float)
+        >>> best = select_by_cv(
+        ...     lambda **kw: NearlyIsotonicCalibrator(**kw),
+        ...     {"lam": [0.1, 1.0, 10.0]},
+        ...     x,
+        ...     y,
+        ...     cv=3,
+        ... )
+        >>> sorted(best)
+        ['lam']
     """
     loss = _resolve_scoring(scoring)
     # Checked before expanding: itertools.product() of no iterables yields one
@@ -348,42 +300,35 @@ def cross_val_calibrate(
     training data. This is the honest input to
     :func:`calibre.evaluation.score_decomposition`.
 
-    Parameters
-    ----------
-    calibrator
-        An unfitted calibrator. Cloned per fold, so the object passed in is left
-        untouched.
-    X
-        Uncalibrated scores.
-    y
-        Targets.
-    cv
-        Number of folds.
-    random_state
-        Seed for the folds.
+    Args:
+        calibrator: An unfitted calibrator. Cloned per fold, so the object passed in is left untouched.
+        X: Uncalibrated scores.
+        y: Targets.
+        cv: Number of folds.
+        random_state: Seed for the folds.
 
-    Returns
-    -------
-    ndarray of shape (n_samples,)
-        Out-of-fold calibrated probabilities, in the input's order.
+    Returns:
+        ndarray of shape (n_samples,): Out-of-fold calibrated probabilities, in the input's order.
 
-    Notes
-    -----
-    A calibrator that selects its own parameters runs that selection inside each
-    training fold, which makes this a nested cross-validation and keeps the
-    reported performance honest for a tuned model.
+    Raises:
+        RuntimeError: If the folds did not cover every observation, which would
+            leave some rows with no out-of-fold prediction at all.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import IsotonicCalibrator
-    >>> from calibre.selection import cross_val_calibrate
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.uniform(0, 1, 200)
-    >>> y = rng.binomial(1, x).astype(float)
-    >>> oof = cross_val_calibrate(IsotonicCalibrator(), x, y, cv=4)
-    >>> oof.shape
-    (200,)
+    Notes:
+        A calibrator that selects its own parameters runs that selection inside each
+        training fold, which makes this a nested cross-validation and keeps the
+        reported performance honest for a tuned model.
+
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import IsotonicCalibrator
+        >>> from calibre.selection import cross_val_calibrate
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.uniform(0, 1, 200)
+        >>> y = rng.binomial(1, x).astype(float)
+        >>> oof = cross_val_calibrate(IsotonicCalibrator(), x, y, cv=4)
+        >>> oof.shape
+        (200,)
     """
     from sklearn.base import clone
 
@@ -422,50 +367,30 @@ def resolve_auto(
     the selection rules live in one place rather than being restated per
     estimator.
 
-    Parameters
-    ----------
-    value
-        The constructor argument: a number, or ``"auto"``.
-    name
-        Parameter name, used in the grid and in error messages.
-    grid
-        Candidate values searched when ``value`` is ``"auto"``.
-    factory
-        Called with ``{name: candidate}`` to build an unfitted calibrator.
-    X
-        Uncalibrated scores.
-    y
-        Targets.
-    cv
-        Number of folds.
-    scoring
-        Selection criterion, a proper scoring rule.
-    random_state
-        Seed for folds.
-    minimum
-        Smallest permitted numeric value.
-    sample_weight
-        Non-negative per-observation weights used during selection.
+    Args:
+        value: The constructor argument: a number, or ``"auto"``.
+        name: Parameter name, used in the grid and in error messages.
+        grid: Candidate values searched when ``value`` is ``"auto"``.
+        factory: Called with ``{name: candidate}`` to build an unfitted calibrator.
+        X: Uncalibrated scores.
+        y: Targets.
+        cv: Number of folds.
+        scoring: Selection criterion, a proper scoring rule.
+        random_state: Seed for folds.
+        minimum: Smallest permitted numeric value.
+        sample_weight: Non-negative per-observation weights used during selection.
 
-    Returns
-    -------
-    float
-        The resolved value. Callers store it on a trailing-underscore attribute;
-        writing it back onto the constructor argument would break ``get_params``
-        round-tripping and therefore ``clone``.
+    Returns:
+        float: The resolved value. Callers store it on a trailing-underscore attribute; writing it back onto the constructor argument would break ``get_params`` round-tripping and therefore ``clone``.
 
-    Raises
-    ------
-    ValueError
-        If ``value`` is a string other than ``"auto"``, or a number below
-        ``minimum``.
+    Raises:
+        ValueError: If ``value`` is a string other than ``"auto"``, or a number below ``minimum``.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.selection import resolve_auto
-    >>> resolve_auto(0.5, "alpha", [0.1, 1.0], lambda **kw: None, np.array([]), np.array([]))
-    0.5
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.selection import resolve_auto
+        >>> resolve_auto(0.5, "alpha", [0.1, 1.0], lambda **kw: None, np.array([]), np.array([]))
+        0.5
     """
     # "non-negative" reads better than ">= 0.0" and is the wording these
     # calibrators have always used.

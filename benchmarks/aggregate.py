@@ -52,20 +52,14 @@ LEVEL_COLUMNS = (
 def _read(path: Path) -> list[dict[str, str]]:
     """Read a results CSV.
 
-    Parameters
-    ----------
-    path
-        File to read.
+    Args:
+        path: File to read.
 
-    Returns
-    -------
-    list of dict
-        Rows.
+    Returns:
+        list of dict: Rows.
 
-    Raises
-    ------
-    FileNotFoundError
-        If the file is missing, with the command that produces it.
+    Raises:
+        FileNotFoundError: If the file is missing, with the command that produces it.
     """
     if not path.exists():
         raise FileNotFoundError(
@@ -78,15 +72,11 @@ def _read(path: Path) -> list[dict[str, str]]:
 def _number(value: str) -> float:
     """Parse a CSV cell as a float, mapping blanks and NaN alike.
 
-    Parameters
-    ----------
-    value
-        Cell contents.
+    Args:
+        value: Cell contents.
 
-    Returns
-    -------
-    float
-        The value, or NaN.
+    Returns:
+        float: The value, or NaN.
     """
     try:
         return float(value)
@@ -101,17 +91,12 @@ def check_completeness(rows: list[dict[str, str]], expected_seeds: int) -> None:
     whatever survived and reported alongside the rest, which is how a benchmark
     quietly starts flattering whichever method happened not to crash.
 
-    Parameters
-    ----------
-    rows
-        Raw rows.
-    expected_seeds
-        Seeds each (dataset, model, method) should have.
+    Args:
+        rows: Raw rows.
+        expected_seeds: Seeds each (dataset, model, method) should have.
 
-    Raises
-    ------
-    ValueError
-        If any cell is incomplete, naming the worst offenders.
+    Raises:
+        ValueError: If any cell is incomplete, naming the worst offenders.
     """
     counts: dict[tuple[str, str, str], set[str]] = defaultdict(set)
     for row in rows:
@@ -133,15 +118,11 @@ def check_completeness(rows: list[dict[str, str]], expected_seeds: int) -> None:
 def summarise(rows: list[dict[str, str]]) -> list[dict[str, object]]:
     """Mean each level column over seeds, per dataset/model/method.
 
-    Parameters
-    ----------
-    rows
-        Raw rows.
+    Args:
+        rows: Raw rows.
 
-    Returns
-    -------
-    list of dict
-        Summary rows.
+    Returns:
+        list of dict: Summary rows.
     """
     grouped: dict[tuple[str, str, str], list[dict[str, str]]] = defaultdict(list)
     for row in rows:
@@ -170,19 +151,13 @@ def _paired_bootstrap(
 ) -> tuple[float, float]:
     """Percentile interval for a mean difference, resampling seeds.
 
-    Parameters
-    ----------
-    differences
-        One per-seed difference.
-    n_resamples
-        Bootstrap resamples.
-    seed
-        Generator seed.
+    Args:
+        differences: One per-seed difference.
+        n_resamples: Bootstrap resamples.
+        seed: Generator seed.
 
-    Returns
-    -------
-    tuple of float
-        ``(lower, upper)`` at 95%.
+    Returns:
+        tuple of float: ``(lower, upper)`` at 95%.
     """
     values = np.asarray(differences, dtype=float)
     values = values[np.isfinite(values)]
@@ -203,20 +178,13 @@ def pair_against_baseline(
 ) -> list[dict[str, object]]:
     """Difference every method against the baseline, within seed.
 
-    Parameters
-    ----------
-    rows
-        Raw rows.
-    baseline
-        Method every other is compared against.
-    n_resamples
-        Bootstrap resamples.
+    Args:
+        rows: Raw rows.
+        baseline: Method every other is compared against.
+        n_resamples: Bootstrap resamples.
 
-    Returns
-    -------
-    list of dict
-        One row per dataset/model/method, with the mean difference, its interval
-        and the win count.
+    Returns:
+        list of dict: One row per dataset/model/method, with the mean difference, its interval and the win count.
     """
     indexed: dict[tuple[str, str, str, str], dict[str, str]] = {
         (r["dataset"], r["model"], r["seed"], r["method"]): r for r in rows
@@ -271,12 +239,9 @@ def pair_against_baseline(
 def _write(path: Path, rows: list[dict[str, object]]) -> None:
     """Write rows to CSV.
 
-    Parameters
-    ----------
-    path
-        Destination.
-    rows
-        Rows to write.
+    Args:
+        path: Destination.
+        rows: Rows to write.
     """
     if not rows:
         return
@@ -290,15 +255,11 @@ def _write(path: Path, rows: list[dict[str, object]]) -> None:
 def main(argv: list[str] | None = None) -> int:
     """Aggregate the raw results.
 
-    Parameters
-    ----------
-    argv
-        Command line.
+    Args:
+        argv: Command line.
 
-    Returns
-    -------
-    int
-        Exit status.
+    Returns:
+        int: Exit status.
     """
     import argparse
 

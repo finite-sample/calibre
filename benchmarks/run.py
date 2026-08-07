@@ -48,10 +48,8 @@ FIELDNAMES = (*KEY_COLUMNS, *measures.COLUMNS)
 def _git_sha() -> str:
     """Return the current commit, or ``"unknown"`` outside a checkout.
 
-    Returns
-    -------
-    str
-        Short SHA.
+    Returns:
+        str: Short SHA.
     """
     try:
         return subprocess.run(
@@ -68,10 +66,8 @@ def _git_sha() -> str:
 def _environment() -> dict[str, Any]:
     """Record what produced these numbers.
 
-    Returns
-    -------
-    dict
-        Versions, platform and commit.
+    Returns:
+        dict: Versions, platform and commit.
     """
     import numpy
     import scipy
@@ -98,15 +94,11 @@ def _cells(args: argparse.Namespace) -> list[tuple[str, str, int]]:
     "model" rather than being crossed with three classifiers that would have
     nothing to do.
 
-    Parameters
-    ----------
-    args
-        Parsed command line.
+    Args:
+        args: Parsed command line.
 
-    Returns
-    -------
-    list of tuple
-        The cells to run.
+    Returns:
+        list of tuple: The cells to run.
     """
     if args.quick:
         names = list(config.QUICK_DATASETS)
@@ -133,15 +125,11 @@ def _cells(args: argparse.Namespace) -> list[tuple[str, str, int]]:
 def main(argv: list[str] | None = None) -> int:
     """Run the grid.
 
-    Parameters
-    ----------
-    argv
-        Command line, defaulting to :data:`sys.argv`.
+    Args:
+        argv: Command line, defaulting to :data:`sys.argv`.
 
-    Returns
-    -------
-    int
-        Process exit status.
+    Returns:
+        int: Process exit status.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--quick", action="store_true", help="small offline subset")

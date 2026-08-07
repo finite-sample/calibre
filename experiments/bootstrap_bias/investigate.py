@@ -66,7 +66,7 @@ def calibrated(n: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray
     rng
         Random generator.
 
-    Returns
+    Returns:
     -------
     tuple of ndarray
         ``(y_true, y_pred)``.
@@ -89,7 +89,7 @@ def distorted(
     rng
         Random generator.
 
-    Returns
+    Returns:
     -------
     tuple of ndarray
         ``(y_true, y_pred)``.
@@ -115,7 +115,7 @@ def boot_draws(metric, y, p, n_resamples, rng):
     rng
         Random generator.
 
-    Returns
+    Returns:
     -------
     ndarray
         The draws.
@@ -144,7 +144,7 @@ def ratio(metric, y, p, n_resamples, rng) -> tuple[float, float]:
     rng
         Random generator.
 
-    Returns
+    Returns:
     -------
     tuple of float
         ``(observed, bootstrap_mean)``.
@@ -205,7 +205,7 @@ def _plugin_frozen(p_ref, n_bins, norm_p):
     norm_p
         Norm.
 
-    Returns
+    Returns:
     -------
     callable
         A metric of ``(y_true, y_pred)`` using the frozen edges.
@@ -394,7 +394,7 @@ def _debiased_total(y_true, y_pred, n_bins=15) -> float:
     n_bins
         Bin count.
 
-    Returns
+    Returns:
     -------
     float
         The signed total.
@@ -562,7 +562,7 @@ def intervals(draws: np.ndarray, observed: float, level: float = 0.95) -> dict:
     level
         Nominal coverage.
 
-    Returns
+    Returns:
     -------
     dict
         Method name to ``(lower, upper)``.

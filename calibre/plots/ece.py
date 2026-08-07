@@ -53,51 +53,33 @@ def plot_ece_bin_sensitivity(
     This is one of only two plots in :mod:`calibre.plots` that computes anything,
     because sweeping the computation *is* the plot.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1).
-    y_pred
-        Predicted probabilities.
-    ax
-        Axes to draw on. A new figure is created when omitted.
-    n_bins
-        Bin counts to evaluate. Defaults to ``range(2, 51)``.
-    norm
-        The :math:`\ell_p` norm shared by every series.
-    estimators
-        Which of ``"plugin"``, ``"debiased"`` and ``"sweep"`` to draw. The sweep
-        chooses its own bin count, so it appears as a horizontal line annotated
-        with the count it settled on.
-    reference
-        A known true calibration error, drawn as a horizontal rule. On data that
-        is calibrated by construction this is 0, and everything above it is bias.
-    log_x
-        Whether to put the bin count on a log scale.
+    Args:
+        y_true: Ground truth values (0 or 1).
+        y_pred: Predicted probabilities.
+        ax: Axes to draw on. A new figure is created when omitted.
+        n_bins: Bin counts to evaluate. Defaults to ``range(2, 51)``.
+        norm: The :math:`\ell_p` norm shared by every series.
+        estimators: Which of ``"plugin"``, ``"debiased"`` and ``"sweep"`` to draw. The sweep chooses its own bin count, so it appears as a horizontal line annotated with the count it settled on.
+        reference: A known true calibration error, drawn as a horizontal rule. On data that is calibrated by construction this is 0, and everything above it is bias.
+        log_x: Whether to put the bin count on a log scale.
 
-    Returns
-    -------
-    Axes
-        The axes drawn on.
+    Returns:
+        Axes: The axes drawn on.
 
-    Raises
-    ------
-    ValueError
-        If ``estimators`` names something unknown, ``n_bins`` is empty or holds a
-        value below 1, or the arrays disagree in length.
+    Raises:
+        ValueError: If ``estimators`` names something unknown, ``n_bins`` is empty or holds a value below 1, or the arrays disagree in length.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre.plots import plot_ece_bin_sensitivity
-    >>> rng = np.random.default_rng(0)
-    >>> p = rng.uniform(0, 1, 2000)
-    >>> y = rng.binomial(1, p).astype(float)
-    >>> ax = plot_ece_bin_sensitivity(y, p, n_bins=range(2, 21), reference=0.0)
-    >>> ax.get_xlabel()
-    'number of bins'
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre.plots import plot_ece_bin_sensitivity
+        >>> rng = np.random.default_rng(0)
+        >>> p = rng.uniform(0, 1, 2000)
+        >>> y = rng.binomial(1, p).astype(float)
+        >>> ax = plot_ece_bin_sensitivity(y, p, n_bins=range(2, 21), reference=0.0)
+        >>> ax.get_xlabel()
+        'number of bins'
     """
     unknown = [e for e in estimators if e not in _ESTIMATORS]
     if unknown:

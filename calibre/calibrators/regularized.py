@@ -40,84 +40,70 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     construction, and :math:`\Delta\delta` is the second difference of the
     underlying B-spline coefficients.
 
-    Parameters
-    ----------
-    alpha
-        Roughness penalty. ``0`` gives an unpenalised monotone spline; larger
-        values drive the fit toward the best monotone straight line.
-    n_knots
-        Number of knots in the basis.
-    degree
-        B-spline degree.
-    knots
-        ``"quantile"`` or ``"uniform"`` knot placement.
-    link
-        ``"logit"`` or ``"identity"``. See :class:`calibre.SplineCalibrator`.
-    clip_output
-        Clip calibrated values into ``[0, 1]``.
-    enable_diagnostics
-        Whether to enable plateau diagnostics analysis.
+    Args:
+        alpha: Roughness penalty. ``0`` gives an unpenalised monotone spline; larger values drive the fit toward the best monotone straight line.
+        n_knots: Number of knots in the basis.
+        degree: B-spline degree.
+        knots: ``"quantile"`` or ``"uniform"`` knot placement.
+        link: ``"logit"`` or ``"identity"``. See :class:`calibre.SplineCalibrator`.
+        cv: Number of cross-validation folds used when a hyperparameter is left at ``"auto"``. Ignored when every hyperparameter is pinned.
+        scoring: Proper scoring rule the ``"auto"`` search minimises. Deliberately not a calibration error: ECE and its relatives are minimised by a constant forecast, so selecting on one would reward throwing resolution away.
+        random_state: Seed for the cross-validation split, so an ``"auto"`` selection is reproducible.
+        clip_output: Clip calibrated values into ``[0, 1]``.
+        enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
-    Attributes
-    ----------
-    basis_ : MonotoneSplineBasis
-        The fitted basis.
-    intercept_ : float
-        Fitted intercept, on the link scale.
-    coef_ : ndarray of shape (n_basis,)
-        Fitted non-negative increment coefficients.
-    n_features_in_ : int
-        Always 1. Present for scikit-learn compatibility.
+    Attributes:
+        basis_: The fitted basis.
+        intercept_: Fitted intercept, on the link scale.
+        coef_: Fitted non-negative increment coefficients.
+        n_features_in_: Always 1. Present for scikit-learn compatibility.
 
-    Notes
-    -----
-    **The penalty is on curvature, not on magnitude.** A ridge penalty
-    :math:`\alpha\sum_i \beta_i^2` buys no smoothness at all: unconstrained its
-    solution is :math:`\beta = y/(1+\alpha)`, a uniform deflation of every
-    probability that breaks mean calibration by construction and drives all
-    predictions to zero as :math:`\alpha` grows. A second-difference penalty leaves
-    any straight line unpenalised, so the identity map and the empirical base rate
-    both survive it.
+    Notes:
+        **The penalty is on curvature, not on magnitude.** A ridge penalty
+        :math:`\alpha\sum_i \beta_i^2` buys no smoothness at all: unconstrained its
+        solution is :math:`\beta = y/(1+\alpha)`, a uniform deflation of every
+        probability that breaks mean calibration by construction and drives all
+        predictions to zero as :math:`\alpha` grows. A second-difference penalty leaves
+        any straight line unpenalised, so the identity map and the empirical base rate
+        both survive it.
 
-    **Why a fixed basis rather than one parameter per score.** Putting a parameter at
-    every unique score makes this a smoothing-spline problem whose penalty operator
-    scales like :math:`h^{-2} \sim n^{2}`, so the normal equations scale like
-    :math:`n^{4}`. That is ill-conditioned in a way no solver choice repairs -- a
-    constrained QP stops converging above a few thousand distinct scores, ADMM
-    diverges, and a matrix-free least-squares solve fails to converge while the
-    fitted mean collapses away from the base rate. A modest fixed basis with a
-    coefficient penalty -- the P-spline construction of Eilers & Marx (1996), as used
-    by the SCOP-splines of Pya & Wood (2015) -- has none of those regimes: it fits
-    100,000 points in milliseconds with monotonicity guaranteed structurally.
+        **Why a fixed basis rather than one parameter per score.** Putting a parameter at
+        every unique score makes this a smoothing-spline problem whose penalty operator
+        scales like :math:`h^{-2} \sim n^{2}`, so the normal equations scale like
+        :math:`n^{4}`. That is ill-conditioned in a way no solver choice repairs -- a
+        constrained QP stops converging above a few thousand distinct scores, ADMM
+        diverges, and a matrix-free least-squares solve fails to converge while the
+        fitted mean collapses away from the base rate. A modest fixed basis with a
+        coefficient penalty -- the P-spline construction of Eilers & Marx (1996), as used
+        by the SCOP-splines of Pya & Wood (2015) -- has none of those regimes: it fits
+        100,000 points in milliseconds with monotonicity guaranteed structurally.
 
-    .. note::
+        .. note::
 
-       ``alpha=0`` no longer reduces to isotonic regression. It gives an
-       *unpenalised monotone regression spline*, which is smooth rather than
-       piecewise constant. For the exact isotonic fit use
-       :class:`calibre.IsotonicCalibrator`; to remove isotonic's plateaus without
-       leaving the non-parametric family, use
-       :class:`calibre.CenteredIsotonicCalibrator`.
+           ``alpha=0`` no longer reduces to isotonic regression. It gives an
+           *unpenalised monotone regression spline*, which is smooth rather than
+           piecewise constant. For the exact isotonic fit use
+           :class:`calibre.IsotonicCalibrator`; to remove isotonic's plateaus without
+           leaving the non-parametric family, use
+           :class:`calibre.CenteredIsotonicCalibrator`.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import RegularizedIsotonicCalibrator
-    >>>
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.random(500)
-    >>> y = (rng.random(500) < x).astype(float)
-    >>>
-    >>> cal = RegularizedIsotonicCalibrator(alpha=1.0).fit(x, y)
-    >>> fitted = cal.transform(np.linspace(0, 1, 200))
-    >>> bool(np.all(np.diff(fitted) >= -1e-10))
-    True
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import RegularizedIsotonicCalibrator
+        >>>
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.random(500)
+        >>> y = (rng.random(500) < x).astype(float)
+        >>>
+        >>> cal = RegularizedIsotonicCalibrator(alpha=1.0).fit(x, y)
+        >>> fitted = cal.transform(np.linspace(0, 1, 200))
+        >>> bool(np.all(np.diff(fitted) >= -1e-10))
+        True
 
-    See Also
-    --------
-    SplineCalibrator : Same estimator with the penalty chosen by cross-validation.
-    CenteredIsotonicCalibrator : Non-parametric and plateau-free.
-    IsotonicCalibrator : The exact isotonic fit.
+    See Also:
+        SplineCalibrator : Same estimator with the penalty chosen by cross-validation.
+        CenteredIsotonicCalibrator : Non-parametric and plateau-free.
+        IsotonicCalibrator : The exact isotonic fit.
     """
 
     #: Candidate roughness penalties searched when ``alpha="auto"``. Matches the
@@ -158,19 +144,13 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     ) -> None:
         """Fit the penalised monotone spline.
 
-        Parameters
-        ----------
-        X
-            Uncalibrated scores.
-        y
-            Targets: binary labels, or probabilities in ``[0, 1]``.
-        sample_weight
-            Non-negative per-observation weights.
+        Args:
+            X: Uncalibrated scores.
+            y: Targets: binary labels, or probabilities in ``[0, 1]``.
+            sample_weight: Non-negative per-observation weights.
 
-        Raises
-        ------
-        ValueError
-            If the configuration or the targets are invalid.
+        Raises:
+            ValueError: If the configuration or the targets are invalid.
         """
         from ..selection import resolve_auto
 
@@ -227,20 +207,14 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Map scores through the fitted calibration curve.
 
-        Parameters
-        ----------
-        X
-            Scores to calibrate.
+        Args:
+            X: Scores to calibrate.
 
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Calibrated probabilities.
+        Returns:
+            ndarray of shape (n_samples,): Calibrated probabilities.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         from scipy.special import expit
 

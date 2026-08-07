@@ -57,17 +57,12 @@ _LOG_EPS = np.finfo(float).eps
 def _brier(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Pointwise Brier score ``(x - y)**2``.
 
-    Parameters
-    ----------
-    x
-        Forecast probabilities.
-    y
-        Binary outcomes.
+    Args:
+        x: Forecast probabilities.
+        y: Binary outcomes.
 
-    Returns
-    -------
-    ndarray
-        Per-observation score.
+    Returns:
+        ndarray: Per-observation score.
     """
     return (x - y) ** 2
 
@@ -75,17 +70,12 @@ def _brier(x: np.ndarray, y: np.ndarray) -> np.ndarray:
 def _log_score(x: np.ndarray, y: np.ndarray) -> np.ndarray:
     """Pointwise logarithmic score ``-y log x - (1 - y) log(1 - x)``.
 
-    Parameters
-    ----------
-    x
-        Forecast probabilities.
-    y
-        Binary outcomes.
+    Args:
+        x: Forecast probabilities.
+        y: Binary outcomes.
 
-    Returns
-    -------
-    ndarray
-        Per-observation score.
+    Returns:
+        ndarray: Per-observation score.
     """
     x = np.clip(x, _LOG_EPS, 1.0 - _LOG_EPS)
     return -y * np.log(x) - (1.0 - y) * np.log1p(-x)
@@ -97,20 +87,14 @@ _SCORES = {"brier": _brier, "log": _log_score}
 def _resolve_score(score: str):
     """Look up a scoring rule by name.
 
-    Parameters
-    ----------
-    score
-        ``"brier"`` or ``"log"``.
+    Args:
+        score: ``"brier"`` or ``"log"``.
 
-    Returns
-    -------
-    callable
-        Pointwise scoring function.
+    Returns:
+        callable: Pointwise scoring function.
 
-    Raises
-    ------
-    ValueError
-        If the name is not a supported proper scoring rule.
+    Raises:
+        ValueError: If the name is not a supported proper scoring rule.
     """
     try:
         return _SCORES[score]
@@ -124,25 +108,27 @@ def _resolve_score(score: str):
 class ReliabilityDiagram:
     """A fitted CORP reliability diagram.
 
-    Attributes
-    ----------
-    x : ndarray
-        The distinct forecast values, ascending.
-    cep : ndarray
-        PAV-recalibrated conditional event probability at each forecast value.
-    weight : ndarray
-        Number of observations carrying each forecast value.
+    Attributes:
+        x: The distinct forecast values, ascending.
+        cep: PAV-recalibrated conditional event probability at each forecast value.
+        weight: Number of observations carrying each forecast value.
 
-    Notes
-    -----
-    Points where the diagram is flat are the CORP bins: the PAV algorithm chose
-    them, so no bin count needs to be supplied and none can be tuned to flatter
-    the forecaster.
+    Notes:
+        Points where the diagram is flat are the CORP bins: the PAV algorithm chose
+        them, so no bin count needs to be supplied and none can be tuned to flatter
+        the forecaster.
     """
 
     __slots__ = ("cep", "weight", "x")
 
     def __init__(self, x: np.ndarray, cep: np.ndarray, weight: np.ndarray) -> None:
+        """Store the diagram's three parallel arrays.
+
+        Args:
+            x: Forecast value at each bin.
+            cep: Conditional event probability at each bin.
+            weight: Number of observations behind each bin.
+        """
         self.x = x
         self.cep = cep
         self.weight = weight
@@ -150,27 +136,19 @@ class ReliabilityDiagram:
     def __call__(self, x_new: np.ndarray) -> np.ndarray:
         """Recalibrate new forecast values through the diagram.
 
-        Parameters
-        ----------
-        x_new
-            Forecast values to recalibrate.
+        Args:
+            x_new: Forecast values to recalibrate.
 
-        Returns
-        -------
-        ndarray
-            Recalibrated probabilities.
+        Returns:
+            ndarray: Recalibrated probabilities.
         """
         return self.as_function()(np.asarray(x_new, dtype=float).ravel())
 
     def as_function(self) -> PiecewiseLinear | StepFunction:
         """Return the recalibration map as a callable.
 
-        Returns
-        -------
-        PiecewiseLinear or StepFunction
-            Piecewise-linear interpolation of the diagram, matching the paper's
-            display convention. A single distinct forecast value gives a step
-            function, since there is nothing to interpolate between.
+        Returns:
+            PiecewiseLinear or StepFunction: Piecewise-linear interpolation of the diagram, matching the paper's display convention. A single distinct forecast value gives a step function, since there is nothing to interpolate between.
         """
         if self.x.size == 1:
             return StepFunction(self.x, self.cep)
@@ -183,30 +161,23 @@ class ReliabilityDiagram:
         :func:`calibre.plots.plot_reliability_diagram`, which documents every
         keyword. Needs matplotlib: ``pip install 'calibre[plots]'``.
 
-        Parameters
-        ----------
-        **kwargs
-            Passed straight through to
-            :func:`~calibre.plots.plot_reliability_diagram` -- ``ax``, ``bands``,
-            ``density``, ``style``, ``diagonal``, ``color`` and ``label``.
+        Args:
+            **kwargs: Passed straight through to :func:`~calibre.plots.plot_reliability_diagram` -- ``ax``, ``bands``, ``density``, ``style``, ``diagonal``, ``color`` and ``label``.
 
-        Returns
-        -------
-        matplotlib.axes.Axes
-            The axes drawn on.
+        Returns:
+            matplotlib.axes.Axes: The axes drawn on.
 
-        Examples
-        --------
-        >>> import matplotlib
-        >>> matplotlib.use("Agg")
-        >>> import numpy as np
-        >>> from calibre import corp_reliability
-        >>> rng = np.random.default_rng(0)
-        >>> x = rng.uniform(0, 1, 200)
-        >>> y = rng.binomial(1, x).astype(float)
-        >>> ax = corp_reliability(x, y).plot(density="none")
-        >>> ax.get_xlabel()
-        'forecast probability'
+        Examples:
+            >>> import matplotlib
+            >>> matplotlib.use("Agg")
+            >>> import numpy as np
+            >>> from calibre import corp_reliability
+            >>> rng = np.random.default_rng(0)
+            >>> x = rng.uniform(0, 1, 200)
+            >>> y = rng.binomial(1, x).astype(float)
+            >>> ax = corp_reliability(x, y).plot(density="none")
+            >>> ax.get_xlabel()
+            'forecast probability'
         """
         # Imported here, not at module scope, so that matplotlib stays optional
         # and importing calibre.evaluation stays free.
@@ -234,37 +205,29 @@ def corp_reliability(
     diagram it needs no bin count, because PAV determines the number and position
     of the flat segments itself.
 
-    Parameters
-    ----------
-    x
-        Forecast probabilities.
-    y
-        Binary outcomes in ``{0, 1}``.
-    sample_weight
-        Non-negative per-observation weights. Defaults to 1.
+    Args:
+        x: Forecast probabilities.
+        y: Binary outcomes in ``{0, 1}``.
+        sample_weight: Non-negative per-observation weights. Defaults to 1.
 
-    Returns
-    -------
-    ReliabilityDiagram
-        The fitted diagram.
+    Returns:
+        ReliabilityDiagram: The fitted diagram.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.evaluation import corp_reliability
-    >>> x = np.array([0.2, 0.4, 0.6, 0.8])
-    >>> y = np.array([0.0, 1.0, 0.0, 1.0])
-    >>> diagram = corp_reliability(x, y)
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.evaluation import corp_reliability
+        >>> x = np.array([0.2, 0.4, 0.6, 0.8])
+        >>> y = np.array([0.0, 1.0, 0.0, 1.0])
+        >>> diagram = corp_reliability(x, y)
 
-    The middle pair violates monotonicity, so PAV pools it to its mean:
+        The middle pair violates monotonicity, so PAV pools it to its mean:
 
-    >>> diagram.cep
-    array([0. , 0.5, 0.5, 1. ])
+        >>> diagram.cep
+        array([0. , 0.5, 0.5, 1. ])
 
-    See Also
-    --------
-    score_decomposition : The score decomposition built on this estimate.
-    calibre.CenteredIsotonicCalibrator : Recalibration, rather than diagnosis.
+    See Also:
+        score_decomposition : The score decomposition built on this estimate.
+        calibre.CenteredIsotonicCalibrator : Recalibration, rather than diagnosis.
     """
     x, y = check_arrays(x, y)
 
@@ -291,51 +254,39 @@ def score_decomposition(
     forecasts buy over always predicting the base rate, and ``UNC`` is the
     difficulty of the problem, which no forecaster can change.
 
-    Parameters
-    ----------
-    x
-        Forecast probabilities.
-    y
-        Binary outcomes in ``{0, 1}``.
-    score
-        Proper scoring rule: ``"brier"`` (default) or ``"log"``.
-    sample_weight
-        Non-negative per-observation weights. Defaults to 1.
+    Args:
+        x: Forecast probabilities.
+        y: Binary outcomes in ``{0, 1}``.
+        score: Proper scoring rule: ``"brier"`` (default) or ``"log"``.
+        sample_weight: Non-negative per-observation weights. Defaults to 1.
 
-    Returns
-    -------
-    dict
-        ``mean_score``, ``MCB``, ``DSC``, ``UNC``. ``MCB`` and ``DSC`` are
-        non-negative, guaranteed by the optimality of the PAV solution.
+    Returns:
+        dict: ``mean_score``, ``MCB``, ``DSC``, ``UNC``. ``MCB`` and ``DSC`` are non-negative, guaranteed by the optimality of the PAV solution.
 
-    Raises
-    ------
-    ValueError
-        If ``score`` is not a supported proper scoring rule.
+    Raises:
+        ValueError: If ``score`` is not a supported proper scoring rule.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.evaluation import score_decomposition
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.uniform(0, 1, 2000)
-    >>> y = rng.binomial(1, x).astype(float)
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.evaluation import score_decomposition
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.uniform(0, 1, 2000)
+        >>> y = rng.binomial(1, x).astype(float)
 
-    These forecasts are calibrated by construction, so miscalibration is small
-    while discrimination is substantial:
+        These forecasts are calibrated by construction, so miscalibration is small
+        while discrimination is substantial:
 
-    >>> d = score_decomposition(x, y)
-    >>> bool(d["MCB"] < 0.01), bool(d["DSC"] > 0.05)
-    (True, True)
+        >>> d = score_decomposition(x, y)
+        >>> bool(d["MCB"] < 0.01), bool(d["DSC"] > 0.05)
+        (True, True)
 
-    The identity holds exactly:
+        The identity holds exactly:
 
-    >>> bool(abs(d["mean_score"] - (d["MCB"] - d["DSC"] + d["UNC"])) < 1e-12)
-    True
+        >>> bool(abs(d["mean_score"] - (d["MCB"] - d["DSC"] + d["UNC"])) < 1e-12)
+        True
 
-    See Also
-    --------
-    corp_reliability : The recalibration this decomposition is built on.
+    See Also:
+        corp_reliability : The recalibration this decomposition is built on.
     """
     scoring = _resolve_score(score)
     x, y = check_arrays(x, y)
@@ -376,19 +327,13 @@ def score_decomposition(
 def _band_from_draws(draws: np.ndarray, level: float) -> tuple[np.ndarray, np.ndarray]:
     """Take pointwise resampling percentiles as a band.
 
-    Parameters
-    ----------
-    draws
-        Array of shape ``(n_resamples, n_points)``.
-    level
-        Nominal coverage in ``(0, 1)``.
+    Args:
+        draws: Array of shape ``(n_resamples, n_points)``.
+        level: Nominal coverage in ``(0, 1)``.
 
-    Returns
-    -------
-    lower : ndarray
-        Lower band.
-    upper : ndarray
-        Upper band.
+    Returns:
+        lower: Lower band.
+        upper: Upper band.
     """
     tail = (1.0 - level) / 2.0
     lower = np.quantile(draws, tail, axis=0)
@@ -406,27 +351,17 @@ def _resample_bands(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Draw outcomes from ``probabilities`` and refit the diagram each time.
 
-    Parameters
-    ----------
-    x
-        Original forecast values, one per observation.
-    probabilities
-        Success probability for each observation.
-    grid
-        Forecast values at which to report the band.
-    level
-        Nominal coverage in ``(0, 1)``.
-    n_resamples
-        Number of resamples.
-    random_state
-        Seed.
+    Args:
+        x: Original forecast values, one per observation.
+        probabilities: Success probability for each observation.
+        grid: Forecast values at which to report the band.
+        level: Nominal coverage in ``(0, 1)``.
+        n_resamples: Number of resamples.
+        random_state: Seed.
 
-    Returns
-    -------
-    lower : ndarray
-        Lower band on ``grid``.
-    upper : ndarray
-        Upper band on ``grid``.
+    Returns:
+        lower: Lower band on ``grid``.
+        upper: Upper band on ``grid``.
     """
     rng = np.random.default_rng(random_state)
     draws = np.empty((n_resamples, grid.size), dtype=float)
@@ -440,17 +375,12 @@ def _resample_bands(
 def _validate_band_args(level: float, n_resamples: int) -> None:
     """Check band arguments.
 
-    Parameters
-    ----------
-    level
-        Nominal coverage.
-    n_resamples
-        Number of resamples.
+    Args:
+        level: Nominal coverage.
+        n_resamples: Number of resamples.
 
-    Raises
-    ------
-    ValueError
-        If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
+    Raises:
+        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
     """
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be in (0, 1), got {level}")
@@ -475,56 +405,43 @@ def consistency_bands(
 
     Use :func:`confidence_bands` instead for an interval around the estimate.
 
-    Parameters
-    ----------
-    x
-        Forecast probabilities.
-    y
-        Binary outcomes in ``{0, 1}``. Used for the grid and for validation; the
-        bands themselves are generated under the calibration hypothesis and do
-        not depend on the observed outcomes.
-    level
-        Nominal coverage, default 0.9.
-    n_resamples
-        Number of resamples, default 1000.
-    random_state
-        Seed. Defaults to 0 so results are reproducible.
+    Args:
+        x: Forecast probabilities.
+        y: Binary outcomes in ``{0, 1}``. Used for the grid and for validation; the bands themselves are generated under the calibration hypothesis and do not depend on the observed outcomes.
+        level: Nominal coverage, default 0.9.
+        n_resamples: Number of resamples, default 1000.
+        random_state: Seed. Defaults to 0 so results are reproducible.
 
-    Returns
-    -------
-    dict
-        ``x`` (the grid), ``lower`` and ``upper``.
+    Returns:
+        dict: ``x`` (the grid), ``lower`` and ``upper``.
 
-    Raises
-    ------
-    ValueError
-        If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
+    Raises:
+        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
 
-    Notes
-    -----
-    **These are pointwise bands, not a simultaneous envelope.** Coverage holds at
-    each forecast value separately. It does *not* hold at all of them at once, and
-    the difference is not subtle: on perfectly calibrated data the observed
-    diagram leaves a nominal 90% band *somewhere* on essentially every sample.
-    Measured over 150 replications (``tests/test_monte_carlo.py``):
+    Notes:
+        **These are pointwise bands, not a simultaneous envelope.** Coverage holds at
+        each forecast value separately. It does *not* hold at all of them at once, and
+        the difference is not subtle: on perfectly calibrated data the observed
+        diagram leaves a nominal 90% band *somewhere* on essentially every sample.
+        Measured over 150 replications (``tests/test_monte_carlo.py``):
 
-    ======  ====================  =======================
-    ``n``   pointwise coverage    simultaneous coverage
-    ======  ====================  =======================
-    300     90.1%                 1.3%
-    1200    89.6%                 0.0%
-    4800    89.4%                 0.0%
-    ======  ====================  =======================
+        ======  ====================  =======================
+        ``n``   pointwise coverage    simultaneous coverage
+        ======  ====================  =======================
+        300     90.1%                 1.3%
+        1200    89.6%                 0.0%
+        4800    89.4%                 0.0%
+        ======  ====================  =======================
 
-    So "my curve stayed inside the band, therefore it is calibrated" is a test
-    with a false-positive rate near one. Read the band at a forecast value you
-    care about, or count excursions and compare that count against the nominal
-    miss rate -- do not read it as an envelope.
+        So "my curve stayed inside the band, therefore it is calibrated" is a test
+        with a false-positive rate near one. Read the band at a forecast value you
+        care about, or count excursions and compare that count against the nominal
+        miss rate -- do not read it as an envelope.
 
-    Resampling only. The paper also derives asymptotic bands from isotonic
-    regression theory (a Chernoff limit for continuous forecasts), which is not
-    implemented here; at large sample sizes this function is the expensive
-    option rather than the unavailable one.
+        Resampling only. The paper also derives asymptotic bands from isotonic
+        regression theory (a Chernoff limit for continuous forecasts), which is not
+        implemented here; at large sample sizes this function is the expensive
+        option rather than the unavailable one.
     """
     _validate_band_args(level, n_resamples)
     x, y = check_arrays(x, y)
@@ -547,53 +464,42 @@ def confidence_bands(
     the usual frequentist reading: over repeated experiments, about ``level`` of
     such bands contain the true conditional event probability.
 
-    Parameters
-    ----------
-    x
-        Forecast probabilities.
-    y
-        Binary outcomes in ``{0, 1}``.
-    level
-        Nominal coverage, default 0.9.
-    n_resamples
-        Number of resamples, default 1000.
-    random_state
-        Seed. Defaults to 0 so results are reproducible.
+    Args:
+        x: Forecast probabilities.
+        y: Binary outcomes in ``{0, 1}``.
+        level: Nominal coverage, default 0.9.
+        n_resamples: Number of resamples, default 1000.
+        random_state: Seed. Defaults to 0 so results are reproducible.
 
-    Returns
-    -------
-    dict
-        ``x`` (the grid), ``lower`` and ``upper``.
+    Returns:
+        dict: ``x`` (the grid), ``lower`` and ``upper``.
 
-    Raises
-    ------
-    ValueError
-        If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
+    Raises:
+        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
 
-    Notes
-    -----
-    **Pointwise, not simultaneous**, exactly as for :func:`consistency_bands`;
-    see the table there.
+    Notes:
+        **Pointwise, not simultaneous**, exactly as for :func:`consistency_bands`;
+        see the table there.
 
-    **Coverage of the truth is below nominal on small samples.** These bands are
-    centred on the PAV-recalibrated estimate, and isotonic regression is biased at
-    finite sample size, so the band is centred slightly off the true conditional
-    event probability curve. Coverage of that true curve, measured against a
-    known data-generating process over 150 replications at a nominal 90%:
+        **Coverage of the truth is below nominal on small samples.** These bands are
+        centred on the PAV-recalibrated estimate, and isotonic regression is biased at
+        finite sample size, so the band is centred slightly off the true conditional
+        event probability curve. Coverage of that true curve, measured against a
+        known data-generating process over 150 replications at a nominal 90%:
 
-    ======  ==========================
-    ``n``   coverage of the true curve
-    ======  ==========================
-    300     78.2%
-    1200    86.9%
-    4800    90.5%
-    ======  ==========================
+        ======  ==========================
+        ``n``   coverage of the true curve
+        ======  ==========================
+        300     78.2%
+        1200    86.9%
+        4800    90.5%
+        ======  ==========================
 
-    The shortfall is a property of centring on an isotonic fit, not a defect in
-    the resampling, and it vanishes as the centring bias does. Treat a 90% band
-    on a few hundred observations as closer to an 80% one.
+        The shortfall is a property of centring on an isotonic fit, not a defect in
+        the resampling, and it vanishes as the centring bias does. Treat a 90% band
+        on a few hundred observations as closer to an 80% one.
 
-    Resampling only; see :func:`consistency_bands`.
+        Resampling only; see :func:`consistency_bands`.
     """
     _validate_band_args(level, n_resamples)
     x, y = check_arrays(x, y)
@@ -612,29 +518,21 @@ _CI_METHODS = ("bc", "bca", "basic", "percentile")
 def _bias_correction(draws: np.ndarray, observed: float) -> float:
     r"""Estimate the median bias of the bootstrap distribution, on the z scale.
 
-    Parameters
-    ----------
-    draws
-        Bootstrap draws of the statistic.
-    observed
-        The statistic on the observed data.
+    Args:
+        draws: Bootstrap draws of the statistic.
+        observed: The statistic on the observed data.
 
-    Returns
-    -------
-    float
-        ``z0 = Phi^-1(fraction of draws below the observed value)``. Zero when
-        the bootstrap distribution is centred on the estimate; strongly negative
-        when the draws sit above it, which is the case this function exists for.
+    Returns:
+        float: ``z0 = Phi^-1(fraction of draws below the observed value)``. Zero when the bootstrap distribution is centred on the estimate; strongly negative when the draws sit above it, which is the case this function exists for.
 
-    Notes
-    -----
-    Draws exactly equal to the estimate count as half, the usual tie correction
-    for a statistic with an atom at a boundary. Without it this degenerates on
-    precisely the data it matters most for: a floored estimator such as
-    :func:`~calibre.debiased_calibration_error` returns exactly zero on well over
-    half of well-calibrated samples, no resample can fall strictly below zero,
-    and the interval collapses to ``[0, 0]`` -- zero width, asserting certainty
-    rather than admitting ignorance.
+    Notes:
+        Draws exactly equal to the estimate count as half, the usual tie correction
+        for a statistic with an atom at a boundary. Without it this degenerates on
+        precisely the data it matters most for: a floored estimator such as
+        :func:`~calibre.debiased_calibration_error` returns exactly zero on well over
+        half of well-calibrated samples, no resample can fall strictly below zero,
+        and the interval collapses to ``[0, 0]`` -- zero width, asserting certainty
+        rather than admitting ignorance.
     """
     below = float(np.mean(draws < observed) + 0.5 * np.mean(draws == observed))
     # Clamp away from 0 and 1, where the normal quantile is infinite. A draw
@@ -651,21 +549,13 @@ def _acceleration(
 ) -> float:
     """Estimate the acceleration constant by the jackknife.
 
-    Parameters
-    ----------
-    metric
-        The statistic.
-    y_true
-        Ground truth values.
-    y_pred
-        Predicted probabilities.
+    Args:
+        metric: The statistic.
+        y_true: Ground truth values.
+        y_pred: Predicted probabilities.
 
-    Returns
-    -------
-    float
-        Efron's acceleration, from the skewness of the leave-one-out values.
-        Costs ``n`` evaluations of ``metric``, which is why ``"bca"`` is offered
-        rather than defaulted.
+    Returns:
+        float: Efron's acceleration, from the skewness of the leave-one-out values. Costs ``n`` evaluations of ``metric``, which is why ``"bca"`` is offered rather than defaulted.
     """
     n = y_true.size
     keep = np.ones(n, dtype=bool)
@@ -691,23 +581,15 @@ def _interval(
 ) -> tuple[float, float]:
     """Turn bootstrap draws into an interval by the requested method.
 
-    Parameters
-    ----------
-    draws
-        Bootstrap draws.
-    observed
-        The statistic on the observed data.
-    level
-        Nominal coverage.
-    method
-        One of ``"percentile"``, ``"basic"``, ``"bc"``, ``"bca"``.
-    acceleration
-        Acceleration constant; ignored unless ``method="bca"``.
+    Args:
+        draws: Bootstrap draws.
+        observed: The statistic on the observed data.
+        level: Nominal coverage.
+        method: One of ``"percentile"``, ``"basic"``, ``"bc"``, ``"bca"``.
+        acceleration: Acceleration constant; ignored unless ``method="bca"``.
 
-    Returns
-    -------
-    tuple of float
-        ``(lower, upper)``.
+    Returns:
+        tuple of float: ``(lower, upper)``.
     """
     tail = (1.0 - level) / 2.0
     if method == "percentile":
@@ -748,155 +630,126 @@ def bootstrap_ci(
     reading a difference of 0.002 between two models as real. On a few thousand
     observations the interval is often wider than that.
 
-    Parameters
-    ----------
-    metric
-        Callable taking ``(y_true, y_pred)`` and returning a float.
-    y_true
-        Ground truth values.
-    y_pred
-        Predicted probabilities.
-    level
-        Nominal coverage in ``(0, 1)``. Defaults to 0.95.
-    n_resamples
-        Number of bootstrap resamples. Defaults to 1000.
-    random_state
-        Seed. Defaults to 0 so results are reproducible.
-    method
-        How to build the interval from the draws:
+    Args:
+        metric: Callable taking ``(y_true, y_pred)`` and returning a float.
+        y_true: Ground truth values.
+        y_pred: Predicted probabilities.
+        level: Nominal coverage in ``(0, 1)``. Defaults to 0.95.
+        n_resamples: Number of bootstrap resamples. Defaults to 1000.
+        random_state: Seed. Defaults to 0 so results are reproducible.
+        method: How to build the interval from the draws:
 
-        - ``"bc"`` (default) -- bias-corrected percentile. Shifts the quantiles
-          by how far the draws sit above the estimate. Costs nothing extra and,
-          being a percentile method, can never return a bound outside the range
-          of the statistic.
-        - ``"bca"`` -- adds Efron's acceleration for skewness. Costs ``n`` extra
-          evaluations of ``metric`` for the jackknife, so it is offered rather
-          than defaulted.
-        - ``"basic"`` -- the reverse-percentile interval ``2*theta - quantiles``.
-          Corrects the bias but routinely returns a **negative** lower bound for
-          a non-negative statistic.
-        - ``"percentile"`` -- the raw quantiles. Documented, and wrong here; see
-          below.
+            - ``"bc"`` (default) -- bias-corrected percentile. Shifts the quantiles by how far the draws sit above the estimate. Costs nothing extra and, being a percentile method, can never return a bound outside the range of the statistic. - ``"bca"`` -- adds Efron's acceleration for skewness. Costs ``n`` extra evaluations of ``metric`` for the jackknife, so it is offered rather than defaulted. - ``"basic"`` -- the reverse-percentile interval ``2*theta - quantiles``. Corrects the bias but routinely returns a **negative** lower bound for a non-negative statistic. - ``"percentile"`` -- the raw quantiles. Documented, and wrong here; see below.
 
-    Returns
-    -------
-    dict
-        ``estimate`` (the metric on the observed data), ``lower``, ``upper``,
-        ``level``, ``n_resamples``, ``method``, ``bias`` (the bootstrap mean
-        minus the estimate, so the distortion is visible rather than hidden), and
-        ``degenerate`` (whether the interval collapsed to a point).
+    Returns:
+        dict: ``estimate`` (the metric on the observed data), ``lower``, ``upper``, ``level``, ``n_resamples``, ``method``, ``bias`` (the bootstrap mean minus the estimate, so the distortion is visible rather than hidden), and ``degenerate`` (whether the interval collapsed to a point).
 
-    Raises
-    ------
-    ValueError
-        If ``level`` is outside ``(0, 1)``, ``n_resamples`` is below 2, the
-        arrays disagree in length, or ``method`` is unknown.
+    Raises:
+        ValueError: If ``level`` is outside ``(0, 1)``, ``n_resamples`` is below 2, the arrays disagree in length, or ``method`` is unknown.
 
-    Notes
-    -----
-    **Why the default is not the percentile interval.**
+    Notes:
+        **Why the default is not the percentile interval.**
 
-    The bootstrap resamples from the empirical measure, so ``E[F*] = F``. What
-    happens to an estimator ``theta = g(F)`` is then decided entirely by the
-    shape of ``g``:
+        The bootstrap resamples from the empirical measure, so ``E[F*] = F``. What
+        happens to an estimator ``theta = g(F)`` is then decided entirely by the
+        shape of ``g``:
 
-    - ``g`` **linear** in ``F`` -- a plain mean, such as the Brier score --
-      gives ``E[g(F*)] = g(F)`` exactly, by Jensen with equality.
-    - ``g`` **convex** in ``F`` gives ``E[g(F*)] >= g(F)``, strictly. Every
-      calibration error is convex: each bin's contribution is an absolute value
-      of a linear functional of ``F``, and norms of those stay convex.
+        - ``g`` **linear** in ``F`` -- a plain mean, such as the Brier score --
+          gives ``E[g(F*)] = g(F)`` exactly, by Jensen with equality.
+        - ``g`` **convex** in ``F`` gives ``E[g(F*)] >= g(F)``, strictly. Every
+          calibration error is convex: each bin's contribution is an absolute value
+          of a linear functional of ``F``, and norms of those stay convex.
 
-    The size of the gap is set by curvature at ``F``, which is unbounded at the
-    kink ``||delta|| = 0`` and negligible far from it. **So the distortion is
-    worst exactly when the model is well calibrated** -- the case the user most
-    wants an honest answer for. Measured (see
-    ``experiments/bootstrap_bias/investigate.py``), bootstrap mean over observed:
+        The size of the gap is set by curvature at ``F``, which is unbounded at the
+        kink ``||delta|| = 0`` and negligible far from it. **So the distortion is
+        worst exactly when the model is well calibrated** -- the case the user most
+        wants an honest answer for. Measured (see
+        ``experiments/bootstrap_bias/investigate.py``), bootstrap mean over observed:
 
-    ========================  ================  ==================
-    statistic                 calibrated data   miscalibrated data
-    ========================  ================  ==================
-    Brier score (linear)      1.00x             1.00x
-    plugin ECE (convex)       1.42x             1.01x
-    smECE                     1.33x             1.04x
-    ``MCB``                   1.52x             1.09x
-    ========================  ================  ==================
+        ========================  ================  ==================
+        statistic                 calibrated data   miscalibrated data
+        ========================  ================  ==================
+        Brier score (linear)      1.00x             1.00x
+        plugin ECE (convex)       1.42x             1.01x
+        smECE                     1.33x             1.04x
+        ``MCB``                   1.52x             1.09x
+        ========================  ================  ==================
 
-    The plugin figure of 1.42 is the predicted ``sqrt(2)``: the observed value is
-    ``||delta||`` for sampling noise ``delta``, while the resample gives
-    ``||delta + eps||`` with ``eps`` of comparable variance, doubling the
-    variance inside the norm. The effect **does not shrink with sample size** --
-    measured at 1.43, 1.44, 1.44, 1.42 for ``n`` of 250, 1000, 4000 and 16000 --
-    because both terms scale as ``1/sqrt(n)``. More data will not save you; a
-    better interval will.
+        The plugin figure of 1.42 is the predicted ``sqrt(2)``: the observed value is
+        ``||delta||`` for sampling noise ``delta``, while the resample gives
+        ``||delta + eps||`` with ``eps`` of comparable variance, doubling the
+        variance inside the norm. The effect **does not shrink with sample size** --
+        measured at 1.43, 1.44, 1.44, 1.42 for ``n`` of 250, 1000, 4000 and 16000 --
+        because both terms scale as ``1/sqrt(n)``. More data will not save you; a
+        better interval will.
 
-    Coverage of a true calibration error of exactly zero, at a nominal 95%,
-    using :func:`~calibre.debiased_calibration_error` (whose estimand really is
-    the true error):
+        Coverage of a true calibration error of exactly zero, at a nominal 95%,
+        using :func:`~calibre.debiased_calibration_error` (whose estimand really is
+        the true error):
 
-    ==============  ========
-    method          coverage
-    ==============  ========
-    ``percentile``  77%
-    ``basic``       98%
-    ``bc``          **95%**
-    ==============  ========
+        ==============  ========
+        method          coverage
+        ==============  ========
+        ``percentile``  77%
+        ``basic``       98%
+        ``bc``          **95%**
+        ==============  ========
 
-    Hence the default, which is also **3.6 times tighter**: mean width 0.017
-    against the percentile interval's 0.063. ``basic`` over-covers at 98% and
-    returns negative lower bounds for a non-negative quantity.
+        Hence the default, which is also **3.6 times tighter**: mean width 0.017
+        against the percentile interval's 0.063. ``basic`` over-covers at 98% and
+        returns negative lower bounds for a non-negative quantity.
 
-    **One caveat on the default.** ``bc`` reads the bias off how many draws fall
-    below the estimate, so it degenerates when the statistic has an atom at the
-    estimate. :func:`~calibre.debiased_calibration_error` floors at zero and
-    returns exactly zero on 59% of well-calibrated samples, and in 30% of those
-    the interval collapses to ``[0, 0]``; the returned ``degenerate`` flag says
-    when that happened. No such collapse occurs for the plugin error, smECE, the
-    Brier score or ``MCB``, none of which are censored. If you want an interval
-    that stays non-degenerate near zero, measure with
-    :func:`~calibre.smooth_calibration_error`, which never floors.
+        **One caveat on the default.** ``bc`` reads the bias off how many draws fall
+        below the estimate, so it degenerates when the statistic has an atom at the
+        estimate. :func:`~calibre.debiased_calibration_error` floors at zero and
+        returns exactly zero on 59% of well-calibrated samples, and in 30% of those
+        the interval collapses to ``[0, 0]``; the returned ``degenerate`` flag says
+        when that happened. No such collapse occurs for the plugin error, smECE, the
+        Brier score or ``MCB``, none of which are censored. If you want an interval
+        that stays non-degenerate near zero, measure with
+        :func:`~calibre.smooth_calibration_error`, which never floors.
 
-    **A separate point about plugin estimators.** The uncorrected binned error is
-    biased, so its estimand is ``E[plugin] > 0`` rather than the true error. An
-    interval for it *correctly* excludes zero, and no choice of interval method
-    changes that. If you want an interval that can cover zero, measure with an
-    estimator that targets zero -- :func:`~calibre.debiased_calibration_error` or
-    :func:`~calibre.smooth_calibration_error`.
+        **A separate point about plugin estimators.** The uncorrected binned error is
+        biased, so its estimand is ``E[plugin] > 0`` rather than the true error. An
+        interval for it *correctly* excludes zero, and no choice of interval method
+        changes that. If you want an interval that can cover zero, measure with an
+        estimator that targets zero -- :func:`~calibre.debiased_calibration_error` or
+        :func:`~calibre.smooth_calibration_error`.
 
-    **``MCB`` and ``DSC`` carry an extra problem.** They are functionals of an
-    isotonic fit, and a resample leaves only about 63% of rows distinct
-    (measured: 0.630 against a theoretical 0.632), so PAV overfits the
-    duplicates. Their inflation tracks effective sample size rather than
-    convexity alone: subsampling without replacement gives ``MCB`` of 0.0155,
-    0.0088 and 0.0056 at ``m`` of 200, 500 and 1000 against 0.0036 observed at
-    ``n = 2000``. Prefer :func:`consistency_bands` or :func:`confidence_bands`
-    there, which resample *outcomes* rather than rows.
+        **``MCB`` and ``DSC`` carry an extra problem.** They are functionals of an
+        isotonic fit, and a resample leaves only about 63% of rows distinct
+        (measured: 0.630 against a theoretical 0.632), so PAV overfits the
+        duplicates. Their inflation tracks effective sample size rather than
+        convexity alone: subsampling without replacement gives ``MCB`` of 0.0155,
+        0.0088 and 0.0056 at ``m`` of 200, 500 and 1000 against 0.0036 observed at
+        ``n = 2000``. Prefer :func:`consistency_bands` or :func:`confidence_bands`
+        there, which resample *outcomes* rather than rows.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.metrics import debiased_calibration_error
-    >>> rng = np.random.default_rng(0)
-    >>> p = rng.uniform(0, 1, 2000)
-    >>> y = rng.binomial(1, p).astype(float)
-    >>> ci = bootstrap_ci(debiased_calibration_error, y, p, n_resamples=200)
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.metrics import debiased_calibration_error
+        >>> rng = np.random.default_rng(0)
+        >>> p = rng.uniform(0, 1, 2000)
+        >>> y = rng.binomial(1, p).astype(float)
+        >>> ci = bootstrap_ci(debiased_calibration_error, y, p, n_resamples=200)
 
-    The data are calibrated by construction, so the interval should reach zero:
+        The data are calibrated by construction, so the interval should reach zero:
 
-    >>> bool(ci["lower"] <= 0.001)
-    True
+        >>> bool(ci["lower"] <= 0.001)
+        True
 
-    The reported bias is how far the resampling pushed the statistic up:
+        The reported bias is how far the resampling pushed the statistic up:
 
-    >>> bool(ci["bias"] > 0.0)
-    True
+        >>> bool(ci["bias"] > 0.0)
+        True
 
-    A percentile interval on the same draws sits higher:
+        A percentile interval on the same draws sits higher:
 
-    >>> percentile = bootstrap_ci(
-    ...     debiased_calibration_error, y, p, n_resamples=200, method="percentile"
-    ... )
-    >>> bool(percentile["lower"] >= ci["lower"])
-    True
+        >>> percentile = bootstrap_ci(
+        ...     debiased_calibration_error, y, p, n_resamples=200, method="percentile"
+        ... )
+        >>> bool(percentile["lower"] >= ci["lower"])
+        True
     """
     if method not in _CI_METHODS:
         raise ValueError(f"method must be one of {list(_CI_METHODS)}, got {method!r}")

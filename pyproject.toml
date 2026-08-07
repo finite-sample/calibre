@@ -99,6 +99,13 @@ select = ["E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT"
 ignore = [
     "D203",
     "D213",
+    # D107: these are scikit-learn estimators, which document their constructor
+    # arguments on the *class* -- that is what `autodoc` renders, and
+    # `napoleon_include_init_with_doc` is False, so an `__init__` docstring would
+    # not appear in the built docs at all. `__init__` here only stores its
+    # arguments unmodified, as scikit-learn requires for cloning; there is
+    # nothing to say about it that the class docstring does not already say.
+    "D107",
     "B008",
     "C901",
     "E501",
@@ -109,9 +116,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.pydocstyle]
-# This package documents in numpy style (see any calibrator docstring) and Sphinx
-# renders it that way; google convention would flag every section header.
-convention = "numpy"
+# The fleet standard (see ../preen). Sphinx renders it through
+# `sphinx.ext.napoleon`, which has `napoleon_google_docstring = True`, so the
+# switch from numpy style cost nothing in the rendered docs.
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 # S102/S307: tests/test_readme.py executes the README's code blocks on purpose.
@@ -198,7 +206,16 @@ ignore-words-list = "FPR,fpr"
 
 # Pydoclint configuration
 [tool.pydoclint]
-style = "numpy"
+style = "google"
+# Four DOC502/DOC503 findings remain and are accepted rather than silenced with
+# `skip-checking-raises`. All four are the same false positive: the function
+# documents an exception raised by a helper it delegates to -- `_validate_band_args`
+# for the two band functions, `_reject_sample_weight` and `resolve_auto` for the
+# nearly-isotonic pair -- and pydoclint does not follow calls. Deleting the
+# documentation would make the docs wrong for the caller, who does see those
+# exceptions; inlining the validation would duplicate it across three call sites.
+# Turning the check off wholesale is worse still: it is what found two genuinely
+# undocumented exceptions in `aggregate_ties` and `cross_val_calibrate`.
 arg-type-hints-in-docstring = false
 check-return-types = false
 check-class-attributes = false

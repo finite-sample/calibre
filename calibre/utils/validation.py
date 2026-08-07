@@ -1,5 +1,4 @@
-"""
-Input validation utilities.
+"""Input validation utilities.
 
 This module provides functions for validating and checking input arrays
 to ensure they meet the requirements for calibration.
@@ -20,15 +19,11 @@ def _as_float_1d(a: np.ndarray) -> np.ndarray:
     ``ensure_all_finite`` as ``bool`` even though the documented API also accepts
     ``"allow-nan"``, so the call is funnelled through one place.
 
-    Parameters
-    ----------
-    a
-        Array-like input.
+    Args:
+        a: Array-like input.
 
-    Returns
-    -------
-    ndarray
-        A 1-D float64 array.
+    Returns:
+        ndarray: A 1-D float64 array.
     """
     checked = check_array(
         a,
@@ -40,49 +35,37 @@ def _as_float_1d(a: np.ndarray) -> np.ndarray:
 
 
 def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Check and validate input arrays for calibration.
+    """Check and validate input arrays for calibration.
 
     This function ensures that X and y are valid numpy arrays with
     compatible shapes and no invalid values.
 
-    Parameters
-    ----------
-    X
-        The input predictions/probabilities.
-    y
-        The target values/labels.
+    Args:
+        X: The input predictions/probabilities.
+        y: The target values/labels.
 
-    Returns
-    -------
-    tuple[np.ndarray, np.ndarray]
-        Tuple of (validated_X, validated_y).
-        validated_X
-        validated_y
+    Returns:
+        tuple[np.ndarray, np.ndarray]: Tuple of (validated_X, validated_y). validated_X validated_y
 
-    Raises
-    ------
-    ValueError
-        If arrays are empty or have incompatible lengths.
+    Raises:
+        ValueError: If arrays are empty or have incompatible lengths.
 
-    Notes
-    -----
-    Both arrays are returned as ``float64``. sklearn's ``check_array`` preserves an
-    integer dtype, and integer targets are a trap for any estimator that averages
-    labels: pooling a 0 and a 1 into an int array stores 0, not 0.5.
+    Notes:
+        Both arrays are returned as ``float64``. sklearn's ``check_array`` preserves an
+        integer dtype, and integer targets are a trap for any estimator that averages
+        labels: pooling a 0 and a 1 into an int array stores 0, not 0.5.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.validation import check_arrays
-    >>>
-    >>> X = np.array([0.1, 0.2, 0.3])
-    >>> y = np.array([0, 1, 1])
-    >>> X_checked, y_checked = check_arrays(X, y)
-    >>> print(X_checked.shape, y_checked.shape)
-    (3,) (3,)
-    >>> y_checked.dtype                       # integer labels are widened
-    dtype('float64')
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.validation import check_arrays
+        >>>
+        >>> X = np.array([0.1, 0.2, 0.3])
+        >>> y = np.array([0, 1, 1])
+        >>> X_checked, y_checked = check_arrays(X, y)
+        >>> print(X_checked.shape, y_checked.shape)
+        (3,) (3,)
+        >>> y_checked.dtype                       # integer labels are widened
+        dtype('float64')
     """
     X = _as_float_1d(X)
     y = _as_float_1d(y)
@@ -106,34 +89,26 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
 
 
 def check_array_1d(X: np.ndarray, name: str = "X") -> np.ndarray:
-    """
-    Check that an array is 1-dimensional.
+    """Check that an array is 1-dimensional.
 
-    Parameters
-    ----------
-    X
-        The array to check.
-    name
-        Name of the array for error messages.
+    Args:
+        X: The array to check.
+        name: Name of the array for error messages.
 
-    Returns
-    -------
-    Validated 1D array.
+    Returns:
+        Validated 1D array.
 
-    Raises
-    ------
-    ValueError
-        If array is not 1-dimensional or is empty.
+    Raises:
+        ValueError: If array is not 1-dimensional or is empty.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.validation import check_array_1d
-    >>>
-    >>> X = np.array([0.1, 0.2, 0.3])
-    >>> X_checked = check_array_1d(X)
-    >>> print(X_checked.shape)
-    (3,)
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.validation import check_array_1d
+        >>>
+        >>> X = np.array([0.1, 0.2, 0.3])
+        >>> X_checked = check_array_1d(X)
+        >>> print(X_checked.shape)
+        (3,)
     """
     X = _as_float_1d(X)
 
@@ -144,32 +119,24 @@ def check_array_1d(X: np.ndarray, name: str = "X") -> np.ndarray:
 
 
 def check_fitted(calibrator: object, attributes: list[str] | None = None) -> None:
-    """
-    Check if a calibrator has been fitted.
+    """Check if a calibrator has been fitted.
 
-    Parameters
-    ----------
-    calibrator
-        The calibrator to check.
-    attributes
-        List of attribute names that should exist if fitted.
-        If None, checks for common fitted attributes.
+    Args:
+        calibrator: The calibrator to check.
+        attributes: List of attribute names that should exist if fitted. If None, checks for common fitted attributes.
 
-    Raises
-    ------
-    ValueError
-        If the calibrator has not been fitted.
+    Raises:
+        ValueError: If the calibrator has not been fitted.
 
-    Examples
-    --------
-    >>> from calibre import IsotonicCalibrator
-    >>> from calibre.utils.validation import check_fitted
-    >>>
-    >>> cal = IsotonicCalibrator()
-    >>> try:
-    ...     check_fitted(cal)
-    ... except ValueError as e:
-    ...     print("Not fitted:", e)
+    Examples:
+        >>> from calibre import IsotonicCalibrator
+        >>> from calibre.utils.validation import check_fitted
+        >>>
+        >>> cal = IsotonicCalibrator()
+        >>> try:
+        ...     check_fitted(cal)
+        ... except ValueError as e:
+        ...     print("Not fitted:", e)
     """
     if attributes is None:
         # Common fitted attribute names
@@ -186,33 +153,27 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
 
 
 def check_consistent_length(*arrays: np.ndarray) -> None:
-    """
-    Check that all arrays have consistent first dimension.
+    """Check that all arrays have consistent first dimension.
 
-    Parameters
-    ----------
-    *arrays
-        Arrays to check for consistent length.
+    Args:
+        *arrays: Arrays to check for consistent length.
 
-    Raises
-    ------
-    ValueError
-        If arrays have inconsistent lengths.
+    Raises:
+        ValueError: If arrays have inconsistent lengths.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.validation import check_consistent_length
-    >>>
-    >>> X = np.array([0.1, 0.2, 0.3])
-    >>> y = np.array([0, 1, 1])
-    >>> check_consistent_length(X, y)  # No error
-    >>>
-    >>> z = np.array([0, 1])  # Different length
-    >>> check_consistent_length(X, z)
-    Traceback (most recent call last):
-        ...
-    ValueError: Inconsistent array lengths: [3, 2]. All arrays must have the same length.
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.validation import check_consistent_length
+        >>>
+        >>> X = np.array([0.1, 0.2, 0.3])
+        >>> y = np.array([0, 1, 1])
+        >>> check_consistent_length(X, y)  # No error
+        >>>
+        >>> z = np.array([0, 1])  # Different length
+        >>> check_consistent_length(X, z)
+        Traceback (most recent call last):
+            ...
+        ValueError: Inconsistent array lengths: [3, 2]. All arrays must have the same length.
     """
     lengths = [len(X) for X in arrays if X is not None]
 
@@ -224,29 +185,23 @@ def check_consistent_length(*arrays: np.ndarray) -> None:
 
 
 def validate_parameters(**params: object) -> None:
-    """
-    Validate common calibrator parameters.
+    """Validate common calibrator parameters.
 
-    Parameters
-    ----------
-    **params
-        Parameter names and values to validate.
+    Args:
+        **params: Parameter names and values to validate.
 
-    Raises
-    ------
-    ValueError
-        If any parameter is invalid.
+    Raises:
+        ValueError: If any parameter is invalid.
 
-    Examples
-    --------
-    >>> from calibre.utils.validation import validate_parameters
-    >>>
-    >>> validate_parameters(alpha=0.1, n_bootstraps=100)  # OK
-    >>>
-    >>> validate_parameters(alpha=-0.5)  # Negative
-    Traceback (most recent call last):
-        ...
-    ValueError: Parameter 'alpha' must be non-negative, got -0.5
+    Examples:
+        >>> from calibre.utils.validation import validate_parameters
+        >>>
+        >>> validate_parameters(alpha=0.1, n_bootstraps=100)  # OK
+        >>>
+        >>> validate_parameters(alpha=-0.5)  # Negative
+        Traceback (most recent call last):
+            ...
+        ValueError: Parameter 'alpha' must be non-negative, got -0.5
     """
     for name, value in params.items():
         if name in ["alpha", "lam"] and value is not None:

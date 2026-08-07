@@ -38,21 +38,13 @@ def _scores_for_cell(
 ) -> tuple[np.ndarray, ...]:
     """Produce the shared inputs every calibrator in this cell will see.
 
-    Parameters
-    ----------
-    dataset
-        The dataset.
-    model_name
-        Base model name, or ``"identity"`` for a synthetic design where the
-        score *is* the construction and there is no model to fit.
-    seed
-        Seed for the split and the model.
+    Args:
+        dataset: The dataset.
+        model_name: Base model name, or ``"identity"`` for a synthetic design where the score *is* the construction and there is no model to fit.
+        seed: Seed for the split and the model.
 
-    Returns
-    -------
-    tuple of ndarray
-        ``(fit_scores, fit_labels, test_scores, test_labels, test_p_true)``.
-        ``test_p_true`` is an empty array when the truth is unknown.
+    Returns:
+        tuple of ndarray: ``(fit_scores, fit_labels, test_scores, test_labels, test_p_true)``. ``test_p_true`` is an empty array when the truth is unknown.
     """
     from sklearn.model_selection import (
         StratifiedKFold,
@@ -120,30 +112,18 @@ def run_cell(
 ) -> list[dict[str, Any]]:
     """Evaluate every method on one (dataset, model, seed) cell.
 
-    Parameters
-    ----------
-    dataset_name
-        Dataset to load.
-    model_name
-        Base model, or ``"identity"`` for synthetic designs.
-    seed
-        Seed for the dataset, the split and the model.
-    method_names
-        Methods to compare.
-    n_bins
-        Bin count for the fixed-bin estimators.
+    Args:
+        dataset_name: Dataset to load.
+        model_name: Base model, or ``"identity"`` for synthetic designs.
+        seed: Seed for the dataset, the split and the model.
+        method_names: Methods to compare.
+        n_bins: Bin count for the fixed-bin estimators.
 
-    Returns
-    -------
-    list of dict
-        One row per method, carrying the cell's identifiers, every measure, and
-        the fit and transform times.
+    Returns:
+        list of dict: One row per method, carrying the cell's identifiers, every measure, and the fit and transform times.
 
-    Raises
-    ------
-    AssertionError
-        If ``calibre_isotonic`` and ``sklearn_isotonic`` disagree by more than
-        :data:`ISOTONIC_AGREEMENT_TOLERANCE`.
+    Raises:
+        AssertionError: If ``calibre_isotonic`` and ``sklearn_isotonic`` disagree by more than :data:`ISOTONIC_AGREEMENT_TOLERANCE`.
     """
     dataset = datasets.load(dataset_name, seed)
     fit_scores, fit_labels, test_scores, test_labels, test_p_true = _scores_for_cell(

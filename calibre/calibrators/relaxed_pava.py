@@ -44,100 +44,84 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     ``min_slope > 0``   strictly increasing, so no plateau can form at all
     ==================  =====================================================
 
-    Parameters
-    ----------
-    epsilon
-        Largest decrease permitted between adjacent unique scores, in the units
-        of ``y``. So ``epsilon=0.02`` means "tolerate a drop of up to 2
-        percentage points".
-    min_slope
-        Minimum required increase between adjacent unique scores. Mutually
-        exclusive with a non-zero ``epsilon``; this is the direction that
-        eliminates plateaus. ``"auto"`` (the default) uses ``0.01 / n_unique``,
-        but only on the untouched default path -- that is, when ``epsilon`` was
-        also left at ``"auto"`` and the search settled on ``0``. Naming
-        ``epsilon`` yourself, including ``epsilon=0``, leaves the slope at ``0``
-        and the estimator exactly as documented in the table above.
-    clip_output
-        Clip calibrated values into ``[0, 1]``.
-    enable_diagnostics
-        Whether to enable plateau diagnostics analysis.
+    Args:
+        epsilon: Largest decrease permitted between adjacent unique scores, in the units of ``y``. So ``epsilon=0.02`` means "tolerate a drop of up to 2 percentage points".
+        min_slope: Minimum required increase between adjacent unique scores. Mutually exclusive with a non-zero ``epsilon``; this is the direction that eliminates plateaus. ``"auto"`` (the default) uses ``0.01 / n_unique``, but only on the untouched default path -- that is, when ``epsilon`` was also left at ``"auto"`` and the search settled on ``0``. Naming ``epsilon`` yourself, including ``epsilon=0``, leaves the slope at ``0`` and the estimator exactly as documented in the table above.
+        cv: Number of cross-validation folds used when a hyperparameter is left at ``"auto"``. Ignored when every hyperparameter is pinned.
+        scoring: Proper scoring rule the ``"auto"`` search minimises. Deliberately not a calibration error: ECE and its relatives are minimised by a constant forecast, so selecting on one would reward throwing resolution away.
+        random_state: Seed for the cross-validation split, so an ``"auto"`` selection is reproducible.
+        clip_output: Clip calibrated values into ``[0, 1]``.
+        enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
-    Attributes
-    ----------
-    calibration_curve_ : PiecewiseLinear
-        The fitted calibration map.
-    n_features_in_ : int
-        Always 1. Present for scikit-learn compatibility.
+    Attributes:
+        calibration_curve_: The fitted calibration map.
+        n_features_in_: Always 1. Present for scikit-learn compatibility.
 
-    Notes
-    -----
-    ``epsilon`` is an absolute tolerance on the target scale, deliberately. An
-    earlier version of this class derived its threshold as a percentile of
-    ``|diff(y)|`` over the score-sorted targets, which cannot work for this
-    package's primary use case: with binary labels those differences are all 0 or
-    1, so any percentile collapses to either 0 -- the relaxation never binds and
-    the estimator is silently just PAVA -- or 1, where it never constrains
-    anything. There is no intermediate setting to choose.
+    Notes:
+        ``epsilon`` is an absolute tolerance on the target scale, deliberately. An
+        earlier version of this class derived its threshold as a percentile of
+        ``|diff(y)|`` over the score-sorted targets, which cannot work for this
+        package's primary use case: with binary labels those differences are all 0 or
+        1, so any percentile collapses to either 0 -- the relaxation never binds and
+        the estimator is silently just PAVA -- or 1, where it never constrains
+        anything. There is no intermediate setting to choose.
 
-    Relaxing monotonicity is not free: a decrease in the calibration map reverses
-    the ranking of every score pair it spans, which costs discrimination. To
-    preserve granularity, ``min_slope`` is usually the better direction, since it
-    removes plateaus while keeping the map strictly increasing.
+        Relaxing monotonicity is not free: a decrease in the calibration map reverses
+        the ranking of every score pair it spans, which costs discrimination. To
+        preserve granularity, ``min_slope`` is usually the better direction, since it
+        removes plateaus while keeping the map strictly increasing.
 
-    That is why the default is a slope rather than nothing. PAVA's plateaus are
-    an artefact of pooling adjacent violators, not a finding about the data, and
-    at ``min_slope=0`` this estimator keeps only 1-4% of the input's distinct
-    values. A slope small enough to be invisible in the score recovers almost all
-    of them: measured on logit-inflated designs at n from 300 to 3000, the
-    default retains 80-95% of distinct values for a Brier cost in the fifth
-    decimal. It is 80-95% rather than all of them because ``clip_output`` flattens
-    the two ends of a fit that saturates 0 and 1; the plateaus that survive the
-    default are at the boundaries, not in the interior. It scales as ``1 / n_unique`` because a fixed slope safe at n=1000
-    would need an output range of 10 at n=1e6, and clipping would flatten it back
-    into the plateaus it exists to prevent.
+        That is why the default is a slope rather than nothing. PAVA's plateaus are
+        an artefact of pooling adjacent violators, not a finding about the data, and
+        at ``min_slope=0`` this estimator keeps only 1-4% of the input's distinct
+        values. A slope small enough to be invisible in the score recovers almost all
+        of them: measured on logit-inflated designs at n from 300 to 3000, the
+        default retains 80-95% of distinct values for a Brier cost in the fifth
+        decimal. It is 80-95% rather than all of them because ``clip_output`` flattens
+        the two ends of a fit that saturates 0 and 1; the plateaus that survive the
+        default are at the boundaries, not in the interior. It scales as ``1 / n_unique`` because a fixed slope safe at n=1000
+        would need an output range of 10 at n=1e6, and clipping would flatten it back
+        into the plateaus it exists to prevent.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import RelaxedPAVACalibrator
-    >>>
-    >>> x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0, 0, 1, 0, 1])
-    >>>
-    >>> RelaxedPAVACalibrator(epsilon=0.0).fit_transform(x, y)
-    array([0. , 0. , 0.5, 0.5, 1. ])
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import RelaxedPAVACalibrator
+        >>>
+        >>> x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        >>> y = np.array([0, 0, 1, 0, 1])
+        >>>
+        >>> RelaxedPAVACalibrator(epsilon=0.0).fit_transform(x, y)
+        array([0. , 0. , 0.5, 0.5, 1. ])
 
-    Left alone, the default breaks that tie apart rather than reporting two
-    scores as indistinguishable:
+        Left alone, the default breaks that tie apart rather than reporting two
+        scores as indistinguishable:
 
-    >>> default = RelaxedPAVACalibrator().fit_transform(x, y)
-    >>> bool(np.all(np.diff(default) > 0))
-    True
+        >>> default = RelaxedPAVACalibrator().fit_transform(x, y)
+        >>> bool(np.all(np.diff(default) > 0))
+        True
 
-    A minimum slope leaves no plateau anywhere:
+        A minimum slope leaves no plateau anywhere:
 
-    >>> fitted = RelaxedPAVACalibrator(min_slope=0.05).fit_transform(x, y)
-    >>> bool(np.all(np.diff(fitted) > 0))
-    True
+        >>> fitted = RelaxedPAVACalibrator(min_slope=0.05).fit_transform(x, y)
+        >>> bool(np.all(np.diff(fitted) > 0))
+        True
 
-    The bound itself is exact only without clipping. Clipping into ``[0, 1]``
-    can shorten the increments that straddle a boundary, so the guarantee
-    degrades from ">= min_slope" to "> 0" there:
+        The bound itself is exact only without clipping. Clipping into ``[0, 1]``
+        can shorten the increments that straddle a boundary, so the guarantee
+        degrades from ">= min_slope" to "> 0" there:
 
-    >>> exact = RelaxedPAVACalibrator(
-    ...     min_slope=0.05, clip_output=False
-    ... ).fit_transform(x, y)
-    >>> bool(np.all(np.diff(exact) >= 0.05 - 1e-12))
-    True
-    >>> float(exact.min())                      # below 0, hence the clipping
-    -0.025
+        >>> exact = RelaxedPAVACalibrator(
+        ...     min_slope=0.05, clip_output=False
+        ... ).fit_transform(x, y)
+        >>> bool(np.all(np.diff(exact) >= 0.05 - 1e-12))
+        True
+        >>> float(exact.min())                      # below 0, hence the clipping
+        -0.025
 
-    See Also
-    --------
-    IsotonicCalibrator : The ``epsilon = 0`` special case.
-    CenteredIsotonicCalibrator : Removes plateaus without relaxing monotonicity.
-    NearlyIsotonicCalibrator : Penalises violations instead of bounding them.
+    See Also:
+        IsotonicCalibrator : The ``epsilon = 0`` special case.
+        CenteredIsotonicCalibrator : Removes plateaus without relaxing monotonicity.
+        NearlyIsotonicCalibrator : Penalises violations instead of bounding them.
     """
 
     #: Candidate tolerances searched when ``epsilon="auto"``. 0.0 is included so
@@ -172,19 +156,13 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     ) -> None:
         """Solve the epsilon-monotone problem once and store the fitted curve.
 
-        Parameters
-        ----------
-        X
-            Uncalibrated scores.
-        y
-            Targets.
-        sample_weight
-            Non-negative per-observation weights.
+        Args:
+            X: Uncalibrated scores.
+            y: Targets.
+            sample_weight: Non-negative per-observation weights.
 
-        Raises
-        ------
-        ValueError
-            If ``epsilon`` or ``min_slope`` is negative, or both are non-zero.
+        Raises:
+            ValueError: If ``epsilon`` or ``min_slope`` is negative, or both are non-zero.
         """
         from ..selection import resolve_auto
 
@@ -266,20 +244,14 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Map scores through the fitted calibration curve.
 
-        Parameters
-        ----------
-        X
-            Scores to calibrate.
+        Args:
+            X: Scores to calibrate.
 
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Calibrated values.
+        Returns:
+            ndarray of shape (n_samples,): Calibrated values.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "calibration_curve_"):
             raise AttributeError(

@@ -1,5 +1,4 @@
-"""
-Calibrators package - collection of calibration algorithms.
+"""Calibrators package - collection of calibration algorithms.
 
 This package provides various calibration methods for improving probability
 predictions from machine learning models. All calibrators follow the sklearn
@@ -22,7 +21,7 @@ RegularizedIsotonicCalibrator
 SmoothedIsotonicCalibrator
     Isotonic regression with Savitzky-Golay smoothing
 
-Examples
+Examples:
 --------
 >>> from calibre import IsotonicCalibrator
 >>> import numpy as np

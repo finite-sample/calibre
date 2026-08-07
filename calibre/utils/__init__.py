@@ -1,5 +1,4 @@
-"""
-Utility functions for calibre.
+"""Utility functions for calibre.
 
 This package provides utility functions for validation, array operations,
 and other common tasks used throughout the calibre library.
@@ -11,7 +10,7 @@ validation
 array_ops
     Array operations and transformations.
 
-Examples
+Examples:
 --------
 >>> from calibre.utils import check_arrays, sort_by_x
 >>> import numpy as np

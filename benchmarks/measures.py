@@ -40,17 +40,12 @@ COLUMNS: tuple[str, ...] = (
 def _log_loss(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     """Mean logarithmic score, clipped away from the singularities.
 
-    Parameters
-    ----------
-    y_true
-        Binary outcomes.
-    y_pred
-        Predicted probabilities.
+    Args:
+        y_true: Binary outcomes.
+        y_pred: Predicted probabilities.
 
-    Returns
-    -------
-    float
-        Mean log loss.
+    Returns:
+        float: Mean log loss.
     """
     eps = np.finfo(float).eps
     p = np.clip(y_pred, eps, 1.0 - eps)
@@ -66,26 +61,15 @@ def evaluate(
 ) -> dict[str, float]:
     """Measure one calibrated test set every way the benchmark reports.
 
-    Parameters
-    ----------
-    y_true
-        Binary outcomes on the held-out half.
-    y_pred
-        Calibrated probabilities.
-    raw_scores
-        The uncalibrated model scores for the same rows, so the effect of
-        calibration on ranking can be measured.
-    p_true
-        True event probabilities when the dataset is synthetic, else None. When
-        present this gives ``true_error``, which is much the strongest evidence
-        available -- error against the truth rather than against a noisy label.
-    n_bins
-        Bin count for the fixed-bin estimators.
+    Args:
+        y_true: Binary outcomes on the held-out half.
+        y_pred: Calibrated probabilities.
+        raw_scores: The uncalibrated model scores for the same rows, so the effect of calibration on ranking can be measured.
+        p_true: True event probabilities when the dataset is synthetic, else None. When present this gives ``true_error``, which is much the strongest evidence available -- error against the truth rather than against a noisy label.
+        n_bins: Bin count for the fixed-bin estimators.
 
-    Returns
-    -------
-    dict
-        One value per entry in :data:`COLUMNS`.
+    Returns:
+        dict: One value per entry in :data:`COLUMNS`.
     """
     from sklearn.metrics import roc_auc_score
 

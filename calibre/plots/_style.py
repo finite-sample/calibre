@@ -20,7 +20,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from collections.abc import Iterator
     from contextlib import AbstractContextManager
 
+    from matplotlib.artist import Artist
     from matplotlib.axes import Axes
+    from matplotlib.container import Container
 
 # Okabe-Ito, the standard colourblind-safe qualitative palette. matplotlib's
 # default `tab10` is not colourblind-safe: its red and green are indistinguishable
@@ -62,30 +64,23 @@ SEMANTIC: dict[str, str] = {
 def color_cycle(n: int) -> list[str]:
     """Return ``n`` distinguishable colours, cycling if more are asked for.
 
-    Parameters
-    ----------
-    n
-        How many colours are needed.
+    Args:
+        n: How many colours are needed.
 
-    Returns
-    -------
-    list of str
-        Hex colour strings.
+    Returns:
+        list of str: Hex colour strings.
 
-    Raises
-    ------
-    ValueError
-        If ``n`` is negative.
+    Raises:
+        ValueError: If ``n`` is negative.
 
-    Examples
-    --------
-    >>> color_cycle(3)
-    ['#000000', '#E69F00', '#56B4E9']
+    Examples:
+        >>> color_cycle(3)
+        ['#000000', '#E69F00', '#56B4E9']
 
-    Asking for more than the palette holds wraps around rather than failing:
+        Asking for more than the palette holds wraps around rather than failing:
 
-    >>> len(color_cycle(12))
-    12
+        >>> len(color_cycle(12))
+        12
     """
     if n < 0:
         raise ValueError(f"n must be non-negative, got {n}")
@@ -104,25 +99,19 @@ def get_axes(
     bare :class:`~matplotlib.figure.Figure` because a figure created outside
     ``pyplot`` never renders in a Jupyter inline backend.
 
-    Parameters
-    ----------
-    ax
-        Existing axes, or None to create a new figure.
-    figsize
-        Size of the new figure, in inches. Ignored when ``ax`` is given.
+    Args:
+        ax: Existing axes, or None to create a new figure.
+        figsize: Size of the new figure, in inches. Ignored when ``ax`` is given.
 
-    Returns
-    -------
-    Axes
-        ``ax`` itself when it was supplied, otherwise freshly created axes.
+    Returns:
+        Axes: ``ax`` itself when it was supplied, otherwise freshly created axes.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> ax = get_axes(None)
-    >>> get_axes(ax) is ax
-    True
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> ax = get_axes(None)
+        >>> get_axes(ax) is ax
+        True
     """
     if ax is not None:
         return ax
@@ -137,17 +126,12 @@ def probability_axes(ax: Axes, *, square: bool = True) -> Axes:
     A reliability diagram is only readable against the diagonal if one unit on
     the x-axis is one unit on the y-axis, so the aspect is locked by default.
 
-    Parameters
-    ----------
-    ax
-        Axes to configure.
-    square
-        Whether to force an equal aspect ratio.
+    Args:
+        ax: Axes to configure.
+        square: Whether to force an equal aspect ratio.
 
-    Returns
-    -------
-    Axes
-        The same axes, configured.
+    Returns:
+        Axes: The same axes, configured.
     """
     ax.set_xlim(0.0, 1.0)
     ax.set_ylim(0.0, 1.0)
@@ -159,15 +143,11 @@ def probability_axes(ax: Axes, *, square: bool = True) -> Axes:
 def add_diagonal(ax: Axes) -> Axes:
     """Draw the line of perfect calibration.
 
-    Parameters
-    ----------
-    ax
-        Axes to draw on.
+    Args:
+        ax: Axes to draw on.
 
-    Returns
-    -------
-    Axes
-        The same axes.
+    Returns:
+        Axes: The same axes.
     """
     ax.plot(
         [0.0, 1.0],
@@ -197,25 +177,16 @@ def finalize(
     internal ``_calibre:`` artists stay out of the legend while remaining
     findable by tests.
 
-    Parameters
-    ----------
-    ax
-        Axes to finish.
-    xlabel
-        Label for the x-axis, if any.
-    ylabel
-        Label for the y-axis, if any.
-    title
-        Title, if any.
-    legend
-        Whether to add a legend when there is something to put in it.
-    grid
-        Whether to draw a light y-axis grid.
+    Args:
+        ax: Axes to finish.
+        xlabel: Label for the x-axis, if any.
+        ylabel: Label for the y-axis, if any.
+        title: Title, if any.
+        legend: Whether to add a legend when there is something to put in it.
+        grid: Whether to draw a light y-axis grid.
 
-    Returns
-    -------
-    Axes
-        The same axes.
+    Returns:
+        Axes: The same axes.
     """
     if xlabel is not None:
         ax.set_xlabel(xlabel)
@@ -245,25 +216,20 @@ def style_context(**overrides: Any) -> AbstractContextManager[None]:
     manager means the settings are restored on exit, so calibre never leaves a
     session's ``rcParams`` altered.
 
-    Parameters
-    ----------
-    **overrides
-        Additional rcParams, overriding the defaults below.
+    Args:
+        **overrides: Additional rcParams, overriding the defaults below.
 
-    Returns
-    -------
-    contextlib.AbstractContextManager
-        A context manager, as returned by :func:`matplotlib.rc_context`.
+    Returns:
+        contextlib.AbstractContextManager: A context manager, as returned by :func:`matplotlib.rc_context`.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> before = matplotlib.rcParams["savefig.dpi"]
-    >>> with style_context():
-    ...     pass
-    >>> matplotlib.rcParams["savefig.dpi"] == before
-    True
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> before = matplotlib.rcParams["savefig.dpi"]
+        >>> with style_context():
+        ...     pass
+        >>> matplotlib.rcParams["savefig.dpi"] == before
+        True
     """
     mpl, _ = require_matplotlib()
     params: dict[str, Any] = {
@@ -283,21 +249,18 @@ def style_context(**overrides: Any) -> AbstractContextManager[None]:
     return mpl.rc_context(params)
 
 
-def artists(ax: Axes) -> Iterator[Any]:
+def artists(ax: Axes) -> Iterator[Artist | Container]:
     """Iterate over every artist calibre may have labelled on ``ax``.
 
     Used by the test suite to locate a drawn element by its label rather than by
     its index, since indices shift whenever drawing order changes.
 
-    Parameters
-    ----------
-    ax
-        Axes to scan.
+    Args:
+        ax: Axes to scan.
 
-    Yields
-    ------
-    Artist
-        Lines, collections, patches and containers in drawing order.
+    Yields:
+        Artist | Container: Lines, collections, patches and containers in
+            drawing order. Containers are not Artists, hence the union.
     """
     yield from ax.lines
     yield from ax.collections

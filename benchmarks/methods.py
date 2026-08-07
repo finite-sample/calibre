@@ -49,10 +49,8 @@ def netcal_available() -> bool:
     the whole harness un-runnable -- which silently stops the benchmark being
     re-run, the failure this design exists to prevent.
 
-    Returns
-    -------
-    bool
-        True when netcal is importable.
+    Returns:
+        bool: True when netcal is importable.
     """
     return importlib.util.find_spec("netcal") is not None
 
@@ -60,17 +58,12 @@ def netcal_available() -> bool:
 def available(include_netcal: bool = False, include_slow: bool = False) -> list[str]:
     """List the methods that can run in this environment.
 
-    Parameters
-    ----------
-    include_netcal
-        Include the netcal comparators, if netcal is installed.
-    include_slow
-        Include methods that take minutes on tens of thousands of rows.
+    Args:
+        include_netcal: Include the netcal comparators, if netcal is installed.
+        include_slow: Include methods that take minutes on tens of thousands of rows.
 
-    Returns
-    -------
-    list of str
-        Method names, in a stable order.
+    Returns:
+        list of str: Method names, in a stable order.
     """
     out = []
     for name in METHODS:
@@ -85,20 +78,14 @@ def available(include_netcal: bool = False, include_slow: bool = False) -> list[
 def _build(name: str) -> Any:
     """Construct one calibre calibrator at its library defaults.
 
-    Parameters
-    ----------
-    name
-        Method name.
+    Args:
+        name: Method name.
 
-    Returns
-    -------
-    object
-        An unfitted calibrator.
+    Returns:
+        object: An unfitted calibrator.
 
-    Raises
-    ------
-    ValueError
-        If the name is not a calibre method.
+    Raises:
+        ValueError: If the name is not a calibre method.
     """
     from calibre import (
         CenteredIsotonicCalibrator,
@@ -125,19 +112,13 @@ def _build(name: str) -> Any:
 def _sklearn_isotonic(fit_scores, fit_labels, test_scores):
     """scikit-learn's isotonic regression, the baseline everything answers to.
 
-    Parameters
-    ----------
-    fit_scores
-        Out-of-fold model scores.
-    fit_labels
-        Labels for those scores.
-    test_scores
-        Scores to calibrate.
+    Args:
+        fit_scores: Out-of-fold model scores.
+        fit_labels: Labels for those scores.
+        test_scores: Scores to calibrate.
 
-    Returns
-    -------
-    ndarray
-        Calibrated test probabilities.
+    Returns:
+        ndarray: Calibrated test probabilities.
     """
     from sklearn.isotonic import IsotonicRegression
 
@@ -153,19 +134,13 @@ def _sklearn_platt(fit_scores, fit_labels, test_scores):
     ``CalibratedClassifierCV(method="sigmoid")`` does internally and what makes
     it a *scaling* rather than an arbitrary logistic regression.
 
-    Parameters
-    ----------
-    fit_scores
-        Out-of-fold model scores.
-    fit_labels
-        Labels for those scores.
-    test_scores
-        Scores to calibrate.
+    Args:
+        fit_scores: Out-of-fold model scores.
+        fit_labels: Labels for those scores.
+        test_scores: Scores to calibrate.
 
-    Returns
-    -------
-    ndarray
-        Calibrated test probabilities.
+    Returns:
+        ndarray: Calibrated test probabilities.
     """
     from sklearn.linear_model import LogisticRegression
 
@@ -190,19 +165,13 @@ def _sklearn_temperature(fit_scores, fit_labels, test_scores):
     estimator rather than scores, so the same one-parameter model is fitted
     directly here: a logistic fit on the logit with the intercept held at zero.
 
-    Parameters
-    ----------
-    fit_scores
-        Out-of-fold model scores.
-    fit_labels
-        Labels for those scores.
-    test_scores
-        Scores to calibrate.
+    Args:
+        fit_scores: Out-of-fold model scores.
+        fit_labels: Labels for those scores.
+        test_scores: Scores to calibrate.
 
-    Returns
-    -------
-    ndarray
-        Calibrated test probabilities.
+    Returns:
+        ndarray: Calibrated test probabilities.
     """
     from scipy.optimize import minimize_scalar
 
@@ -233,21 +202,14 @@ def _sklearn_temperature(fit_scores, fit_labels, test_scores):
 def _netcal(name: str, fit_scores, fit_labels, test_scores):
     """A netcal comparator, imported only when actually used.
 
-    Parameters
-    ----------
-    name
-        ``"netcal_beta"`` or ``"netcal_bbq"``.
-    fit_scores
-        Out-of-fold model scores.
-    fit_labels
-        Labels for those scores.
-    test_scores
-        Scores to calibrate.
+    Args:
+        name: ``"netcal_beta"`` or ``"netcal_bbq"``.
+        fit_scores: Out-of-fold model scores.
+        fit_labels: Labels for those scores.
+        test_scores: Scores to calibrate.
 
-    Returns
-    -------
-    ndarray
-        Calibrated test probabilities.
+    Returns:
+        ndarray: Calibrated test probabilities.
     """
     if name == "netcal_beta":
         from netcal.scaling import BetaCalibration as Model
@@ -266,26 +228,17 @@ def _netcal(name: str, fit_scores, fit_labels, test_scores):
 def calibrate(name: str, fit_scores, fit_labels, test_scores):
     """Fit one method on the out-of-fold scores and apply it to the test scores.
 
-    Parameters
-    ----------
-    name
-        Method name from :data:`METHODS`.
-    fit_scores
-        Out-of-fold model scores from the fitting half.
-    fit_labels
-        Labels for those scores.
-    test_scores
-        Scores from the held-out half, to be calibrated.
+    Args:
+        name: Method name from :data:`METHODS`.
+        fit_scores: Out-of-fold model scores from the fitting half.
+        fit_labels: Labels for those scores.
+        test_scores: Scores from the held-out half, to be calibrated.
 
-    Returns
-    -------
-    ndarray
-        Calibrated probabilities for ``test_scores``.
+    Returns:
+        ndarray: Calibrated probabilities for ``test_scores``.
 
-    Raises
-    ------
-    ValueError
-        If the name is unknown.
+    Raises:
+        ValueError: If the name is unknown.
     """
     fit_scores = np.asarray(fit_scores, dtype=float)
     fit_labels = np.asarray(fit_labels, dtype=float)

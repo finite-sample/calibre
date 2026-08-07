@@ -55,23 +55,15 @@ def _check_probability_matrix(
 ) -> np.ndarray:
     """Validate a matrix of class probabilities.
 
-    Parameters
-    ----------
-    P
-        Predicted probabilities, shape ``(n_samples, n_classes)``.
-    n_classes
-        Expected number of columns, when validating data at transform time.
+    Args:
+        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
+        n_classes: Expected number of columns, when validating data at transform time.
 
-    Returns
-    -------
-    ndarray
-        Validated probabilities as float.
+    Returns:
+        ndarray: Validated probabilities as float.
 
-    Raises
-    ------
-    ValueError
-        If ``P`` is not 2-D, has the wrong width, contains non-finite or
-        negative values, or has rows that do not sum to one.
+    Raises:
+        ValueError: If ``P`` is not 2-D, has the wrong width, contains non-finite or negative values, or has rows that do not sum to one.
     """
     P = np.asarray(P, dtype=float)
     if P.ndim != 2:
@@ -96,25 +88,16 @@ def _check_probability_matrix(
 def _check_matrix(P: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Validate a probability matrix and its integer labels.
 
-    Parameters
-    ----------
-    P
-        Predicted probabilities, shape ``(n_samples, n_classes)``.
-    y
-        Integer class labels in ``[0, n_classes)``.
+    Args:
+        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
+        y: Integer class labels in ``[0, n_classes)``.
 
-    Returns
-    -------
-    P : ndarray
-        Validated probabilities as float.
-    y : ndarray
-        Validated labels as int.
+    Returns:
+        P: Validated probabilities as float.
+        y: Validated labels as int.
 
-    Raises
-    ------
-    ValueError
-        If ``P`` is not 2-D, the lengths disagree, labels are non-integer or
-        outside the class range, or ``P`` is not a valid probability matrix.
+    Raises:
+        ValueError: If ``P`` is not 2-D, the lengths disagree, labels are non-integer or outside the class range, or ``P`` is not a valid probability matrix.
     """
     P = _check_probability_matrix(P)
     y_raw = np.asarray(y)
@@ -154,49 +137,39 @@ def classwise_decomposition(
     ``mean_score = MCB - DSC + UNC`` is exact, and ``MCB`` and ``DSC`` are
     non-negative.
 
-    Parameters
-    ----------
-    P
-        Predicted probabilities, shape ``(n_samples, n_classes)``.
-    y
-        Integer class labels.
-    score
-        Proper scoring rule: ``"brier"`` (default) or ``"log"``.
+    Args:
+        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
+        y: Integer class labels.
+        score: Proper scoring rule: ``"brier"`` (default) or ``"log"``.
 
-    Returns
-    -------
-    list of dict
-        One decomposition per class, in class order. Each has ``mean_score``,
-        ``MCB``, ``DSC``, ``UNC``.
+    Returns:
+        list of dict: One decomposition per class, in class order. Each has ``mean_score``, ``MCB``, ``DSC``, ``UNC``.
 
-    Notes
-    -----
-    This is *class-wise* calibration, the standard relaxation of the multiclass
-    problem. It says nothing about whether whole probability vectors are jointly
-    calibrated.
+    Notes:
+        This is *class-wise* calibration, the standard relaxation of the multiclass
+        problem. It says nothing about whether whole probability vectors are jointly
+        calibrated.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.multiclass import classwise_decomposition
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(3), size=1500)
-    >>> y = np.array([rng.choice(3, p=t) for t in truth])
-    >>> parts = classwise_decomposition(truth, y)
-    >>> len(parts)
-    3
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.multiclass import classwise_decomposition
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(3), size=1500)
+        >>> y = np.array([rng.choice(3, p=t) for t in truth])
+        >>> parts = classwise_decomposition(truth, y)
+        >>> len(parts)
+        3
 
-    The identity holds for every class:
+        The identity holds for every class:
 
-    >>> all(
-    ...     abs(d["mean_score"] - (d["MCB"] - d["DSC"] + d["UNC"])) < 1e-12
-    ...     for d in parts
-    ... )
-    True
+        >>> all(
+        ...     abs(d["mean_score"] - (d["MCB"] - d["DSC"] + d["UNC"])) < 1e-12
+        ...     for d in parts
+        ... )
+        True
 
-    See Also
-    --------
-    miscalibration_profile : Reads these to say which calibration method to use.
+    See Also:
+        miscalibration_profile : Reads these to say which calibration method to use.
     """
     P, y = _check_matrix(P, y)
     return [
@@ -214,53 +187,43 @@ def miscalibration_profile(P: np.ndarray, y: np.ndarray) -> dict:
     is concentrated in particular classes, no one-parameter method can express
     the fix and per-class calibration is needed.
 
-    Parameters
-    ----------
-    P
-        Predicted probabilities, shape ``(n_samples, n_classes)``.
-    y
-        Integer class labels.
+    Args:
+        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
+        y: Integer class labels.
 
-    Returns
-    -------
-    dict
-        ``mcb`` (per-class miscalibration), ``spread`` (coefficient of variation
-        of ``mcb``), ``worst_classes`` (indices ordered by descending ``mcb``),
-        and ``reading`` (a plain-language interpretation).
+    Returns:
+        dict: ``mcb`` (per-class miscalibration), ``spread`` (coefficient of variation of ``mcb``), ``worst_classes`` (indices ordered by descending ``mcb``), and ``reading`` (a plain-language interpretation).
 
-    Notes
-    -----
-    Calibrated on synthetic data where the true regime is known, ``spread`` is
-    about 0.13 when the distortion is global and 0.38-0.92 when it is
-    class-dependent. The 0.25 threshold used for ``reading`` sits between those,
-    but it is a rule of thumb from one study design, not a test with a
-    calibrated false-positive rate. Treat a borderline value as "try both".
+    Notes:
+        Calibrated on synthetic data where the true regime is known, ``spread`` is
+        about 0.13 when the distortion is global and 0.38-0.92 when it is
+        class-dependent. The 0.25 threshold used for ``reading`` sits between those,
+        but it is a rule of thumb from one study design, not a test with a
+        calibrated false-positive rate. Treat a borderline value as "try both".
 
-    Measure this on **out-of-fold** predictions. Miscalibration estimated on the
-    data a calibrator was fit to is not merely optimistic; for an
-    isotonic-family calibrator it is identically zero.
+        Measure this on **out-of-fold** predictions. Miscalibration estimated on the
+        data a calibrator was fit to is not merely optimistic; for an
+        isotonic-family calibrator it is identically zero.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.multiclass import miscalibration_profile
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(4) * 0.7, size=3000)
-    >>> y = np.array([rng.choice(4, p=t) for t in truth])
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.multiclass import miscalibration_profile
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(4) * 0.7, size=3000)
+        >>> y = np.array([rng.choice(4, p=t) for t in truth])
 
-    Distort each class differently -- no single temperature can undo this:
+        Distort each class differently -- no single temperature can undo this:
 
-    >>> skewed = truth ** np.array([0.6, 1.2, 1.8, 2.4])
-    >>> P = skewed / skewed.sum(axis=1, keepdims=True)
-    >>> profile = miscalibration_profile(P, y)
-    >>> bool(profile["spread"] > 0.25)
-    True
-    >>> "per-class" in profile["reading"]
-    True
+        >>> skewed = truth ** np.array([0.6, 1.2, 1.8, 2.4])
+        >>> P = skewed / skewed.sum(axis=1, keepdims=True)
+        >>> profile = miscalibration_profile(P, y)
+        >>> bool(profile["spread"] > 0.25)
+        True
+        >>> "per-class" in profile["reading"]
+        True
 
-    See Also
-    --------
-    TemperatureScaler : The method to reach for when the spread is small.
+    See Also:
+        TemperatureScaler : The method to reach for when the spread is small.
     """
     parts = classwise_decomposition(P, y)
     mcb = np.array([d["MCB"] for d in parts], dtype=float)
@@ -302,43 +265,31 @@ def classwise_ece(
 ) -> float:
     """Average one-vs-rest calibration error across classes.
 
-    Parameters
-    ----------
-    P
-        Predicted probabilities, shape ``(n_samples, n_classes)``.
-    y
-        Integer class labels.
-    n_bins
-        Bins per class, used by the ``"debiased"`` estimator.
-    estimator
-        ``"debiased"`` (default) subtracts the per-bin Bernoulli variance;
-        ``"sweep"`` chooses the bin count by monotonicity instead.
+    Args:
+        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
+        y: Integer class labels.
+        n_bins: Bins per class, used by the ``"debiased"`` estimator.
+        estimator: ``"debiased"`` (default) subtracts the per-bin Bernoulli variance; ``"sweep"`` chooses the bin count by monotonicity instead.
 
-    Returns
-    -------
-    float
-        Mean per-class calibration error.
+    Returns:
+        float: Mean per-class calibration error.
 
-    Raises
-    ------
-    ValueError
-        If ``estimator`` is unknown.
+    Raises:
+        ValueError: If ``estimator`` is unknown.
 
-    Notes
-    -----
-    Built on the bias-aware estimators in :mod:`calibre.metrics`, so the plugin
-    bias that grows with the bin count is corrected, and no bin edge ever splits
-    a group of tied predictions.
+    Notes:
+        Built on the bias-aware estimators in :mod:`calibre.metrics`, so the plugin
+        bias that grows with the bin count is corrected, and no bin edge ever splits
+        a group of tied predictions.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.multiclass import classwise_ece
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(3), size=2000)
-    >>> y = np.array([rng.choice(3, p=t) for t in truth])
-    >>> bool(classwise_ece(truth, y) < 0.05)
-    True
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.multiclass import classwise_ece
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(3), size=2000)
+        >>> y = np.array([rng.choice(3, p=t) for t in truth])
+        >>> bool(classwise_ece(truth, y) < 0.05)
+        True
     """
     P, y = _check_matrix(P, y)
     if estimator == "debiased":
@@ -366,40 +317,29 @@ def top_label_ece(
     notion of multiclass calibration; a model can score perfectly here while
     being badly miscalibrated on every non-predicted class.
 
-    Parameters
-    ----------
-    P
-        Predicted probabilities, shape ``(n_samples, n_classes)``.
-    y
-        Integer class labels.
-    n_bins
-        Bins, used by the ``"debiased"`` estimator.
-    estimator
-        ``"debiased"`` (default) or ``"sweep"``.
+    Args:
+        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
+        y: Integer class labels.
+        n_bins: Bins, used by the ``"debiased"`` estimator.
+        estimator: ``"debiased"`` (default) or ``"sweep"``.
 
-    Returns
-    -------
-    float
-        Calibration error of the top-label confidence.
+    Returns:
+        float: Calibration error of the top-label confidence.
 
-    Raises
-    ------
-    ValueError
-        If ``estimator`` is unknown.
+    Raises:
+        ValueError: If ``estimator`` is unknown.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.multiclass import top_label_ece
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(3), size=2000)
-    >>> y = np.array([rng.choice(3, p=t) for t in truth])
-    >>> bool(top_label_ece(truth, y) < 0.05)
-    True
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.multiclass import top_label_ece
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(3), size=2000)
+        >>> y = np.array([rng.choice(3, p=t) for t in truth])
+        >>> bool(top_label_ece(truth, y) < 0.05)
+        True
 
-    See Also
-    --------
-    classwise_ece : The stronger notion, averaging over every class.
+    See Also:
+        classwise_ece : The stronger notion, averaging over every class.
     """
     P, y = _check_matrix(P, y)
     confidence = P.max(axis=1)
@@ -414,30 +354,24 @@ def top_label_ece(
 def classwise_reliability(P: np.ndarray, y: np.ndarray) -> list[ReliabilityDiagram]:
     """Build a CORP reliability diagram for each class, one-vs-rest.
 
-    Parameters
-    ----------
-    P
-        Predicted probabilities, shape ``(n_samples, n_classes)``.
-    y
-        Integer class labels.
+    Args:
+        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
+        y: Integer class labels.
 
-    Returns
-    -------
-    list of ReliabilityDiagram
-        One diagram per class, in class order. No bin count to choose.
+    Returns:
+        list of ReliabilityDiagram: One diagram per class, in class order. No bin count to choose.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.multiclass import classwise_reliability
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(3), size=1000)
-    >>> y = np.array([rng.choice(3, p=t) for t in truth])
-    >>> diagrams = classwise_reliability(truth, y)
-    >>> len(diagrams)
-    3
-    >>> all(np.all(np.diff(d.cep) >= -1e-12) for d in diagrams)
-    True
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.multiclass import classwise_reliability
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(3), size=1000)
+        >>> y = np.array([rng.choice(3, p=t) for t in truth])
+        >>> diagrams = classwise_reliability(truth, y)
+        >>> len(diagrams)
+        3
+        >>> all(np.all(np.diff(d.cep) >= -1e-12) for d in diagrams)
+        True
     """
     P, y = _check_matrix(P, y)
     return [
@@ -459,56 +393,47 @@ class TemperatureScaler:
     regime it barely improved on doing nothing. Run
     :func:`miscalibration_profile` first.
 
-    Parameters
-    ----------
-    max_log_temperature
-        The search runs over ``log(T)`` in ``[-b, b]``. Widen only if the fitted
-        temperature lands on a bound.
+    Args:
+        max_log_temperature: The search runs over ``log(T)`` in ``[-b, b]``. Widen only if the fitted temperature lands on a bound.
 
-    Attributes
-    ----------
-    temperature_ : float
-        Fitted temperature. Above 1 softens the predictions, below 1 sharpens.
-    n_features_in_ : int
-        Number of classes seen during fit.
+    Attributes:
+        temperature_: Fitted temperature. Above 1 softens the predictions, below 1 sharpens.
+        n_features_in_: Number of classes seen during fit.
 
-    Notes
-    -----
-    Temperature scaling preserves the class ordering *within each row*, but not
-    the ordering of people *within a class*: the softmax denominator makes each
-    calibrated probability depend on the whole row. Measured at 49.6% of adjacent
-    within-class pairs inverted -- worse than one-vs-rest calibration followed by
-    normalisation. If you rank people by their probability of a given class,
-    that reordering is real and no standard calibration metric reveals it.
+    Notes:
+        Temperature scaling preserves the class ordering *within each row*, but not
+        the ordering of people *within a class*: the softmax denominator makes each
+        calibrated probability depend on the whole row. Measured at 49.6% of adjacent
+        within-class pairs inverted -- worse than one-vs-rest calibration followed by
+        normalisation. If you rank people by their probability of a given class,
+        that reordering is real and no standard calibration metric reveals it.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.multiclass import TemperatureScaler
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(4) * 0.7, size=2000)
-    >>> y = np.array([rng.choice(4, p=t) for t in truth])
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.multiclass import TemperatureScaler
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(4) * 0.7, size=2000)
+        >>> y = np.array([rng.choice(4, p=t) for t in truth])
 
-    An overconfident model, sharpened globally:
+        An overconfident model, sharpened globally:
 
-    >>> sharp = truth ** 2.2
-    >>> P = sharp / sharp.sum(axis=1, keepdims=True)
-    >>> scaler = TemperatureScaler().fit(P, y)
+        >>> sharp = truth ** 2.2
+        >>> P = sharp / sharp.sum(axis=1, keepdims=True)
+        >>> scaler = TemperatureScaler().fit(P, y)
 
-    It recovers a temperature above 1, softening the predictions back:
+        It recovers a temperature above 1, softening the predictions back:
 
-    >>> bool(scaler.temperature_ > 1.5)
-    True
+        >>> bool(scaler.temperature_ > 1.5)
+        True
 
-    And the predicted class is untouched, by construction:
+        And the predicted class is untouched, by construction:
 
-    >>> Q = scaler.transform(P)
-    >>> bool(np.all(Q.argmax(axis=1) == P.argmax(axis=1)))
-    True
+        >>> Q = scaler.transform(P)
+        >>> bool(np.all(Q.argmax(axis=1) == P.argmax(axis=1)))
+        True
 
-    See Also
-    --------
-    miscalibration_profile : Tells you whether this method suits your data.
+    See Also:
+        miscalibration_profile : Tells you whether this method suits your data.
     """
 
     def __init__(self, max_log_temperature: float = 3.0) -> None:
@@ -517,32 +442,23 @@ class TemperatureScaler:
     def _logits(self, P: np.ndarray) -> np.ndarray:
         """Return log-probabilities, floored away from zero.
 
-        Parameters
-        ----------
-        P
-            Probability matrix.
+        Args:
+            P: Probability matrix.
 
-        Returns
-        -------
-        ndarray
-            Logits.
+        Returns:
+            ndarray: Logits.
         """
         return np.log(np.clip(P, _EPS, None))
 
     def _softmax(self, logits: np.ndarray, temperature: float) -> np.ndarray:
         """Softmax of ``logits / temperature``, computed stably.
 
-        Parameters
-        ----------
-        logits
-            Log-probabilities.
-        temperature
-            Divisor.
+        Args:
+            logits: Log-probabilities.
+            temperature: Divisor.
 
-        Returns
-        -------
-        ndarray
-            Row-stochastic probabilities.
+        Returns:
+            ndarray: Row-stochastic probabilities.
         """
         z = logits / temperature
         z = z - z.max(axis=1, keepdims=True)
@@ -552,23 +468,15 @@ class TemperatureScaler:
     def fit(self, P: np.ndarray, y: np.ndarray) -> TemperatureScaler:
         """Fit the temperature by minimising negative log-likelihood.
 
-        Parameters
-        ----------
-        P
-            Predicted probabilities from a held-out calibration set.
-        y
-            Integer class labels.
+        Args:
+            P: Predicted probabilities from a held-out calibration set.
+            y: Integer class labels.
 
-        Returns
-        -------
-        TemperatureScaler
-            self.
+        Returns:
+            TemperatureScaler: self.
 
-        Raises
-        ------
-        ValueError
-            If ``max_log_temperature`` is not positive, or the inputs are
-            malformed.
+        Raises:
+            ValueError: If ``max_log_temperature`` is not positive, or the inputs are malformed.
         """
         from scipy.optimize import minimize_scalar
 
@@ -593,23 +501,14 @@ class TemperatureScaler:
     def transform(self, P: np.ndarray) -> np.ndarray:
         """Apply the fitted temperature.
 
-        Parameters
-        ----------
-        P
-            Predicted probabilities.
+        Args:
+            P: Predicted probabilities.
 
-        Returns
-        -------
-        ndarray
-            Calibrated probabilities, rows summing to 1. Every row's argmax is
-            unchanged.
+        Returns:
+            ndarray: Calibrated probabilities, rows summing to 1. Every row's argmax is unchanged.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
-        ValueError
-            If the number of classes differs from the fitted one.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "temperature_"):
             raise AttributeError(
@@ -621,17 +520,12 @@ class TemperatureScaler:
     def fit_transform(self, P: np.ndarray, y: np.ndarray) -> np.ndarray:
         """Fit on ``(P, y)`` and return the calibrated probabilities.
 
-        Parameters
-        ----------
-        P
-            Predicted probabilities.
-        y
-            Integer class labels.
+        Args:
+            P: Predicted probabilities.
+            y: Integer class labels.
 
-        Returns
-        -------
-        ndarray
-            Calibrated probabilities.
+        Returns:
+            ndarray: Calibrated probabilities.
         """
         return self.fit(P, y).transform(P)
 

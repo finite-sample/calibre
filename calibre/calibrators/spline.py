@@ -36,21 +36,13 @@ __all__ = ["SplineCalibrator"]
 def _log_loss(y: np.ndarray, p: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     """Per-observation Bernoulli log-loss, safe at the boundaries.
 
-    Parameters
-    ----------
-    y
-        Targets in ``[0, 1]``.
-    p
-        Predicted probabilities.
-    eps
-        Clipping bound, so a confident-and-wrong prediction contributes a large
-        finite penalty rather than an infinite one that would leave every candidate
-        incomparable.
+    Args:
+        y: Targets in ``[0, 1]``.
+        p: Predicted probabilities.
+        eps: Clipping bound, so a confident-and-wrong prediction contributes a large finite penalty rather than an infinite one that would leave every candidate incomparable.
 
-    Returns
-    -------
-    ndarray
-        Elementwise loss.
+    Returns:
+        ndarray: Elementwise loss.
     """
     p = np.clip(p, eps, 1.0 - eps)
     return np.asarray(-(y * np.log(p) + (1.0 - y) * np.log1p(-p)), dtype=float)
@@ -70,100 +62,61 @@ class SplineCalibrator(BaseCalibrator):
     non-negative, :math:`f` is non-decreasing by construction; the link is
     increasing, so the calibrated probability is too.
 
-    Parameters
-    ----------
-    n_knots
-        Number of knots. The basis has ``n_knots + degree - 1`` functions. Used
-        only when ``alpha`` is given; otherwise cross-validation selects it.
-    degree
-        B-spline degree. 3 gives the usual cubic behaviour.
-    knots
-        ``"quantile"`` (default) places knots at score quantiles; ``"uniform"``
-        spaces them evenly. Quantile is normally right for calibration, where
-        scores pile up wherever the base model is confident and uniform knots
-        spend resolution on empty regions.
-    alpha
-        Roughness penalty on the coefficient increments. ``None`` (default)
-        selects it, along with ``n_knots``, by cross-validation. A number fixes it
-        and skips cross-validation.
-    link
-        ``"logit"`` (default) fits a penalised Bernoulli likelihood: log-loss is
-        the proper score for binary labels, and predictions land in ``(0, 1)``
-        with no clipping. ``"identity"`` fits penalised least squares on the
-        probability scale -- a single bounded linear solve.
-    cv
-        Number of cross-validation folds. Stratified when ``y`` is binary.
-    max_cv_samples
-        Cap on the number of observations used for *hyperparameter selection*. The
-        final model is always refit on the full sample; this only bounds the cost
-        of the search, which would otherwise fit the grid once per fold over every
-        row (at n=100k that is ~50s against 0.3s for a single fit). Selecting two
-        scalars from a large random subsample costs essentially nothing
-        statistically. Set to ``None`` to search on all of the data.
-    random_state
-        Seed for the cross-validation split. Defaults to ``0`` so that ``fit`` is
-        reproducible: cross-validation here only selects a hyperparameter, and a
-        fit that silently returns a different curve on each identical call is a
-        trap. Pass ``None`` to draw the split from the global RNG instead.
-    clip_output
-        Clip calibrated values into ``[0, 1]``. A no-op for ``link="logit"``.
-    enable_diagnostics
-        Whether to enable plateau diagnostics analysis.
+    Args:
+        n_knots: Number of knots. The basis has ``n_knots + degree - 1`` functions. Used only when ``alpha`` is given; otherwise cross-validation selects it.
+        degree: B-spline degree. 3 gives the usual cubic behaviour.
+        knots: ``"quantile"`` (default) places knots at score quantiles; ``"uniform"`` spaces them evenly. Quantile is normally right for calibration, where scores pile up wherever the base model is confident and uniform knots spend resolution on empty regions.
+        alpha: Roughness penalty on the coefficient increments. ``None`` (default) selects it, along with ``n_knots``, by cross-validation. A number fixes it and skips cross-validation.
+        link: ``"logit"`` (default) fits a penalised Bernoulli likelihood: log-loss is the proper score for binary labels, and predictions land in ``(0, 1)`` with no clipping. ``"identity"`` fits penalised least squares on the probability scale -- a single bounded linear solve.
+        cv: Number of cross-validation folds. Stratified when ``y`` is binary.
+        max_cv_samples: Cap on the number of observations used for *hyperparameter selection*. The final model is always refit on the full sample; this only bounds the cost of the search, which would otherwise fit the grid once per fold over every row (at n=100k that is ~50s against 0.3s for a single fit). Selecting two scalars from a large random subsample costs essentially nothing statistically. Set to ``None`` to search on all of the data.
+        random_state: Seed for the cross-validation split. Defaults to ``0`` so that ``fit`` is reproducible: cross-validation here only selects a hyperparameter, and a fit that silently returns a different curve on each identical call is a trap. Pass ``None`` to draw the split from the global RNG instead.
+        clip_output: Clip calibrated values into ``[0, 1]``. A no-op for ``link="logit"``.
+        enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
-    Attributes
-    ----------
-    basis_ : MonotoneSplineBasis
-        The fitted basis. Its knots come from the same fit that produced ``coef_``.
-    intercept_ : float
-        Fitted intercept, on the link scale.
-    coef_ : ndarray of shape (n_basis,)
-        Fitted non-negative increment coefficients.
-    alpha_ : float
-        The penalty actually used -- selected by cross-validation, or echoed back
-        from ``alpha``.
-    n_knots_ : int
-        The knot count actually used.
-    n_features_in_ : int
-        Always 1. Present for scikit-learn compatibility.
+    Attributes:
+        basis_: The fitted basis. Its knots come from the same fit that produced ``coef_``.
+        intercept_: Fitted intercept, on the link scale.
+        coef_: Fitted non-negative increment coefficients.
+        alpha_: The penalty actually used -- selected by cross-validation, or echoed back from ``alpha``.
+        n_knots_: The knot count actually used.
+        n_features_in_: Always 1. Present for scikit-learn compatibility.
 
-    Notes
-    -----
-    **Non-negative coefficients on a plain B-spline basis do not give
-    monotonicity.** B-spline basis functions are bumps, so a non-negative
-    combination of them is a non-negative *function* and nothing more -- a single
-    non-negative coefficient already traces a curve that rises and then falls.
-    Monotonicity requires non-negativity on the coefficient *differences*, which is
-    exactly what the I-spline (cumulative) basis encodes; see
-    :class:`calibre._core.MonotoneSplineBasis`. This is the construction behind the
-    SCOP-splines of Pya & Wood (2015) in R's ``scam`` and the penalised B-splines
-    of Eilers & Marx (1996).
+    Notes:
+        **Non-negative coefficients on a plain B-spline basis do not give
+        monotonicity.** B-spline basis functions are bumps, so a non-negative
+        combination of them is a non-negative *function* and nothing more -- a single
+        non-negative coefficient already traces a curve that rises and then falls.
+        Monotonicity requires non-negativity on the coefficient *differences*, which is
+        exactly what the I-spline (cumulative) basis encodes; see
+        :class:`calibre._core.MonotoneSplineBasis`. This is the construction behind the
+        SCOP-splines of Pya & Wood (2015) in R's ``scam`` and the penalised B-splines
+        of Eilers & Marx (1996).
 
-    **Cross-validation selects a hyperparameter and then refits on all the data.**
-    It is not a search for whichever fold's model scored best on its own validation
-    split: that selects on noise and ships a model trained on only ``(cv-1)/cv`` of
-    the sample. Folds are scored by log-loss -- a proper score -- rather than by
-    :math:`R^2`.
+        **Cross-validation selects a hyperparameter and then refits on all the data.**
+        It is not a search for whichever fold's model scored best on its own validation
+        split: that selects on noise and ships a model trained on only ``(cv-1)/cv`` of
+        the sample. Folds are scored by log-loss -- a proper score -- rather than by
+        :math:`R^2`.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import SplineCalibrator
-    >>>
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.random(500)
-    >>> y = (rng.random(500) < x).astype(float)
-    >>>
-    >>> cal = SplineCalibrator(alpha=0.1).fit(x, y)
-    >>> fitted = cal.transform(np.linspace(0, 1, 200))
-    >>> bool(np.all(np.diff(fitted) >= -1e-10))     # monotone by construction
-    True
-    >>> bool(fitted.min() >= 0.0 and fitted.max() <= 1.0)
-    True
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import SplineCalibrator
+        >>>
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.random(500)
+        >>> y = (rng.random(500) < x).astype(float)
+        >>>
+        >>> cal = SplineCalibrator(alpha=0.1).fit(x, y)
+        >>> fitted = cal.transform(np.linspace(0, 1, 200))
+        >>> bool(np.all(np.diff(fitted) >= -1e-10))     # monotone by construction
+        True
+        >>> bool(fitted.min() >= 0.0 and fitted.max() <= 1.0)
+        True
 
-    See Also
-    --------
-    CenteredIsotonicCalibrator : Non-parametric, needs no tuning, also plateau-free.
-    RegularizedIsotonicCalibrator : Same basis, penalty specified rather than tuned.
+    See Also:
+        CenteredIsotonicCalibrator : Non-parametric, needs no tuning, also plateau-free.
+        RegularizedIsotonicCalibrator : Same basis, penalty specified rather than tuned.
     """
 
     def __init__(
@@ -195,17 +148,14 @@ class SplineCalibrator(BaseCalibrator):
     def _validate(self) -> None:
         """Check the configuration.
 
-        Raises
-        ------
-        ValueError
-            If any parameter is out of range.
+        Raises:
+            ValueError: If any parameter is out of range.
 
-        Notes
-        -----
-        Validation lives here rather than in ``__init__`` so ``get_params`` and
-        ``clone`` round-trip, and it raises rather than silently coercing -- a
-        coerced value would persist and make ``clone`` return a differently
-        configured estimator than the one it copied.
+        Notes:
+            Validation lives here rather than in ``__init__`` so ``get_params`` and
+            ``clone`` round-trip, and it raises rather than silently coercing -- a
+            coerced value would persist and make ``clone`` return a differently
+            configured estimator than the one it copied.
         """
         if self.n_knots < 3:
             raise ValueError(f"n_knots must be at least 3, got {self.n_knots}")
@@ -233,19 +183,13 @@ class SplineCalibrator(BaseCalibrator):
     ) -> None:
         """Select the smoothing parameters, then fit on all the data.
 
-        Parameters
-        ----------
-        X
-            Uncalibrated scores.
-        y
-            Targets: binary labels, or probabilities in ``[0, 1]``.
-        sample_weight
-            Non-negative per-observation weights.
+        Args:
+            X: Uncalibrated scores.
+            y: Targets: binary labels, or probabilities in ``[0, 1]``.
+            sample_weight: Non-negative per-observation weights.
 
-        Raises
-        ------
-        ValueError
-            If the configuration or the targets are invalid.
+        Raises:
+            ValueError: If the configuration or the targets are invalid.
         """
         X, y = check_arrays(X, y)
         self._validate()
@@ -293,21 +237,14 @@ class SplineCalibrator(BaseCalibrator):
     ) -> tuple[int, float]:
         """Choose ``(n_knots, alpha)`` by cross-validated log-loss.
 
-        Parameters
-        ----------
-        X
-            Uncalibrated scores.
-        y
-            Targets.
-        w
-            Sample weights.
+        Args:
+            X: Uncalibrated scores.
+            y: Targets.
+            w: Sample weights.
 
-        Returns
-        -------
-        n_knots : int
-            Selected knot count.
-        alpha : float
-            Selected roughness penalty.
+        Returns:
+            n_knots: Selected knot count.
+            alpha: Selected roughness penalty.
         """
         from sklearn.model_selection import KFold, StratifiedKFold
 
@@ -393,23 +330,15 @@ class SplineCalibrator(BaseCalibrator):
     ) -> np.ndarray:
         """Evaluate a fitted basis/coefficient pair at ``X``.
 
-        Parameters
-        ----------
-        basis
-            A fitted :class:`calibre._core.MonotoneSplineBasis`.
-        intercept
-            Fitted intercept on the link scale.
-        coef
-            Fitted non-negative increment coefficients.
-        X
-            Points to evaluate at.
-        clip
-            Whether to clip into ``[0, 1]``.
+        Args:
+            basis: A fitted :class:`calibre._core.MonotoneSplineBasis`.
+            intercept: Fitted intercept on the link scale.
+            coef: Fitted non-negative increment coefficients.
+            X: Points to evaluate at.
+            clip: Whether to clip into ``[0, 1]``.
 
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Calibrated probabilities.
+        Returns:
+            ndarray of shape (n_samples,): Calibrated probabilities.
         """
         from scipy.special import expit
 
@@ -420,20 +349,14 @@ class SplineCalibrator(BaseCalibrator):
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Map scores through the fitted calibration curve.
 
-        Parameters
-        ----------
-        X
-            Scores to calibrate.
+        Args:
+            X: Scores to calibrate.
 
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Calibrated probabilities.
+        Returns:
+            ndarray of shape (n_samples,): Calibrated probabilities.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "basis_"):
             raise AttributeError(
@@ -450,20 +373,14 @@ class SplineCalibrator(BaseCalibrator):
     def calibration_curve(self, n_points: int = 200) -> PiecewiseLinear:
         """Sample the fitted map onto a grid, for plotting or inspection.
 
-        Parameters
-        ----------
-        n_points
-            Number of grid points across the fitted score range.
+        Args:
+            n_points: Number of grid points across the fitted score range.
 
-        Returns
-        -------
-        PiecewiseLinear
-            The sampled curve.
+        Returns:
+            PiecewiseLinear: The sampled curve.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "basis_"):
             raise AttributeError(

@@ -25,18 +25,12 @@ __all__ = ["plot_resolution_frontier", "plot_resolution_loss"]
 def _distinct_positions(values: np.ndarray, precision: int) -> np.ndarray:
     """Return the index of each position where the output value changes.
 
-    Parameters
-    ----------
-    values
-        Calibrated outputs, in ascending order of the input score.
-    precision
-        Decimal places at which two outputs count as equal. Matches
-        :func:`~calibre.unique_value_counts`.
+    Args:
+        values: Calibrated outputs, in ascending order of the input score.
+        precision: Decimal places at which two outputs count as equal. Matches :func:`~calibre.unique_value_counts`.
 
-    Returns
-    -------
-    ndarray
-        Indices at which a new distinct output value begins, including 0.
+    Returns:
+        ndarray: Indices at which a new distinct output value begins, including 0.
     """
     rounded = np.round(values, precision)
     if rounded.size == 0:
@@ -65,53 +59,37 @@ def plot_resolution_loss(
     resolution-preserving calibrator's is solid ink. That contrast is the claim
     this package is built on, drawn rather than asserted, and it needs no legend.
 
-    Parameters
-    ----------
-    outputs
-        Mapping from method name to that method's calibrated outputs. Every
-        array must be the same length, being the same observations calibrated
-        different ways.
-    x
-        The input scores the outputs came from, used for the horizontal axis.
-        When omitted, rank position is used instead.
-    ax
-        Axes to draw on. A new figure is created when omitted.
-    annotate_counts
-        Whether to print the distinct-value count at the right of each strip.
-    precision
-        Decimal places at which two outputs count as equal.
-    sort
-        Whether to order strips by distinct count, most granular at the top.
+    Args:
+        outputs: Mapping from method name to that method's calibrated outputs. Every array must be the same length, being the same observations calibrated different ways.
+        x: The input scores the outputs came from, used for the horizontal axis. When omitted, rank position is used instead.
+        ax: Axes to draw on. A new figure is created when omitted.
+        annotate_counts: Whether to print the distinct-value count at the right of each strip.
+        precision: Decimal places at which two outputs count as equal.
+        sort: Whether to order strips by distinct count, most granular at the top.
 
-    Returns
-    -------
-    Axes
-        The axes drawn on.
+    Returns:
+        Axes: The axes drawn on.
 
-    Raises
-    ------
-    ValueError
-        If ``outputs`` is empty, the arrays disagree in length, or ``x`` does not
-        match them.
+    Raises:
+        ValueError: If ``outputs`` is empty, the arrays disagree in length, or ``x`` does not match them.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre import CenteredIsotonicCalibrator, IsotonicCalibrator
-    >>> from calibre.plots import plot_resolution_loss
-    >>> rng = np.random.default_rng(0)
-    >>> scores = rng.uniform(0, 1, 800)
-    >>> labels = rng.binomial(1, scores).astype(float)
-    >>> ax = plot_resolution_loss({
-    ...     "isotonic": IsotonicCalibrator().fit(scores, labels).transform(scores),
-    ...     "centered": (
-    ...         CenteredIsotonicCalibrator().fit(scores, labels).transform(scores)
-    ...     ),
-    ... }, scores)
-    >>> ax.get_xlabel()
-    'input score'
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre import CenteredIsotonicCalibrator, IsotonicCalibrator
+        >>> from calibre.plots import plot_resolution_loss
+        >>> rng = np.random.default_rng(0)
+        >>> scores = rng.uniform(0, 1, 800)
+        >>> labels = rng.binomial(1, scores).astype(float)
+        >>> ax = plot_resolution_loss({
+        ...     "isotonic": IsotonicCalibrator().fit(scores, labels).transform(scores),
+        ...     "centered": (
+        ...         CenteredIsotonicCalibrator().fit(scores, labels).transform(scores)
+        ...     ),
+        ... }, scores)
+        >>> ax.get_xlabel()
+        'input score'
     """
     require_matplotlib()
     if not outputs:
@@ -210,41 +188,29 @@ def plot_resolution_frontier(
     height, meaning they cost nothing in score. Down is better, right is better,
     and the interesting finding is usually that the frontier is flat.
 
-    Parameters
-    ----------
-    results
-        Mapping from method name to ``(n_distinct, score)``.
-    ax
-        Axes to draw on. A new figure is created when omitted.
-    errorbars
-        Optional mapping from method name to ``(low, high)`` absolute score
-        bounds, for instance a bootstrap interval.
-    score_label
-        Label for the y-axis.
-    highlight
-        Names to draw in the accent colour.
+    Args:
+        results: Mapping from method name to ``(n_distinct, score)``.
+        ax: Axes to draw on. A new figure is created when omitted.
+        errorbars: Optional mapping from method name to ``(low, high)`` absolute score bounds, for instance a bootstrap interval.
+        score_label: Label for the y-axis.
+        highlight: Names to draw in the accent colour.
 
-    Returns
-    -------
-    Axes
-        The axes drawn on.
+    Returns:
+        Axes: The axes drawn on.
 
-    Raises
-    ------
-    ValueError
-        If ``results`` is empty or a distinct count is not positive.
+    Raises:
+        ValueError: If ``results`` is empty or a distinct count is not positive.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> from calibre.plots import plot_resolution_frontier
-    >>> ax = plot_resolution_frontier({
-    ...     "isotonic": (56, 0.1515),
-    ...     "centered": (1874, 0.1511),
-    ... }, highlight=["centered"])
-    >>> ax.get_xscale()
-    'log'
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> from calibre.plots import plot_resolution_frontier
+        >>> ax = plot_resolution_frontier({
+        ...     "isotonic": (56, 0.1515),
+        ...     "centered": (1874, 0.1511),
+        ... }, highlight=["centered"])
+        >>> ax.get_xscale()
+        'log'
     """
     require_matplotlib()
     if not results:

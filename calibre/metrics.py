@@ -18,17 +18,12 @@ def _spearman(a: np.ndarray, b: np.ndarray) -> float:
     ``correlation`` attribute type checkers cannot see, and whose tuple form is
     typed too loosely to convert directly.
 
-    Parameters
-    ----------
-    a
-        First array.
-    b
-        Second array.
+    Args:
+        a: First array.
+        b: Second array.
 
-    Returns
-    -------
-    float
-        The correlation coefficient, or NaN if either input is constant.
+    Returns:
+        float: The correlation coefficient, or NaN if either input is constant.
     """
     result = spearmanr(a, b)
     coefficient = getattr(result, "statistic", None)
@@ -40,8 +35,7 @@ def _spearman(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    r"""
-    Calculate the mean calibration error: the bias of the predictions.
+    r"""Calculate the mean calibration error: the bias of the predictions.
 
     .. math:: \left| \mathbb{E}[\hat{p}] - \mathbb{E}[y] \right|
 
@@ -50,45 +44,36 @@ def mean_calibration_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     it says nothing about calibration within subgroups; for that use
     :func:`expected_calibration_error`.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1 for binary classification).
-    y_pred
-        Predicted probabilities.
+    Args:
+        y_true: Ground truth values (0 or 1 for binary classification).
+        y_pred: Predicted probabilities.
 
-    Returns
-    -------
-    float
-        Absolute difference between the mean prediction and the base rate.
+    Returns:
+        float: Absolute difference between the mean prediction and the base rate.
 
-    Raises
-    ------
-    ValueError
-        If arrays have different shapes.
+    Raises:
+        ValueError: If arrays have different shapes.
 
-    Notes
-    -----
-    .. versionchanged:: 0.7.0
-       Previously this returned ``mean(|y_pred - y_true|)``, which is mean
-       absolute error, not a calibration error at all: it is minimised by hard
-       0/1 predictions and is nonzero for a perfectly calibrated model -- a
-       perfectly calibrated constant predictor of 0.5 scored 0.5. Use
-       :func:`sklearn.metrics.mean_absolute_error` if you want the old quantity.
+    Notes:
+        .. versionchanged:: 0.7.0
+           Previously this returned ``mean(|y_pred - y_true|)``, which is mean
+           absolute error, not a calibration error at all: it is minimised by hard
+           0/1 predictions and is nonzero for a perfectly calibrated model -- a
+           perfectly calibrated constant predictor of 0.5 scored 0.5. Use
+           :func:`sklearn.metrics.mean_absolute_error` if you want the old quantity.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_true = np.array([0, 1, 1, 0, 1])
-    >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> round(mean_calibration_error(y_true, y_pred), 4)   # mean 0.54 vs base 0.6
-    0.06
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([0, 1, 1, 0, 1])
+        >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
+        >>> round(mean_calibration_error(y_true, y_pred), 4)   # mean 0.54 vs base 0.6
+        0.06
 
-    A perfectly calibrated predictor scores zero, however unsharp it is:
+        A perfectly calibrated predictor scores zero, however unsharp it is:
 
-    >>> y = np.array([0, 0, 1, 1])
-    >>> mean_calibration_error(y, np.full(4, 0.5))
-    0.0
+        >>> y = np.array([0, 0, 1, 1])
+        >>> mean_calibration_error(y, np.full(4, 0.5))
+        0.0
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -108,44 +93,28 @@ def binned_calibration_error(
     strategy: str = "uniform",
     return_details: bool = False,
 ) -> float | dict:
-    """
-    Calculate binned calibration error.
+    """Calculate binned calibration error.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values.
-    y_pred
-        Predicted values.
-    x
-        Input features for binning. If None, y_pred is used for binning.
-    n_bins
-        Number of bins.
-    strategy
-        Strategy for binning:
-        - 'uniform': Bins with uniform widths.
-        - 'quantile': Bins with approximately equal counts.
-    return_details
-        If True, return bin details (bin centers, counts, mean predictions, mean truths).
+    Args:
+        y_true: Ground truth values.
+        y_pred: Predicted values.
+        x: Input features for binning. If None, y_pred is used for binning.
+        n_bins: Number of bins.
+        strategy: Strategy for binning: - 'uniform': Bins with uniform widths. - 'quantile': Bins with approximately equal counts.
+        return_details: If True, return bin details (bin centers, counts, mean predictions, mean truths).
 
-    Returns
-    -------
-    bce : float or dict
-        Binned calibration error. If return_details is True, returns a dictionary
-        with BCE and bin details.
+    Returns:
+        bce: Binned calibration error. If return_details is True, returns a dictionary with BCE and bin details.
 
-    Raises
-    ------
-    ValueError
-        If arrays have different lengths or unknown binning strategy.
+    Raises:
+        ValueError: If arrays have different lengths or unknown binning strategy.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_true = np.array([0, 1, 1, 0, 1])
-    >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> binned_calibration_error(y_true, y_pred, n_bins=2)
-    0.3
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([0, 1, 1, 0, 1])
+        >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
+        >>> binned_calibration_error(y_true, y_pred, n_bins=2)
+        0.3
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -218,38 +187,28 @@ def binned_calibration_error(
 def expected_calibration_error(
     y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10
 ) -> float:
-    """
-    Calculate Expected Calibration Error (ECE).
+    """Calculate Expected Calibration Error (ECE).
 
     The ECE is a weighted average of the absolute calibration error across bins,
     where each bin's weight is proportional to the number of samples in the bin.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1 for binary classification).
-    y_pred
-        Predicted probabilities.
-    n_bins
-        Number of bins for discretizing predictions.
+    Args:
+        y_true: Ground truth values (0 or 1 for binary classification).
+        y_pred: Predicted probabilities.
+        n_bins: Number of bins for discretizing predictions.
 
-    Returns
-    -------
-    ece : float
-        Expected Calibration Error.
+    Returns:
+        ece: Expected Calibration Error.
 
-    Raises
-    ------
-    ValueError
-        If arrays have different lengths.
+    Raises:
+        ValueError: If arrays have different lengths.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_true = np.array([0, 1, 1, 0, 1])
-    >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> float(expected_calibration_error(y_true, y_pred, n_bins=2))
-    0.3
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([0, 1, 1, 0, 1])
+        >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
+        >>> float(expected_calibration_error(y_true, y_pred, n_bins=2))
+        0.3
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -283,38 +242,28 @@ def expected_calibration_error(
 def maximum_calibration_error(
     y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10
 ) -> float:
-    """
-    Calculate Maximum Calibration Error (MCE).
+    """Calculate Maximum Calibration Error (MCE).
 
     The MCE is the maximum absolute difference between the average predicted
     probability and the fraction of positive samples in any bin.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1 for binary classification).
-    y_pred
-        Predicted probabilities.
-    n_bins
-        Number of bins for discretizing predictions.
+    Args:
+        y_true: Ground truth values (0 or 1 for binary classification).
+        y_pred: Predicted probabilities.
+        n_bins: Number of bins for discretizing predictions.
 
-    Returns
-    -------
-    mce : float
-        Maximum Calibration Error.
+    Returns:
+        mce: Maximum Calibration Error.
 
-    Raises
-    ------
-    ValueError
-        If arrays have different lengths.
+    Raises:
+        ValueError: If arrays have different lengths.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_true = np.array([0, 1, 1, 0, 1])
-    >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> round(float(maximum_calibration_error(y_true, y_pred, n_bins=2)), 4)
-    0.3
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([0, 1, 1, 0, 1])
+        >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
+        >>> round(float(maximum_calibration_error(y_true, y_pred, n_bins=2)), 4)
+        0.3
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -345,36 +294,27 @@ def maximum_calibration_error(
 
 
 def brier_score(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """
-    Calculate the Brier score.
+    """Calculate the Brier score.
 
     The Brier score is a proper scoring rule that measures the mean squared
     difference between predicted probabilities and the actual outcomes.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1 for binary classification).
-    y_pred
-        Predicted probabilities.
+    Args:
+        y_true: Ground truth values (0 or 1 for binary classification).
+        y_pred: Predicted probabilities.
 
-    Returns
-    -------
-    score : float
-        Brier score (lower is better).
+    Returns:
+        score: Brier score (lower is better).
 
-    Raises
-    ------
-    ValueError
-        If arrays have different lengths.
+    Raises:
+        ValueError: If arrays have different lengths.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_true = np.array([0, 1, 1, 0, 1])
-    >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> brier_score(y_true, y_pred)
-    0.098
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([0, 1, 1, 0, 1])
+        >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
+        >>> brier_score(y_true, y_pred)
+        0.098
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -391,38 +331,29 @@ def correlation_metrics(
     x: np.ndarray | None = None,
     y_orig: np.ndarray | None = None,
 ) -> dict:
-    """
-    Calculate correlation metrics between various signals.
+    """Calculate correlation metrics between various signals.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values.
-    y_pred
-        Predicted/calibrated values.
-    x
-        Input features.
-    y_orig
-        Original uncalibrated predictions.
+    Args:
+        y_true: Ground truth values.
+        y_pred: Predicted/calibrated values.
+        x: Input features.
+        y_orig: Original uncalibrated predictions.
 
-    Returns
-    -------
-    correlations : dict
-        Dictionary of correlation metrics.
+    Returns:
+        correlations: Dictionary of correlation metrics.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_true = np.array([0, 1, 1, 0, 1])
-    >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-    >>> y_orig = np.array([0.1, 0.6, 0.9, 0.3, 0.5])
-    >>> corr = correlation_metrics(y_true, y_pred, y_orig=y_orig)
-    >>> sorted(corr)
-    ['spearman_corr_orig_to_calib', 'spearman_corr_to_y_orig', 'spearman_corr_to_y_true']
-    >>> round(float(corr["spearman_corr_to_y_true"]), 4)
-    0.866
-    >>> round(float(corr["spearman_corr_to_y_orig"]), 4)
-    1.0
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([0, 1, 1, 0, 1])
+        >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
+        >>> y_orig = np.array([0.1, 0.6, 0.9, 0.3, 0.5])
+        >>> corr = correlation_metrics(y_true, y_pred, y_orig=y_orig)
+        >>> sorted(corr)
+        ['spearman_corr_orig_to_calib', 'spearman_corr_to_y_orig', 'spearman_corr_to_y_true']
+        >>> round(float(corr["spearman_corr_to_y_true"]), 4)
+        0.866
+        >>> round(float(corr["spearman_corr_to_y_orig"]), 4)
+        1.0
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -445,30 +376,22 @@ def correlation_metrics(
 def unique_value_counts(
     y_pred: np.ndarray, y_orig: np.ndarray | None = None, precision: int = 6
 ) -> dict:
-    """
-    Count unique values in predictions.
+    """Count unique values in predictions.
 
-    Parameters
-    ----------
-    y_pred
-        Predicted/calibrated values.
-    y_orig
-        Original uncalibrated predictions.
-    precision
-        Decimal precision for rounding.
+    Args:
+        y_pred: Predicted/calibrated values.
+        y_orig: Original uncalibrated predictions.
+        precision: Decimal precision for rounding.
 
-    Returns
-    -------
-    counts : dict
-        Dictionary with counts of unique values.
+    Returns:
+        counts: Dictionary with counts of unique values.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_pred = np.array([0.2, 0.7, 0.8, 0.2, 0.7])
-    >>> y_orig = np.array([0.1, 0.6, 0.9, 0.2, 0.5])
-    >>> unique_value_counts(y_pred, y_orig)
-    {'n_unique_y_pred': 3, 'n_unique_y_orig': 5, 'unique_value_ratio': 0.6}
+    Examples:
+        >>> import numpy as np
+        >>> y_pred = np.array([0.2, 0.7, 0.8, 0.2, 0.7])
+        >>> y_orig = np.array([0.1, 0.6, 0.9, 0.2, 0.5])
+        >>> unique_value_counts(y_pred, y_orig)
+        {'n_unique_y_pred': 3, 'n_unique_y_orig': 5, 'unique_value_ratio': 0.6}
     """
     y_pred = check_array(y_pred, ensure_2d=False)
 
@@ -489,42 +412,27 @@ def unique_value_counts(
 def calibration_curve(
     y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10, strategy: str = "uniform"
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Compute the calibration curve for binary classification.
+    """Compute the calibration curve for binary classification.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1 for binary classification).
-    y_pred
-        Predicted probabilities.
-    n_bins
-        Number of bins for discretizing predictions.
-    strategy
-        Strategy for binning:
-        - 'uniform': Bins with uniform widths.
-        - 'quantile': Bins with approximately equal counts.
+    Args:
+        y_true: Ground truth values (0 or 1 for binary classification).
+        y_pred: Predicted probabilities.
+        n_bins: Number of bins for discretizing predictions.
+        strategy: Strategy for binning: - 'uniform': Bins with uniform widths. - 'quantile': Bins with approximately equal counts.
 
-    Returns
-    -------
-    prob_true : ndarray of shape (n_bins,)
-        The true fraction of positive samples in each bin.
-    prob_pred : ndarray of shape (n_bins,)
-        The mean predicted probability in each bin.
-    counts : ndarray of shape (n_bins,)
-        The number of samples in each bin.
+    Returns:
+        prob_true: The true fraction of positive samples in each bin.
+        prob_pred: The mean predicted probability in each bin.
+        counts: The number of samples in each bin.
 
-    Raises
-    ------
-    ValueError
-        If arrays have different lengths or unknown binning strategy.
+    Raises:
+        ValueError: If arrays have different lengths or unknown binning strategy.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_true = np.array([0, 1, 1, 0, 1, 0, 1, 0, 1, 0])
-    >>> y_pred = np.array([0.1, 0.9, 0.8, 0.3, 0.7, 0.2, 0.6, 0.4, 0.9, 0.1])
-    >>> prob_true, prob_pred, counts = calibration_curve(y_true, y_pred, n_bins=5)
+    Examples:
+        >>> import numpy as np
+        >>> y_true = np.array([0, 1, 1, 0, 1, 0, 1, 0, 1, 0])
+        >>> y_pred = np.array([0.1, 0.9, 0.8, 0.3, 0.7, 0.2, 0.6, 0.4, 0.9, 0.1])
+        >>> prob_true, prob_pred, counts = calibration_curve(y_true, y_pred, n_bins=5)
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -562,37 +470,26 @@ def calibration_curve(
 def tie_preservation_score(
     y_original: np.ndarray, y_calibrated: np.ndarray, tolerance: float = 1e-10
 ) -> float:
-    """
-    Measure how well calibration preserves genuine ties while removing spurious ones.
+    """Measure how well calibration preserves genuine ties while removing spurious ones.
 
-    Parameters
-    ----------
-    y_original
-        Original predicted probabilities before calibration.
-    y_calibrated
-        Calibrated probabilities.
-    tolerance
-        Tolerance for considering values as tied.
+    Args:
+        y_original: Original predicted probabilities before calibration.
+        y_calibrated: Calibrated probabilities.
+        tolerance: Tolerance for considering values as tied.
 
-    Raises
-    ------
-    ValueError
-        If arrays have different lengths.
+    Raises:
+        ValueError: If arrays have different lengths.
 
-    Returns
-    -------
-    score : float
-        Tie preservation score between 0 and 1.
-        Higher values indicate better preservation of meaningful ties.
+    Returns:
+        score: Tie preservation score between 0 and 1. Higher values indicate better preservation of meaningful ties.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_orig = np.array([0.1, 0.15, 0.2, 0.6, 0.65, 0.7])
-    >>> y_cal = np.array([0.1, 0.15, 0.2, 0.65, 0.65, 0.65])
-    >>> score = tie_preservation_score(y_orig, y_cal)
-    >>> 0 <= score <= 1
-    True
+    Examples:
+        >>> import numpy as np
+        >>> y_orig = np.array([0.1, 0.15, 0.2, 0.6, 0.65, 0.7])
+        >>> y_cal = np.array([0.1, 0.15, 0.2, 0.65, 0.65, 0.65])
+        >>> score = tie_preservation_score(y_orig, y_cal)
+        >>> 0 <= score <= 1
+        True
     """
     y_original = check_array(y_original, ensure_2d=False)
     y_calibrated = check_array(y_calibrated, ensure_2d=False)
@@ -640,38 +537,27 @@ def tie_preservation_score(
 def plateau_quality_score(
     X: np.ndarray, y: np.ndarray, y_calibrated: np.ndarray
 ) -> float:
-    """
-    Overall quality score for plateaus in calibrated predictions.
+    """Overall quality score for plateaus in calibrated predictions.
 
-    Parameters
-    ----------
-    X
-        Input features.
-    y
-        True target values.
-    y_calibrated
-        Calibrated predictions.
+    Args:
+        X: Input features.
+        y: True target values.
+        y_calibrated: Calibrated predictions.
 
-    Raises
-    ------
-    ValueError
-        If arrays have different lengths.
+    Raises:
+        ValueError: If arrays have different lengths.
 
-    Returns
-    -------
-    score : float
-        Quality score between 0 and 1.
-        Higher values indicate better plateau quality.
+    Returns:
+        score: Quality score between 0 and 1. Higher values indicate better plateau quality.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0, 0, 1, 1, 1])
-    >>> y_cal = np.array([0.1, 0.25, 0.25, 0.4, 0.6])
-    >>> score = plateau_quality_score(X, y, y_cal)
-    >>> bool(0 <= score <= 1)
-    True
+    Examples:
+        >>> import numpy as np
+        >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        >>> y = np.array([0, 0, 1, 1, 1])
+        >>> y_cal = np.array([0.1, 0.25, 0.25, 0.4, 0.6])
+        >>> score = plateau_quality_score(X, y, y_cal)
+        >>> bool(0 <= score <= 1)
+        True
     """
     from .diagnostics import detect_plateaus
 
@@ -716,30 +602,21 @@ def plateau_quality_score(
 def calibration_diversity_index(
     y_calibrated: np.ndarray, reference_diversity: float | None = None
 ) -> float:
-    """
-    Measure granularity preservation in calibrated predictions.
+    """Measure granularity preservation in calibrated predictions.
 
-    Parameters
-    ----------
-    y_calibrated
-        Calibrated predictions.
-    reference_diversity
-        Reference diversity to compare against (e.g., diversity of original predictions).
-        If None, returns absolute diversity.
+    Args:
+        y_calibrated: Calibrated predictions.
+        reference_diversity: Reference diversity to compare against (e.g., diversity of original predictions). If None, returns absolute diversity.
 
-    Returns
-    -------
-    diversity : float
-        Diversity index. Higher values indicate more granular predictions.
-        If reference_diversity is provided, returns relative diversity.
+    Returns:
+        diversity: Diversity index. Higher values indicate more granular predictions. If reference_diversity is provided, returns relative diversity.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y_cal = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> diversity = calibration_diversity_index(y_cal)
-    >>> diversity > 0
-    True
+    Examples:
+        >>> import numpy as np
+        >>> y_cal = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        >>> diversity = calibration_diversity_index(y_cal)
+        >>> diversity > 0
+        True
     """
     y_calibrated = check_array(y_calibrated, ensure_2d=False)
 
@@ -764,42 +641,29 @@ def progressive_sampling_diversity(
     n_trials: int = 10,
     random_state: int | None = None,
 ) -> tuple[list[int], list[float]]:
-    """
-    Compute diversity vs sample size curve for progressive sampling analysis.
+    """Compute diversity vs sample size curve for progressive sampling analysis.
 
-    Parameters
-    ----------
-    X
-        Input features.
-    y
-        Target values.
-    sample_sizes
-        Sample sizes to test. If None, uses default range.
-    n_trials
-        Number of trials per sample size.
-    random_state
-        Random state for reproducibility.
+    Args:
+        X: Input features.
+        y: Target values.
+        sample_sizes: Sample sizes to test. If None, uses default range.
+        n_trials: Number of trials per sample size.
+        random_state: Random state for reproducibility.
 
-    Raises
-    ------
-    ValueError
-        If X and y have different lengths.
+    Raises:
+        ValueError: If X and y have different lengths.
 
-    Returns
-    -------
-    sizes : list of int
-        Sample sizes tested.
-    diversities : list of float
-        Average diversity at each sample size.
+    Returns:
+        sizes: Sample sizes tested.
+        diversities: Average diversity at each sample size.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> X = np.linspace(0, 1, 100)
-    >>> y = np.random.binomial(1, X, 100)
-    >>> sizes, divs = progressive_sampling_diversity(X, y, sample_sizes=[20, 50, 80])
-    >>> len(sizes) == len(divs) == 3
-    True
+    Examples:
+        >>> import numpy as np
+        >>> X = np.linspace(0, 1, 100)
+        >>> y = np.random.binomial(1, X, 100)
+        >>> sizes, divs = progressive_sampling_diversity(X, y, sample_sizes=[20, 50, 80])
+        >>> len(sizes) == len(divs) == 3
+        True
     """
     X = check_array(X, ensure_2d=False)
     y = check_array(y, ensure_2d=False)
@@ -849,35 +713,28 @@ def progressive_sampling_diversity(
 def _equal_mass_bins(y_pred: np.ndarray, n_bins: int) -> tuple[np.ndarray, int]:
     """Assign each prediction to an approximately equal-mass bin.
 
-    Parameters
-    ----------
-    y_pred
-        Predicted probabilities.
-    n_bins
-        Requested number of bins. Fewer are returned when ties prevent it.
+    Args:
+        y_pred: Predicted probabilities.
+        n_bins: Requested number of bins. Fewer are returned when ties prevent it.
 
-    Returns
-    -------
-    bin_id : ndarray
-        Bin index per observation.
-    n_used : int
-        Number of bins actually produced.
+    Returns:
+        bin_id: Bin index per observation.
+        n_used: Number of bins actually produced.
 
-    Notes
-    -----
-    Equal-mass rather than equal-width because Roelofs et al. (2022) measure
-    consistently smaller bias for equal-mass binning, a point they note is "not
-    well appreciated in the literature" -- equal width is the common practice,
-    including in the debiased estimator's original presentation.
+    Notes:
+        Equal-mass rather than equal-width because Roelofs et al. (2022) measure
+        consistently smaller bias for equal-mass binning, a point they note is "not
+        well appreciated in the literature" -- equal width is the common practice,
+        including in the debiased estimator's original presentation.
 
-    Bin edges are snapped outward to the end of each run of tied predictions, so
-    identical scores always share a bin. Splitting a tie group would compare a
-    bin's mean prediction against a mean label drawn from an arbitrary subset of
-    observations carrying that same prediction, which measures the sort order
-    rather than calibration. Clipped or rounded scores make this common: a
-    forecast clipped into [0, 1] can put hundreds of observations on a single
-    value. The cost is that bins are only approximately equal in mass, and that
-    heavily tied data supports fewer bins than requested.
+        Bin edges are snapped outward to the end of each run of tied predictions, so
+        identical scores always share a bin. Splitting a tie group would compare a
+        bin's mean prediction against a mean label drawn from an arbitrary subset of
+        observations carrying that same prediction, which measures the sort order
+        rather than calibration. Clipped or rounded scores make this common: a
+        forecast clipped into [0, 1] can put hundreds of observations on a single
+        value. The cost is that bins are only approximately equal in mass, and that
+        heavily tied data supports fewer bins than requested.
     """
     order = np.argsort(y_pred, kind="mergesort")
     sorted_pred = y_pred[order]
@@ -910,25 +767,16 @@ def _bin_summaries(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Per-bin counts, mean prediction and mean label.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values.
-    y_pred
-        Predicted probabilities.
-    bin_id
-        Bin index per observation.
-    n_bins
-        Number of bins.
+    Args:
+        y_true: Ground truth values.
+        y_pred: Predicted probabilities.
+        bin_id: Bin index per observation.
+        n_bins: Number of bins.
 
-    Returns
-    -------
-    counts : ndarray
-        Observations per bin.
-    mean_pred : ndarray
-        Mean prediction per bin.
-    mean_true : ndarray
-        Mean label per bin.
+    Returns:
+        counts: Observations per bin.
+        mean_pred: Mean prediction per bin.
+        mean_true: Mean label per bin.
     """
     counts = np.bincount(bin_id, minlength=n_bins).astype(float)
     safe = np.where(counts > 0, counts, 1.0)
@@ -961,54 +809,40 @@ def plugin_calibration_error(
     tie-safe binning as the bias-aware estimators, so the only thing that differs
     is the bias correction.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1).
-    y_pred
-        Predicted probabilities.
-    n_bins
-        Number of equal-mass bins. Fewer are used when ties prevent it.
-    p
-        Norm. 1 gives the familiar weighted mean absolute gap; 2 matches
-        :func:`debiased_calibration_error`.
+    Args:
+        y_true: Ground truth values (0 or 1).
+        y_pred: Predicted probabilities.
+        n_bins: Number of equal-mass bins. Fewer are used when ties prevent it.
+        p: Norm. 1 gives the familiar weighted mean absolute gap; 2 matches :func:`debiased_calibration_error`.
 
-    Returns
-    -------
-    float
-        The uncorrected calibration error. Biased upward, and increasingly so as
-        ``n_bins`` grows.
+    Returns:
+        float: The uncorrected calibration error. Biased upward, and increasingly so as ``n_bins`` grows.
 
-    Raises
-    ------
-    ValueError
-        If the arrays disagree in length, ``n_bins`` is below 1, or ``p`` is
-        below 1.
+    Raises:
+        ValueError: If the arrays disagree in length, ``n_bins`` is below 1, or ``p`` is below 1.
 
-    See Also
-    --------
-    debiased_calibration_error : The same quantity at ``p=2``, bias-corrected.
-    sweep_calibration_error : Chooses ``n_bins`` rather than fixing it.
+    See Also:
+        debiased_calibration_error : The same quantity at ``p=2``, bias-corrected.
+        sweep_calibration_error : Chooses ``n_bins`` rather than fixing it.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> rng = np.random.default_rng(0)
-    >>> p_hat = rng.uniform(0, 1, 4000)
-    >>> y = rng.binomial(1, p_hat).astype(float)
+    Examples:
+        >>> import numpy as np
+        >>> rng = np.random.default_rng(0)
+        >>> p_hat = rng.uniform(0, 1, 4000)
+        >>> y = rng.binomial(1, p_hat).astype(float)
 
-    These are calibrated by construction, so the true error is zero and whatever
-    the plugin reports is bias -- which grows with the bin count:
+        These are calibrated by construction, so the true error is zero and whatever
+        the plugin reports is bias -- which grows with the bin count:
 
-    >>> coarse = plugin_calibration_error(y, p_hat, n_bins=5)
-    >>> fine = plugin_calibration_error(y, p_hat, n_bins=50)
-    >>> bool(fine > coarse)
-    True
+        >>> coarse = plugin_calibration_error(y, p_hat, n_bins=5)
+        >>> fine = plugin_calibration_error(y, p_hat, n_bins=50)
+        >>> bool(fine > coarse)
+        True
 
-    Debiasing removes it:
+        Debiasing removes it:
 
-    >>> bool(debiased_calibration_error(y, p_hat, n_bins=50) < fine)
-    True
+        >>> bool(debiased_calibration_error(y, p_hat, n_bins=50) < fine)
+        True
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -1050,84 +884,65 @@ def debiased_calibration_error(
         \left[ (\bar{f}_k - \bar{y}_k)^2
              - \frac{\bar{y}_k (1 - \bar{y}_k)}{n_k - 1} \right]
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1).
-    y_pred
-        Predicted probabilities.
-    squared
-        Return the estimate of the **squared** error instead, without the square
-        root or the floor at zero. This is the quantity the correction actually
-        makes unbiased, and it may legitimately come out negative -- see Notes.
-    n_bins
-        Number of equal-mass bins. Defaults to 15, following Guo et al. (2017)
-        as used by Roelofs et al.
+    Args:
+        y_true: Ground truth values (0 or 1).
+        y_pred: Predicted probabilities.
+        n_bins: Number of equal-mass bins. Defaults to 15, following Guo et al. (2017) as used by Roelofs et al.
+        squared: Return the estimate of the **squared** error instead, without the square root or the floor at zero. This is the quantity the correction actually makes unbiased, and it may legitimately come out negative -- see Notes.
 
-    Returns
-    -------
-    float
-        Debiased calibration error. Floored at zero: the correction can drive
-        the sum negative on well-calibrated data, which is evidence of no
-        detectable miscalibration rather than of negative error. With
-        ``squared=True`` the unfloored sum is returned instead.
+    Returns:
+        float: Debiased calibration error. Floored at zero: the correction can drive the sum negative on well-calibrated data, which is evidence of no detectable miscalibration rather than of negative error. With ``squared=True`` the unfloored sum is returned instead.
 
-    Raises
-    ------
-    ValueError
-        If the arrays disagree in length or ``n_bins`` is below 1.
+    Raises:
+        ValueError: If the arrays disagree in length or ``n_bins`` is below 1.
 
-    Notes
-    -----
-    This is the :math:`\ell_2` error, so it is not comparable in magnitude to
-    :func:`expected_calibration_error`, which is :math:`\ell_1`.
+    Notes:
+        This is the :math:`\ell_2` error, so it is not comparable in magnitude to
+        :func:`expected_calibration_error`, which is :math:`\ell_1`.
 
-    **The correction is unbiased on the squared scale, not on the error scale.**
-    Measured on 400 perfectly calibrated samples of 1500 observations, where the
-    true error is exactly zero (``tests/test_monte_carlo.py``):
+        **The correction is unbiased on the squared scale, not on the error scale.**
+        Measured on 400 perfectly calibrated samples of 1500 observations, where the
+        true error is exactly zero (``tests/test_monte_carlo.py``):
 
-    ==========================================  =========  ===================
-    quantity                                    mean       distance from zero
-    ==========================================  =========  ===================
-    ``squared=True`` (the sum itself)           +4.5e-05   1.3 standard errors
-    default (``sqrt`` of the floored sum)       +0.0106    15.7 standard errors
-    ==========================================  =========  ===================
+        ==========================================  =========  ===================
+        quantity                                    mean       distance from zero
+        ==========================================  =========  ===================
+        ``squared=True`` (the sum itself)           +4.5e-05   1.3 standard errors
+        default (``sqrt`` of the floored sum)       +0.0106    15.7 standard errors
+        ==========================================  =========  ===================
 
-    The sum is unbiased, exactly as intended, and comes out **negative on 53% of
-    calibrated samples** -- what an unbiased estimate of zero should do. The floor
-    then discards that half, and no amount of data removes the resulting upward
-    bias in the reported error. (The square root pulls the other way, being
-    concave: ``E[sqrt(W)]`` of 0.0106 against ``sqrt(E[W])`` of 0.0172.)
+        The sum is unbiased, exactly as intended, and comes out **negative on 53% of
+        calibrated samples** -- what an unbiased estimate of zero should do. The floor
+        then discards that half, and no amount of data removes the resulting upward
+        bias in the reported error. (The square root pulls the other way, being
+        concave: ``E[sqrt(W)]`` of 0.0106 against ``sqrt(E[W])`` of 0.0172.)
 
-    So: to *report* an error, use the default, and read a small positive value on
-    well-calibrated data as the floor rather than as evidence. To **average across
-    folds, compare two models, or do anything else that assumes unbiasedness**,
-    use ``squared=True`` and take the square root at the very end, if at all.
+        So: to *report* an error, use the default, and read a small positive value on
+        well-calibrated data as the floor rather than as evidence. To **average across
+        folds, compare two models, or do anything else that assumes unbiasedness**,
+        use ``squared=True`` and take the square root at the very end, if at all.
 
-    References
-    ----------
-    Bröcker (2012); Ferro & Fricker (2012); Kumar, Liang & Ma (2019),
-    "Verified Uncertainty Calibration", NeurIPS.
+    References:
+        Bröcker (2012); Ferro & Fricker (2012); Kumar, Liang & Ma (2019),
+        "Verified Uncertainty Calibration", NeurIPS.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> rng = np.random.default_rng(0)
-    >>> p = rng.uniform(0, 1, 4000)
-    >>> y = rng.binomial(1, p).astype(float)
+    Examples:
+        >>> import numpy as np
+        >>> rng = np.random.default_rng(0)
+        >>> p = rng.uniform(0, 1, 4000)
+        >>> y = rng.binomial(1, p).astype(float)
 
-    These predictions are calibrated, so the plugin estimator reports error that
-    is not there while the debiased one does not:
+        These predictions are calibrated, so the plugin estimator reports error that
+        is not there while the debiased one does not:
 
-    >>> plugin = expected_calibration_error(y, p, n_bins=15)
-    >>> debiased = debiased_calibration_error(y, p, n_bins=15)
-    >>> bool(plugin > 0.01), bool(debiased < 0.01)
-    (True, True)
+        >>> plugin = expected_calibration_error(y, p, n_bins=15)
+        >>> debiased = debiased_calibration_error(y, p, n_bins=15)
+        >>> bool(plugin > 0.01), bool(debiased < 0.01)
+        (True, True)
 
-    See Also
-    --------
-    sweep_calibration_error : Chooses the bin count instead of fixing it.
-    calibre.evaluation.score_decomposition : Avoids binning altogether.
+    See Also:
+        sweep_calibration_error : Chooses the bin count instead of fixing it.
+        calibre.evaluation.score_decomposition : Avoids binning altogether.
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -1198,49 +1013,33 @@ def sweep_calibration_error(
     Non-monotonicity is the signal that the bins have become fine enough to be
     reading noise.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1).
-    y_pred
-        Predicted probabilities.
-    p
-        Norm. 1 gives the familiar weighted mean absolute gap.
-    return_n_bins
-        Also return the bin count the sweep settled on. That number is half of
-        what the estimator has to say -- it is the sweep's answer to "how fine
-        can these data support?" -- and reporting only the error hides it.
+    Args:
+        y_true: Ground truth values (0 or 1).
+        y_pred: Predicted probabilities.
+        p: Norm. 1 gives the familiar weighted mean absolute gap.
+        return_n_bins: Also return the bin count the sweep settled on. That number is half of what the estimator has to say -- it is the sweep's answer to "how fine can these data support?" -- and reporting only the error hides it.
 
-    Returns
-    -------
-    float or tuple of (float, int)
-        Binned calibration error at the selected bin count, and that bin count
-        when ``return_n_bins`` is True. The count is the number of bins actually
-        occupied, which ties can hold below the number the sweep reached.
+    Returns:
+        float or tuple of (float, int): Binned calibration error at the selected bin count, and that bin count when ``return_n_bins`` is True. The count is the number of bins actually occupied, which ties can hold below the number the sweep reached.
 
-    Raises
-    ------
-    ValueError
-        If the arrays disagree in length or ``p`` is below 1.
+    Raises:
+        ValueError: If the arrays disagree in length or ``p`` is below 1.
 
-    References
-    ----------
-    Roelofs, Cain, Shlens & Mozer (2022), "Mitigating Bias in Calibration Error
-    Estimation", AISTATS. Algorithm 1.
+    References:
+        Roelofs, Cain, Shlens & Mozer (2022), "Mitigating Bias in Calibration Error
+        Estimation", AISTATS. Algorithm 1.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> rng = np.random.default_rng(0)
-    >>> p = rng.uniform(0, 1, 4000)
-    >>> y = rng.binomial(1, p).astype(float)
-    >>> float(sweep_calibration_error(y, p)) < 0.05
-    True
+    Examples:
+        >>> import numpy as np
+        >>> rng = np.random.default_rng(0)
+        >>> p = rng.uniform(0, 1, 4000)
+        >>> y = rng.binomial(1, p).astype(float)
+        >>> float(sweep_calibration_error(y, p)) < 0.05
+        True
 
-    See Also
-    --------
-    debiased_calibration_error : Fixes the bin count and corrects the bias.
-    calibre.evaluation.score_decomposition : Lets isotonic regression bin.
+    See Also:
+        debiased_calibration_error : Fixes the bin count and corrects the bias.
+        calibre.evaluation.score_decomposition : Lets isotonic regression bin.
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
@@ -1276,24 +1075,18 @@ def sweep_calibration_error(
 def _reflect_and_convolve(values: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """Convolve on the unit interval with reflecting boundaries.
 
-    Parameters
-    ----------
-    values
-        Gridded mass, length ``m``.
-    kernel
-        Kernel evaluated on the same grid, length ``m``.
+    Args:
+        values: Gridded mass, length ``m``.
+        kernel: Kernel evaluated on the same grid, length ``m``.
 
-    Returns
-    -------
-    ndarray
-        The smoothed grid, length ``m``.
+    Returns:
+        ndarray: The smoothed grid, length ``m``.
 
-    Notes
-    -----
-    Predictions pile up at 0 and 1 -- a clipped or confident model puts real mass
-    exactly on the bounds -- and a plain convolution would let that mass leak off
-    the ends, understating error precisely where models are most overconfident.
-    Reflecting the grid at both ends keeps it inside.
+    Notes:
+        Predictions pile up at 0 and 1 -- a clipped or confident model puts real mass
+        exactly on the bounds -- and a plain convolution would let that mass leak off
+        the ends, understating error precisely where models are most overconfident.
+        Reflecting the grid at both ends keeps it inside.
     """
     m = values.size
     extended = np.concatenate([np.flip(values)[:-1], values, np.flip(values)[1:]])
@@ -1303,17 +1096,12 @@ def _reflect_and_convolve(values: np.ndarray, kernel: np.ndarray) -> np.ndarray:
 def _gaussian_kernel(sigma: float, n_points: int) -> np.ndarray:
     """Evaluate a Gaussian kernel of width ``sigma`` on a unit grid.
 
-    Parameters
-    ----------
-    sigma
-        Kernel bandwidth.
-    n_points
-        Grid size.
+    Args:
+        sigma: Kernel bandwidth.
+        n_points: Grid size.
 
-    Returns
-    -------
-    ndarray
-        Kernel values, centred on the grid.
+    Returns:
+        ndarray: Kernel values, centred on the grid.
     """
     t = np.linspace(0.0, 1.0, n_points)
     return np.exp(-((t - 0.5) ** 2) / (2.0 * sigma**2)) / (np.sqrt(2.0 * np.pi) * sigma)
@@ -1322,19 +1110,13 @@ def _gaussian_kernel(sigma: float, n_points: int) -> np.ndarray:
 def _spread_to_grid(y_pred: np.ndarray, values: np.ndarray, m: int) -> np.ndarray:
     """Bin ``values`` onto a regular grid, splitting each linearly between neighbours.
 
-    Parameters
-    ----------
-    y_pred
-        Positions in ``[0, 1]``.
-    values
-        Mass carried by each position.
-    m
-        Grid size.
+    Args:
+        y_pred: Positions in ``[0, 1]``.
+        values: Mass carried by each position.
+        m: Grid size.
 
-    Returns
-    -------
-    ndarray
-        Gridded mass, length ``m``.
+    Returns:
+        ndarray: Gridded mass, length ``m``.
     """
     grid = np.zeros(m)
     scaled = y_pred * (m - 1)
@@ -1348,17 +1130,12 @@ def _spread_to_grid(y_pred: np.ndarray, values: np.ndarray, m: int) -> np.ndarra
 def _interpolate_grid(t: np.ndarray, grid: np.ndarray) -> np.ndarray:
     """Linearly interpolate a gridded function at ``t``.
 
-    Parameters
-    ----------
-    t
-        Evaluation points in ``[0, 1]``.
-    grid
-        Function values on a regular grid over ``[0, 1]``.
+    Args:
+        t: Evaluation points in ``[0, 1]``.
+        grid: Function values on a regular grid over ``[0, 1]``.
 
-    Returns
-    -------
-    ndarray
-        Interpolated values.
+    Returns:
+        ndarray: Interpolated values.
     """
     n = grid.size
     index = (t * (n - 1)).astype(int).clip(0, n - 2)
@@ -1371,21 +1148,14 @@ def _smooth_at(
 ) -> np.ndarray:
     """Kernel-smooth ``values`` located at ``y_pred``, evaluated at ``t``.
 
-    Parameters
-    ----------
-    y_pred
-        Positions in ``[0, 1]``.
-    values
-        Mass carried by each position.
-    t
-        Evaluation points.
-    sigma
-        Kernel bandwidth.
+    Args:
+        y_pred: Positions in ``[0, 1]``.
+        values: Mass carried by each position.
+        t: Evaluation points.
+        sigma: Kernel bandwidth.
 
-    Returns
-    -------
-    ndarray
-        Smoothed values at ``t``.
+    Returns:
+        ndarray: Smoothed values at ``t``.
     """
     m = max(2000, round(20.0 / sigma)) // 2 + 1
     gridded = _spread_to_grid(y_pred, values, m)
@@ -1443,66 +1213,53 @@ def smooth_calibration_error(
     is not, which is why it can report a large error for a predictor that is
     almost calibrated and a small one for a predictor that is not.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1).
-    y_pred
-        Predicted probabilities in ``[0, 1]``.
-    sigma
-        Kernel bandwidth. When None, the fixed point above is used, which is the
-        recommended behaviour and what makes the estimator hyperparameter-free.
-    return_sigma
-        Also return the bandwidth used. Worth reporting: it is an interpretable
-        scale, roughly the resolution at which miscalibration is detectable.
+    Args:
+        y_true: Ground truth values (0 or 1).
+        y_pred: Predicted probabilities in ``[0, 1]``.
+        sigma: Kernel bandwidth. When None, the fixed point above is used, which is the recommended behaviour and what makes the estimator hyperparameter-free.
+        return_sigma: Also return the bandwidth used. Worth reporting: it is an interpretable scale, roughly the resolution at which miscalibration is detectable.
 
-    Returns
-    -------
-    float or tuple of (float, float)
-        The smooth calibration error, and the bandwidth when ``return_sigma``.
+    Returns:
+        float or tuple of (float, float): The smooth calibration error, and the bandwidth when ``return_sigma``.
 
-    Raises
-    ------
-    ValueError
-        If the arrays disagree in length, ``y_pred`` falls outside ``[0, 1]``, or
-        ``sigma`` is not positive.
+    Raises:
+        ValueError: If the arrays disagree in length, ``y_pred`` falls outside ``[0, 1]``, or ``sigma`` is not positive.
 
-    See Also
-    --------
-    debiased_calibration_error : Bias-corrected, but still needs a bin count.
-    calibre.evaluation.score_decomposition : Avoids binning by using isotonic
-        regression, and decomposes the score rather than summarising the error.
+    See Also:
+        - :func:`debiased_calibration_error` -- bias-corrected, but still needs a
+          bin count.
+        - :func:`calibre.evaluation.score_decomposition` -- avoids binning by using
+          isotonic regression, and decomposes the score rather than summarising
+          the error.
 
-    References
-    ----------
-    Blasiok & Nakkiran (2024), "Smooth ECE: Principled Reliability Diagrams via
-    Kernel Smoothing", ICLR. Blasiok, Gopalan, Hu & Nakkiran (2023), "A Unifying
-    Theory of Distance from Calibration", STOC.
+    References:
+        Blasiok & Nakkiran (2024), "Smooth ECE: Principled Reliability Diagrams via
+        Kernel Smoothing", ICLR. Blasiok, Gopalan, Hu & Nakkiran (2023), "A Unifying
+        Theory of Distance from Calibration", STOC.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> rng = np.random.default_rng(0)
-    >>> p = rng.uniform(0, 1, 2000)
-    >>> y = rng.binomial(1, p).astype(float)
+    Examples:
+        >>> import numpy as np
+        >>> rng = np.random.default_rng(0)
+        >>> p = rng.uniform(0, 1, 2000)
+        >>> y = rng.binomial(1, p).astype(float)
 
-    Calibrated by construction, so the error is near zero:
+        Calibrated by construction, so the error is near zero:
 
-    >>> bool(smooth_calibration_error(y, p) < 0.03)
-    True
+        >>> bool(smooth_calibration_error(y, p) < 0.03)
+        True
 
-    An overconfident predictor is caught:
+        An overconfident predictor is caught:
 
-    >>> squashed = np.clip(2.0 * (p - 0.5) + 0.5, 0, 1)
-    >>> bool(smooth_calibration_error(y, squashed) > 0.05)
-    True
+        >>> squashed = np.clip(2.0 * (p - 0.5) + 0.5, 0, 1)
+        >>> bool(smooth_calibration_error(y, squashed) > 0.05)
+        True
 
-    Unlike a binned estimator there is no bin count to justify; the bandwidth is
-    chosen by the data:
+        Unlike a binned estimator there is no bin count to justify; the bandwidth is
+        chosen by the data:
 
-    >>> error, width = smooth_calibration_error(y, p, return_sigma=True)
-    >>> bool(0.0 < width <= 1.0)
-    True
+        >>> error, width = smooth_calibration_error(y, p, return_sigma=True)
+        >>> bool(0.0 < width <= 1.0)
+        True
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)

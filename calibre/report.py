@@ -34,47 +34,25 @@ _DEFAULT_BINS = 15
 class CalibrationReport:
     """Everything worth knowing about one set of probabilities.
 
-    Attributes
-    ----------
-    n : int
-        Number of observations.
-    base_rate : float
-        Observed event frequency.
-    mean_prediction : float
-        Mean forecast. Compare with ``base_rate``: the gap is ``bias``.
-    bias : float
-        Calibration in the large, ``|mean_prediction - base_rate|``.
-    brier : float
-        Brier score. The proper scoring rule to optimise.
-    mcb : float
-        Miscalibration, from the CORP decomposition. What recalibration recovers.
-    dsc : float
-        Discrimination. What the forecasts buy over predicting the base rate.
-    unc : float
-        Uncertainty. The difficulty of the problem; no forecaster changes it.
-    smece : float
-        Smooth calibration error, with no bin count and no bandwidth to choose.
-    smece_sigma : float
-        The bandwidth smECE selected.
-    debiased_ece : float
-        Bias-corrected binned error at ``n_bins``.
-    plugin_ece : float
-        Uncorrected binned error at ``n_bins``, on the same bins. The gap between
-        this and ``debiased_ece`` is the bias you would have reported.
-    sweep_ece : float
-        Binned error at the bin count the monotone sweep selected.
-    sweep_bins : int
-        That bin count.
-    n_bins : int
-        The bin count used for ``debiased_ece`` and ``plugin_ece``.
-    n_distinct : int
-        Distinct forecast values. Isotonic regression collapses this; the point
-        of most of this package is not to.
-    distinct_ratio : float
-        ``n_distinct / n``.
-    intervals : dict
-        Bootstrap confidence intervals, empty unless ``ci=True`` was passed.
-        Each holds ``lower``, ``upper``, ``bias`` and ``degenerate``.
+    Attributes:
+        n: Number of observations.
+        base_rate: Observed event frequency.
+        mean_prediction: Mean forecast. Compare with ``base_rate``: the gap is ``bias``.
+        bias: Calibration in the large, ``|mean_prediction - base_rate|``.
+        brier: Brier score. The proper scoring rule to optimise.
+        mcb: Miscalibration, from the CORP decomposition. What recalibration recovers.
+        dsc: Discrimination. What the forecasts buy over predicting the base rate.
+        unc: Uncertainty. The difficulty of the problem; no forecaster changes it.
+        smece: Smooth calibration error, with no bin count and no bandwidth to choose.
+        smece_sigma: The bandwidth smECE selected.
+        debiased_ece: Bias-corrected binned error at ``n_bins``.
+        plugin_ece: Uncorrected binned error at ``n_bins``, on the same bins. The gap between this and ``debiased_ece`` is the bias you would have reported.
+        sweep_ece: Binned error at the bin count the monotone sweep selected.
+        sweep_bins: That bin count.
+        n_bins: The bin count used for ``debiased_ece`` and ``plugin_ece``.
+        n_distinct: Distinct forecast values. Isotonic regression collapses this; the point of most of this package is not to.
+        distinct_ratio: ``n_distinct / n``.
+        intervals: Bootstrap confidence intervals, empty unless ``ci=True`` was passed. Each holds ``lower``, ``upper``, ``bias`` and ``degenerate``.
     """
 
     n: int
@@ -99,15 +77,11 @@ class CalibrationReport:
     def _interval_text(self, key: str) -> str:
         """Format the interval for ``key``, or an empty string.
 
-        Parameters
-        ----------
-        key
-            Metric name.
+        Args:
+            key: Metric name.
 
-        Returns
-        -------
-        str
-            ``"  [lo, hi]"`` or ``""``.
+        Returns:
+            str: ``"  [lo, hi]"`` or ``""``.
         """
         if key not in self.intervals:
             return ""
@@ -158,10 +132,8 @@ class CalibrationReport:
     def to_dict(self) -> dict[str, Any]:
         """Return the report as a plain dictionary.
 
-        Returns
-        -------
-        dict
-            Every field, suitable for a DataFrame row or JSON.
+        Returns:
+            dict: Every field, suitable for a DataFrame row or JSON.
         """
         from dataclasses import asdict
 
@@ -183,73 +155,49 @@ def calibration_report(
     Gathers the CORP decomposition, three calibration-error estimators that
     disagree in instructive ways, and the resolution the forecasts retain.
 
-    Parameters
-    ----------
-    y_true
-        Ground truth values (0 or 1).
-    y_pred
-        Predicted probabilities.
-    n_bins
-        Bin count for the two fixed-bin estimators. The sweep chooses its own and
-        smECE needs none.
-    ci
-        Whether to bootstrap confidence intervals for ``brier``, ``smece`` and
-        ``debiased_ece``. Off by default because it costs ``n_resamples``
-        recomputations of each. ``MCB`` and ``DSC`` are excluded on purpose: the
-        naive bootstrap is inconsistent for functionals of an isotonic fit, and
-        would report an interval that can sit above the estimate. Use
-        :func:`~calibre.consistency_bands` or :func:`~calibre.confidence_bands`
-        for those.
-    level
-        Nominal coverage for those intervals.
-    n_resamples
-        Bootstrap resamples.
-    random_state
-        Seed.
-    ci_method
-        Interval method, passed to :func:`~calibre.bootstrap_ci`. Defaults to
-        ``"bc"``, which is bias-corrected; the plain percentile interval
-        under-covers badly here, for reasons that function documents.
+    Args:
+        y_true: Ground truth values (0 or 1).
+        y_pred: Predicted probabilities.
+        n_bins: Bin count for the two fixed-bin estimators. The sweep chooses its own and smECE needs none.
+        ci: Whether to bootstrap confidence intervals for ``brier``, ``smece`` and ``debiased_ece``. Off by default because it costs ``n_resamples`` recomputations of each. ``MCB`` and ``DSC`` are excluded on purpose: the naive bootstrap is inconsistent for functionals of an isotonic fit, and would report an interval that can sit above the estimate. Use :func:`~calibre.consistency_bands` or :func:`~calibre.confidence_bands` for those.
+        level: Nominal coverage for those intervals.
+        n_resamples: Bootstrap resamples.
+        random_state: Seed.
+        ci_method: Interval method, passed to :func:`~calibre.bootstrap_ci`. Defaults to ``"bc"``, which is bias-corrected; the plain percentile interval under-covers badly here, for reasons that function documents.
 
-    Returns
-    -------
-    CalibrationReport
-        The summary. Print it, or read fields off it.
+    Returns:
+        CalibrationReport: The summary. Print it, or read fields off it.
 
-    Raises
-    ------
-    ValueError
-        If the arrays disagree in length or ``n_bins`` is below 1.
+    Raises:
+        ValueError: If the arrays disagree in length or ``n_bins`` is below 1.
 
-    Warnings
-    --------
-    Run this on **held-out** predictions. On the data a calibrator was fitted to,
-    any isotonic-family method reports ``MCB`` of exactly zero by construction --
-    the calibrator and this diagnostic are the same PAV projection, and PAV is
-    idempotent -- no matter how badly the model generalises. Use
-    :func:`~calibre.cross_val_calibrate` for out-of-fold probabilities.
+    Warnings:
+        Run this on **held-out** predictions. On the data a calibrator was fitted to,
+        any isotonic-family method reports ``MCB`` of exactly zero by construction --
+        the calibrator and this diagnostic are the same PAV projection, and PAV is
+        idempotent -- no matter how badly the model generalises. Use
+        :func:`~calibre.cross_val_calibrate` for out-of-fold probabilities.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import calibration_report
-    >>> rng = np.random.default_rng(0)
-    >>> p = rng.uniform(0, 1, 2000)
-    >>> y = rng.binomial(1, p).astype(float)
-    >>> report = calibration_report(y, p)
-    >>> report.n
-    2000
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import calibration_report
+        >>> rng = np.random.default_rng(0)
+        >>> p = rng.uniform(0, 1, 2000)
+        >>> y = rng.binomial(1, p).astype(float)
+        >>> report = calibration_report(y, p)
+        >>> report.n
+        2000
 
-    These are calibrated by construction, so miscalibration is small next to the
-    discrimination the forecasts earn:
+        These are calibrated by construction, so miscalibration is small next to the
+        discrimination the forecasts earn:
 
-    >>> bool(report.mcb < 0.1 * report.dsc)
-    True
+        >>> bool(report.mcb < 0.1 * report.dsc)
+        True
 
-    And the uncorrected estimator reports more error than the corrected one:
+        And the uncorrected estimator reports more error than the corrected one:
 
-    >>> bool(report.plugin_ece >= report.debiased_ece)
-    True
+        >>> bool(report.plugin_ece >= report.debiased_ece)
+        True
     """
     if n_bins < 1:
         raise ValueError(f"n_bins must be at least 1, got {n_bins}")

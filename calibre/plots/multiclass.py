@@ -40,45 +40,32 @@ def plot_miscalibration_profile(
     costs about a factor of six; making the reader fetch the string separately
     would waste the diagnostic.
 
-    Parameters
-    ----------
-    profile
-        A :func:`~calibre.miscalibration_profile` result, with ``mcb``,
-        ``spread``, ``worst_classes`` and ``reading``.
-    ax
-        Axes to draw on. A new figure is created when omitted.
-    class_names
-        Names for the classes. Defaults to their indices.
-    highlight_worst
-        How many of the worst classes to draw in the accent colour.
-    show_reading
-        Whether to print ``profile["reading"]`` below the axes.
-    reading_width
-        Column width to wrap the reading at.
+    Args:
+        profile: A :func:`~calibre.miscalibration_profile` result, with ``mcb``, ``spread``, ``worst_classes`` and ``reading``.
+        ax: Axes to draw on. A new figure is created when omitted.
+        class_names: Names for the classes. Defaults to their indices.
+        highlight_worst: How many of the worst classes to draw in the accent colour.
+        show_reading: Whether to print ``profile["reading"]`` below the axes.
+        reading_width: Column width to wrap the reading at.
 
-    Returns
-    -------
-    Axes
-        The axes drawn on.
+    Returns:
+        Axes: The axes drawn on.
 
-    Raises
-    ------
-    ValueError
-        If ``profile`` is missing a key, or ``class_names`` has the wrong length.
+    Raises:
+        ValueError: If ``profile`` is missing a key, or ``class_names`` has the wrong length.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre import miscalibration_profile
-    >>> from calibre.plots import plot_miscalibration_profile
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(4), size=1500)
-    >>> y = np.array([rng.choice(4, p=t) for t in truth])
-    >>> ax = plot_miscalibration_profile(miscalibration_profile(truth, y))
-    >>> ax.get_ylabel()
-    'MCB (miscalibration)'
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre import miscalibration_profile
+        >>> from calibre.plots import plot_miscalibration_profile
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(4), size=1500)
+        >>> y = np.array([rng.choice(4, p=t) for t in truth])
+        >>> ax = plot_miscalibration_profile(miscalibration_profile(truth, y))
+        >>> ax.get_ylabel()
+        'MCB (miscalibration)'
     """
     missing = [k for k in ("mcb", "spread", "worst_classes") if k not in profile]
     if missing:
@@ -152,48 +139,32 @@ def plot_classwise_reliability(
 ) -> Figure:
     """Draw one CORP reliability diagram per class, as small multiples.
 
-    Parameters
-    ----------
-    diagrams
-        The list returned by :func:`~calibre.classwise_reliability`.
-    axes
-        Existing axes to draw into, one per diagram. A new figure is created
-        when omitted.
-    class_names
-        Titles for the panels. Defaults to ``class 0``, ``class 1``, ...
-    n_cols
-        Panels per row when creating a new figure.
-    density
-        Passed to :func:`~calibre.plots.plot_reliability_diagram`. Defaults to
-        ``"none"`` because appending a histogram panel to each cell of a grid
-        distorts the layout.
-    figsize
-        Size of the new figure. Defaults to 3 inches per panel.
+    Args:
+        diagrams: The list returned by :func:`~calibre.classwise_reliability`.
+        axes: Existing axes to draw into, one per diagram. A new figure is created when omitted.
+        class_names: Titles for the panels. Defaults to ``class 0``, ``class 1``, ...
+        n_cols: Panels per row when creating a new figure.
+        density: Passed to :func:`~calibre.plots.plot_reliability_diagram`. Defaults to ``"none"`` because appending a histogram panel to each cell of a grid distorts the layout.
+        figsize: Size of the new figure. Defaults to 3 inches per panel.
 
-    Returns
-    -------
-    Figure
-        The figure holding the panels.
+    Returns:
+        Figure: The figure holding the panels.
 
-    Raises
-    ------
-    ValueError
-        If ``diagrams`` is empty, or ``axes`` or ``class_names`` has the wrong
-        length.
+    Raises:
+        ValueError: If ``diagrams`` is empty, or ``axes`` or ``class_names`` has the wrong length.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre import classwise_reliability
-    >>> from calibre.plots import plot_classwise_reliability
-    >>> rng = np.random.default_rng(0)
-    >>> truth = rng.dirichlet(np.ones(3), size=900)
-    >>> y = np.array([rng.choice(3, p=t) for t in truth])
-    >>> fig = plot_classwise_reliability(classwise_reliability(truth, y))
-    >>> len(fig.axes)
-    3
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre import classwise_reliability
+        >>> from calibre.plots import plot_classwise_reliability
+        >>> rng = np.random.default_rng(0)
+        >>> truth = rng.dirichlet(np.ones(3), size=900)
+        >>> y = np.array([rng.choice(3, p=t) for t in truth])
+        >>> fig = plot_classwise_reliability(classwise_reliability(truth, y))
+        >>> len(fig.axes)
+        3
     """
     from .reliability import plot_reliability_diagram
 

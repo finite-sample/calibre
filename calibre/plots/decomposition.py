@@ -24,21 +24,14 @@ def _as_mapping_of_decompositions(
 ) -> dict[str, Mapping[str, float]]:
     """Accept either one decomposition or a named collection of them.
 
-    Parameters
-    ----------
-    decompositions
-        A single :func:`~calibre.score_decomposition` result, or a mapping from
-        forecaster name to such a result.
+    Args:
+        decompositions: A single :func:`~calibre.score_decomposition` result, or a mapping from forecaster name to such a result.
 
-    Returns
-    -------
-    dict
-        Always a name-to-decomposition mapping.
+    Returns:
+        dict: Always a name-to-decomposition mapping.
 
-    Raises
-    ------
-    ValueError
-        If a decomposition is missing a component.
+    Raises:
+        ValueError: If a decomposition is missing a component.
     """
     # Unambiguous: a decomposition always has "MCB", and a name-to-decomposition
     # mapping never does, because the keys are forecaster names.
@@ -79,51 +72,39 @@ def plot_score_decomposition(
     ``UNC`` is reported in the title rather than drawn. It depends on the
     outcomes, not on the forecaster, so every panel would show the same number.
 
-    Notes
-    -----
-    Separate panels rather than one stacked bar, because the terms differ in
-    magnitude by one to two orders: for any competent model ``DSC`` is around
-    0.10 while ``MCB`` is around 0.001. On a shared linear axis the bar for the
-    quantity this decomposition exists to expose is thinner than its own outline,
-    and a stacked rendering hides it entirely behind the discrimination bar. Each
-    panel therefore carries its own scale, and every panel starts at zero so bar
-    lengths remain honest.
+    Notes:
+        Separate panels rather than one stacked bar, because the terms differ in
+        magnitude by one to two orders: for any competent model ``DSC`` is around
+        0.10 while ``MCB`` is around 0.001. On a shared linear axis the bar for the
+        quantity this decomposition exists to expose is thinner than its own outline,
+        and a stacked rendering hides it entirely behind the discrimination bar. Each
+        panel therefore carries its own scale, and every panel starts at zero so bar
+        lengths remain honest.
 
-    Parameters
-    ----------
-    decompositions
-        One :func:`~calibre.score_decomposition` result, or a mapping from
-        forecaster name to result to draw one row each.
-    axes
-        Three existing axes to draw into. A new figure is created when omitted.
-    score_label
-        Name of the score, used for the third panel's label.
-    figsize
-        Size of the new figure. Scales with the number of forecasters by default.
+    Args:
+        decompositions: One :func:`~calibre.score_decomposition` result, or a mapping from forecaster name to result to draw one row each.
+        axes: Three existing axes to draw into. A new figure is created when omitted.
+        score_label: Name of the score, used for the third panel's label.
+        figsize: Size of the new figure. Scales with the number of forecasters by default.
 
-    Returns
-    -------
-    Figure
-        The figure holding the three panels.
+    Returns:
+        Figure: The figure holding the three panels.
 
-    Raises
-    ------
-    ValueError
-        If a decomposition is missing a component, or ``axes`` is not length 3.
+    Raises:
+        ValueError: If a decomposition is missing a component, or ``axes`` is not length 3.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre import score_decomposition
-    >>> from calibre.plots import plot_score_decomposition
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.uniform(0, 1, 500)
-    >>> y = rng.binomial(1, x).astype(float)
-    >>> fig = plot_score_decomposition(score_decomposition(x, y))
-    >>> len(fig.axes)
-    3
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre import score_decomposition
+        >>> from calibre.plots import plot_score_decomposition
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.uniform(0, 1, 500)
+        >>> y = rng.binomial(1, x).astype(float)
+        >>> fig = plot_score_decomposition(score_decomposition(x, y))
+        >>> len(fig.axes)
+        3
     """
     _, plt = require_matplotlib()
     named = _as_mapping_of_decompositions(decompositions)
@@ -214,46 +195,34 @@ def plot_mcb_dsc_plane(
     in :func:`plot_score_decomposition` are the ones for reading a single
     forecaster component by component.
 
-    Parameters
-    ----------
-    decompositions
-        Mapping from forecaster name to a
-        :func:`~calibre.score_decomposition` result.
-    ax
-        Axes to draw on. A new figure is created when omitted.
-    contours
-        Whether to draw lines of equal score.
-    n_contours
-        How many such lines.
-    annotate
-        Whether to label each point with its forecaster name.
+    Args:
+        decompositions: Mapping from forecaster name to a :func:`~calibre.score_decomposition` result.
+        ax: Axes to draw on. A new figure is created when omitted.
+        contours: Whether to draw lines of equal score.
+        n_contours: How many such lines.
+        annotate: Whether to label each point with its forecaster name.
 
-    Returns
-    -------
-    Axes
-        The axes drawn on.
+    Returns:
+        Axes: The axes drawn on.
 
-    Raises
-    ------
-    ValueError
-        If ``decompositions`` is empty or a decomposition is missing a component.
+    Raises:
+        ValueError: If ``decompositions`` is empty or a decomposition is missing a component.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre import score_decomposition
-    >>> from calibre.plots import plot_mcb_dsc_plane
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.uniform(0, 1, 500)
-    >>> y = rng.binomial(1, x).astype(float)
-    >>> ax = plot_mcb_dsc_plane({
-    ...     "honest": score_decomposition(x, y),
-    ...     "squashed": score_decomposition(0.25 + 0.5 * x, y),
-    ... })
-    >>> ax.get_xlabel()
-    'DSC (discrimination) -- more is better'
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre import score_decomposition
+        >>> from calibre.plots import plot_mcb_dsc_plane
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.uniform(0, 1, 500)
+        >>> y = rng.binomial(1, x).astype(float)
+        >>> ax = plot_mcb_dsc_plane({
+        ...     "honest": score_decomposition(x, y),
+        ...     "squashed": score_decomposition(0.25 + 0.5 * x, y),
+        ... })
+        >>> ax.get_xlabel()
+        'DSC (discrimination) -- more is better'
     """
     require_matplotlib()
     named = _as_mapping_of_decompositions(decompositions)

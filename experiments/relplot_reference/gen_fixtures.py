@@ -28,7 +28,7 @@ SIGMAS = (0.01, 0.05, 0.1, 0.2)
 def cases() -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Build the regimes the estimator has to survive.
 
-    Returns
+    Returns:
     -------
     dict
         Name to ``(y_pred, y_true)``.

@@ -24,20 +24,14 @@ FIGURES = Path(__file__).resolve().parents[1] / "docs" / "source" / "_static" / 
 def _read(name: str) -> list[dict[str, str]]:
     """Read one aggregated CSV.
 
-    Parameters
-    ----------
-    name
-        File name inside ``results/``.
+    Args:
+        name: File name inside ``results/``.
 
-    Returns
-    -------
-    list of dict
-        Rows.
+    Returns:
+        list of dict: Rows.
 
-    Raises
-    ------
-    FileNotFoundError
-        If the file is missing.
+    Raises:
+        FileNotFoundError: If the file is missing.
     """
     path = RESULTS / name
     if not path.exists():
@@ -51,15 +45,11 @@ def _read(name: str) -> list[dict[str, str]]:
 def _float(value: str) -> float:
     """Parse a cell, mapping blanks to NaN.
 
-    Parameters
-    ----------
-    value
-        Cell contents.
+    Args:
+        value: Cell contents.
 
-    Returns
-    -------
-    float
-        The value or NaN.
+    Returns:
+        float: The value or NaN.
     """
     try:
         return float(value)
@@ -73,12 +63,9 @@ def _save(figure, stem: str) -> None:
     The docs use the SVG. The README needs the PNG: it is rendered by GitHub and
     by PyPI, and neither handles remote SVG reliably.
 
-    Parameters
-    ----------
-    figure
-        Figure to write.
-    stem
-        File name without extension.
+    Args:
+        figure: Figure to write.
+        stem: File name without extension.
     """
     figure.savefig(FIGURES / f"{stem}.svg", bbox_inches="tight")
     figure.savefig(FIGURES / f"{stem}.png", dpi=140, bbox_inches="tight")
@@ -91,14 +78,10 @@ def frontier(summary: list[dict[str, str]], dataset: str, model: str) -> None:
     claim, which is that the extra distinct values might be noise. If they were,
     the methods keeping them would sit higher on the score axis. They do not.
 
-    Parameters
-    ----------
-    summary
-        Rows from ``summary.csv``.
-    dataset
-        Dataset to draw.
-    model
-        Model to draw.
+    Args:
+        summary: Rows from ``summary.csv``.
+        dataset: Dataset to draw.
+        model: Model to draw.
     """
     import matplotlib.pyplot as plt
 
@@ -131,14 +114,10 @@ def paired_deltas(paired: list[dict[str, str]], dataset: str, model: str) -> Non
     effect; differencing within seed removes it, and an interval that spans zero
     is drawn spanning zero.
 
-    Parameters
-    ----------
-    paired
-        Rows from ``paired.csv``.
-    dataset
-        Dataset to draw.
-    model
-        Model to draw.
+    Args:
+        paired: Rows from ``paired.csv``.
+        dataset: Dataset to draw.
+        model: Model to draw.
     """
     import matplotlib.pyplot as plt
 
@@ -178,14 +157,10 @@ def paired_deltas(paired: list[dict[str, str]], dataset: str, model: str) -> Non
 def resolution_barcode(dataset: str, model: str, seed: int) -> None:
     """The collapse barcode, recomputed on one cell.
 
-    Parameters
-    ----------
-    dataset
-        Dataset to draw.
-    model
-        Model to draw.
-    seed
-        Seed to draw.
+    Args:
+        dataset: Dataset to draw.
+        model: Model to draw.
+        seed: Seed to draw.
     """
     import matplotlib.pyplot as plt
 
@@ -219,14 +194,10 @@ def resolution_barcode(dataset: str, model: str, seed: int) -> None:
 def decomposition(summary: list[dict[str, str]], dataset: str, model: str) -> None:
     """Forecasters on the discrimination-miscalibration plane.
 
-    Parameters
-    ----------
-    summary
-        Rows from ``summary.csv``.
-    dataset
-        Dataset to draw.
-    model
-        Model to draw.
+    Args:
+        summary: Rows from ``summary.csv``.
+        dataset: Dataset to draw.
+        model: Model to draw.
     """
     import matplotlib.pyplot as plt
 
@@ -266,16 +237,11 @@ def headline_table(
     Generated rather than typed so the table and the results cannot drift apart.
     The docs build reads this file; it never re-runs the benchmark.
 
-    Parameters
-    ----------
-    summary
-        Rows from ``summary.csv``.
-    paired
-        Rows from ``paired.csv``.
-    dataset
-        Dataset to tabulate.
-    model
-        Model to tabulate.
+    Args:
+        summary: Rows from ``summary.csv``.
+        paired: Rows from ``paired.csv``.
+        dataset: Dataset to tabulate.
+        model: Model to tabulate.
     """
     rows = [r for r in summary if r["dataset"] == dataset and r["model"] == model]
     if not rows:
@@ -314,15 +280,11 @@ def headline_table(
 def main(argv: list[str] | None = None) -> int:
     """Draw every figure.
 
-    Parameters
-    ----------
-    argv
-        Command line.
+    Args:
+        argv: Command line.
 
-    Returns
-    -------
-    int
-        Exit status.
+    Returns:
+        int: Exit status.
     """
     import argparse
 

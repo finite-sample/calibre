@@ -21,18 +21,12 @@ __all__ = ["plot_calibrator_comparison"]
 def _check_fitted(name: str, calibrator: Any) -> None:
     """Confirm a calibrator has been fitted.
 
-    Parameters
-    ----------
-    name
-        Name to use in the error message.
-    calibrator
-        The object to check.
+    Args:
+        name: Name to use in the error message.
+        calibrator: The object to check.
 
-    Raises
-    ------
-    ValueError
-        If the calibrator has no ``transform``, or has one that reports it is
-        not fitted.
+    Raises:
+        ValueError: If the calibrator has no ``transform``, or has one that reports it is not fitted.
     """
     if not hasattr(calibrator, "transform"):
         raise ValueError(f"{name!r} has no .transform(); expected a fitted calibrator")
@@ -68,55 +62,37 @@ def plot_calibrator_comparison(
     distinct values that calibrator produced on ``x`` -- so the comparison and
     the resolution cost land in one figure.
 
-    Parameters
-    ----------
-    calibrators
-        Mapping from name to an **already fitted** calibrator exposing
-        ``.transform``.
-    x
-        Input scores, used both for the grid's range and for the distinct-value
-        counts.
-    ax
-        Axes to draw on. A new figure is created when omitted.
-    reference
-        Optional CORP diagram of the raw scores, drawn behind in grey as the
-        empirical target the calibrators are trying to match.
-    n_grid
-        Number of grid points.
-    diagonal
-        Whether to draw the identity line, which is what "no recalibration"
-        would look like.
-    annotate_distinct
-        Whether to add distinct-value counts to the legend labels.
+    Args:
+        calibrators: Mapping from name to an **already fitted** calibrator exposing ``.transform``.
+        x: Input scores, used both for the grid's range and for the distinct-value counts.
+        ax: Axes to draw on. A new figure is created when omitted.
+        reference: Optional CORP diagram of the raw scores, drawn behind in grey as the empirical target the calibrators are trying to match.
+        n_grid: Number of grid points.
+        diagonal: Whether to draw the identity line, which is what "no recalibration" would look like.
+        annotate_distinct: Whether to add distinct-value counts to the legend labels.
 
-    Returns
-    -------
-    Axes
-        The axes drawn on.
+    Returns:
+        Axes: The axes drawn on.
 
-    Raises
-    ------
-    ValueError
-        If ``calibrators`` is empty, ``x`` is empty, or any calibrator is
-        unfitted.
+    Raises:
+        ValueError: If ``calibrators`` is empty, ``x`` is empty, or any calibrator is unfitted.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre import CenteredIsotonicCalibrator, IsotonicCalibrator
-    >>> from calibre.plots import plot_calibrator_comparison
-    >>> rng = np.random.default_rng(0)
-    >>> scores = rng.uniform(0, 1, 600)
-    >>> labels = rng.binomial(1, scores).astype(float)
-    >>> fitted = {
-    ...     "isotonic": IsotonicCalibrator().fit(scores, labels),
-    ...     "centered": CenteredIsotonicCalibrator().fit(scores, labels),
-    ... }
-    >>> ax = plot_calibrator_comparison(fitted, scores)
-    >>> ax.get_ylabel()
-    'calibrated probability'
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre import CenteredIsotonicCalibrator, IsotonicCalibrator
+        >>> from calibre.plots import plot_calibrator_comparison
+        >>> rng = np.random.default_rng(0)
+        >>> scores = rng.uniform(0, 1, 600)
+        >>> labels = rng.binomial(1, scores).astype(float)
+        >>> fitted = {
+        ...     "isotonic": IsotonicCalibrator().fit(scores, labels),
+        ...     "centered": CenteredIsotonicCalibrator().fit(scores, labels),
+        ... }
+        >>> ax = plot_calibrator_comparison(fitted, scores)
+        >>> ax.get_ylabel()
+        'calibrated probability'
     """
     require_matplotlib()
     if not calibrators:

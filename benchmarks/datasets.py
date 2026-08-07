@@ -24,18 +24,12 @@ __all__ = ["SYNTHETIC", "Dataset", "load", "names"]
 class Dataset:
     """One benchmark dataset.
 
-    Attributes
-    ----------
-    name : str
-        Identifier used in the results table.
-    X : ndarray
-        Features, shape ``(n_samples, n_features)``.
-    y : ndarray
-        Binary labels.
-    p_true : ndarray or None
-        True event probability per row, when it is known. None for real data.
-    kind : str
-        ``"real"`` or ``"synthetic"``.
+    Attributes:
+        name: Identifier used in the results table.
+        X: Features, shape ``(n_samples, n_features)``.
+        y: Binary labels.
+        p_true: True event probability per row, when it is known. None for real data.
+        kind: ``"real"`` or ``"synthetic"``.
     """
 
     name: str
@@ -55,15 +49,11 @@ class Dataset:
 def _logistic(z: np.ndarray) -> np.ndarray:
     """Standard logistic function.
 
-    Parameters
-    ----------
-    z
-        Log-odds.
+    Args:
+        z: Log-odds.
 
-    Returns
-    -------
-    ndarray
-        Probabilities.
+    Returns:
+        ndarray: Probabilities.
     """
     return 1.0 / (1.0 + np.exp(-z))
 
@@ -73,21 +63,14 @@ def _from_scores(
 ) -> Dataset:
     """Draw labels from the true probabilities and package the result.
 
-    Parameters
-    ----------
-    name
-        Dataset name.
-    scores
-        The (miscalibrated) scores a model would report.
-    p_true
-        True event probabilities.
-    rng
-        Random generator.
+    Args:
+        name: Dataset name.
+        scores: The (miscalibrated) scores a model would report.
+        p_true: True event probabilities.
+        rng: Random generator.
 
-    Returns
-    -------
-    Dataset
-        The assembled dataset.
+    Returns:
+        Dataset: The assembled dataset.
     """
     y = rng.binomial(1, p_true).astype(float)
     return Dataset(name, scores.reshape(-1, 1), y, p_true, "synthetic")
@@ -179,10 +162,8 @@ REAL = ("breast_cancer", *_OPENML, "covtype_bin")
 def _cache_dir():
     """Return the fetch cache directory, creating it if needed.
 
-    Returns
-    -------
-    pathlib.Path
-        The cache directory.
+    Returns:
+        pathlib.Path: The cache directory.
     """
     from pathlib import Path
 
@@ -194,20 +175,14 @@ def _cache_dir():
 def _load_real(name: str) -> Dataset:
     """Load one real dataset.
 
-    Parameters
-    ----------
-    name
-        Dataset name.
+    Args:
+        name: Dataset name.
 
-    Returns
-    -------
-    Dataset
-        Features and binary labels, with ``p_true`` None.
+    Returns:
+        Dataset: Features and binary labels, with ``p_true`` None.
 
-    Raises
-    ------
-    ValueError
-        If the name is not a known real dataset.
+    Raises:
+        ValueError: If the name is not a known real dataset.
     """
     from sklearn.datasets import fetch_covtype, fetch_openml, load_breast_cancer
 
@@ -247,17 +222,12 @@ def _load_real(name: str) -> Dataset:
 def names(include_remote: bool = False, include_large: bool = False) -> list[str]:
     """List available dataset names.
 
-    Parameters
-    ----------
-    include_remote
-        Include datasets that need a network fetch.
-    include_large
-        Include the large datasets.
+    Args:
+        include_remote: Include datasets that need a network fetch.
+        include_large: Include the large datasets.
 
-    Returns
-    -------
-    list of str
-        Dataset names.
+    Returns:
+        list of str: Dataset names.
     """
     from .config import LARGE_DATASETS, REMOTE_DATASETS
 
@@ -276,23 +246,15 @@ def names(include_remote: bool = False, include_large: bool = False) -> list[str
 def load(name: str, seed: int) -> Dataset:
     """Load or generate one dataset.
 
-    Parameters
-    ----------
-    name
-        Dataset name.
-    seed
-        Seed, used only by the synthetic generators. Real datasets are fixed, and
-        the seed varies their train/test split instead.
+    Args:
+        name: Dataset name.
+        seed: Seed, used only by the synthetic generators. Real datasets are fixed, and the seed varies their train/test split instead.
 
-    Returns
-    -------
-    Dataset
-        The dataset.
+    Returns:
+        Dataset: The dataset.
 
-    Raises
-    ------
-    ValueError
-        If the name is unknown.
+    Raises:
+        ValueError: If the name is unknown.
     """
     if name in SYNTHETIC:
         return SYNTHETIC[name](_SYNTHETIC_N, np.random.default_rng(seed))

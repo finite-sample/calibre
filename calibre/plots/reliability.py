@@ -27,19 +27,12 @@ def _draw_bands(
 ) -> None:
     """Fill one or more uncertainty bands behind the estimate.
 
-    Parameters
-    ----------
-    ax
-        Axes to draw on.
-    bands
-        A mapping with ``x``, ``lower`` and ``upper``, or a sequence of them.
-        Later bands are drawn with the same colour at lower opacity, so nested
-        levels read as nested.
+    Args:
+        ax: Axes to draw on.
+        bands: A mapping with ``x``, ``lower`` and ``upper``, or a sequence of them. Later bands are drawn with the same colour at lower opacity, so nested levels read as nested.
 
-    Raises
-    ------
-    ValueError
-        If a band is missing a key or its arrays disagree in length.
+    Raises:
+        ValueError: If a band is missing a key or its arrays disagree in length.
     """
     band_list: list[Mapping[str, np.ndarray]]
     band_list = [bands] if isinstance(bands, Mapping) else list(bands)
@@ -85,17 +78,11 @@ def _draw_density(
     so this is the density of the estimator's own support rather than of an
     arbitrary re-binning.
 
-    Parameters
-    ----------
-    ax
-        Axes to draw on.
-    diagram
-        Fitted diagram, supplying ``x`` and ``weight``.
-    density
-        ``"hist"`` for a marginal histogram in a panel below the axes, ``"rug"``
-        for ticks inside the axes, ``"none"`` to draw nothing.
-    density_bins
-        Number of bins for ``"hist"``.
+    Args:
+        ax: Axes to draw on.
+        diagram: Fitted diagram, supplying ``x`` and ``weight``.
+        density: ``"hist"`` for a marginal histogram in a panel below the axes, ``"rug"`` for ticks inside the axes, ``"none"`` to draw nothing.
+        density_bins: Number of bins for ``"hist"``.
     """
     if density == "none":
         return
@@ -157,63 +144,40 @@ def plot_reliability_diagram(
     too low; below, too high. Unlike a binned reliability diagram there is no bin
     count to choose, so the picture cannot be changed by choosing a different one.
 
-    Parameters
-    ----------
-    diagram
-        A fitted diagram from :func:`~calibre.corp_reliability`.
-    ax
-        Axes to draw on. A new figure is created when omitted.
-    bands
-        Uncertainty bands from :func:`~calibre.consistency_bands` or
-        :func:`~calibre.confidence_bands`, or a sequence of them to nest several
-        levels. Bands are never computed here: they cost a thousand PAV refits,
-        which must not happen as a side effect of drawing.
-    density
-        How to show where the observations are: ``"hist"`` (a marginal histogram
-        below the axes), ``"rug"`` (ticks inside the axes) or ``"none"``.
-    density_bins
-        Number of bins when ``density="hist"``.
-    style
-        ``"line"`` to interpolate between the estimated points, matching
-        :meth:`~calibre.evaluation.ReliabilityDiagram.as_function`, or ``"step"``
-        to show the PAV blocks as the step function they are.
-    diagonal
-        Whether to draw the line of perfect calibration.
-    color
-        Colour of the curve. Defaults to calibre's semantic blue.
-    label
-        Legend label. Omit for no legend entry.
+    Args:
+        diagram: A fitted diagram from :func:`~calibre.corp_reliability`.
+        ax: Axes to draw on. A new figure is created when omitted.
+        bands: Uncertainty bands from :func:`~calibre.consistency_bands` or :func:`~calibre.confidence_bands`, or a sequence of them to nest several levels. Bands are never computed here: they cost a thousand PAV refits, which must not happen as a side effect of drawing.
+        density: How to show where the observations are: ``"hist"`` (a marginal histogram below the axes), ``"rug"`` (ticks inside the axes) or ``"none"``.
+        density_bins: Number of bins when ``density="hist"``.
+        style: ``"line"`` to interpolate between the estimated points, matching :meth:`~calibre.evaluation.ReliabilityDiagram.as_function`, or ``"step"`` to show the PAV blocks as the step function they are.
+        diagonal: Whether to draw the line of perfect calibration.
+        color: Colour of the curve. Defaults to calibre's semantic blue.
+        label: Legend label. Omit for no legend entry.
 
-    Returns
-    -------
-    Axes
-        The axes drawn on -- the very object passed as ``ax``, when one was.
+    Returns:
+        Axes: The axes drawn on -- the very object passed as ``ax``, when one was.
 
-    Raises
-    ------
-    ValueError
-        If ``density`` or ``style`` is not one of the documented choices, or a
-        band mapping is malformed.
+    Raises:
+        ValueError: If ``density`` or ``style`` is not one of the documented choices, or a band mapping is malformed.
 
-    Notes
-    -----
-    ``density="hist"`` appends a panel below ``ax``, which shrinks ``ax`` itself.
-    Inside a ``subplot_mosaic`` or similar fixed grid, prefer ``"rug"`` or
-    ``"none"`` so the layout is left alone.
+    Notes:
+        ``density="hist"`` appends a panel below ``ax``, which shrinks ``ax`` itself.
+        Inside a ``subplot_mosaic`` or similar fixed grid, prefer ``"rug"`` or
+        ``"none"`` so the layout is left alone.
 
-    Examples
-    --------
-    >>> import matplotlib
-    >>> matplotlib.use("Agg")
-    >>> import numpy as np
-    >>> from calibre import corp_reliability
-    >>> from calibre.plots.reliability import plot_reliability_diagram
-    >>> rng = np.random.default_rng(0)
-    >>> x = rng.uniform(0, 1, 500)
-    >>> y = rng.binomial(1, x).astype(float)
-    >>> ax = plot_reliability_diagram(corp_reliability(x, y), density="none")
-    >>> ax.get_ylabel()
-    'observed event frequency'
+    Examples:
+        >>> import matplotlib
+        >>> matplotlib.use("Agg")
+        >>> import numpy as np
+        >>> from calibre import corp_reliability
+        >>> from calibre.plots.reliability import plot_reliability_diagram
+        >>> rng = np.random.default_rng(0)
+        >>> x = rng.uniform(0, 1, 500)
+        >>> y = rng.binomial(1, x).astype(float)
+        >>> ax = plot_reliability_diagram(corp_reliability(x, y), density="none")
+        >>> ax.get_ylabel()
+        'observed event frequency'
     """
     if density not in _DENSITY_CHOICES:
         raise ValueError(f"density must be one of {_DENSITY_CHOICES}, got {density!r}")

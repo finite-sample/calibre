@@ -42,61 +42,50 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
     with standard isotonic regression this preserves the score ordering inside
     what would otherwise be a plateau, at no cost in monotonicity.
 
-    Parameters
-    ----------
-    clip_output
-        Clip calibrated values into ``[0, 1]``. Appropriate for probability
-        calibration; turn it off to use the estimator on an unbounded target.
-    enable_diagnostics
-        Run plateau diagnostics after fitting.
+    Args:
+        clip_output: Clip calibrated values into ``[0, 1]``. Appropriate for probability calibration; turn it off to use the estimator on an unbounded target.
+        enable_diagnostics: Run plateau diagnostics after fitting.
 
-    Attributes
-    ----------
-    calibration_curve_ : PiecewiseLinear
-        The fitted calibration map. ``.x`` holds the block centroids and ``.y``
-        their pooled values.
-    n_features_in_ : int
-        Always 1. Present for scikit-learn compatibility.
+    Attributes:
+        calibration_curve_: The fitted calibration map. ``.x`` holds the block centroids and ``.y`` their pooled values.
+        n_features_in_: Always 1. Present for scikit-learn compatibility.
 
-    Notes
-    -----
-    Standard isotonic regression is the L2 projection onto the monotone cone and
-    is optimal for that objective; CIR is not a minimiser of the same criterion.
-    The justification is inferential rather than variational: within a flat block
-    the data support a single pooled rate, and linear interpolation between
-    consecutive pooled estimates is the minimal assumption that neither invents
-    structure nor throws away the ordering. Oron & Flournoy report substantially
-    lower estimation error than isotonic regression when monotonicity violations
-    are present at sample sizes typical of dose-response studies.
+    Notes:
+        Standard isotonic regression is the L2 projection onto the monotone cone and
+        is optimal for that objective; CIR is not a minimiser of the same criterion.
+        The justification is inferential rather than variational: within a flat block
+        the data support a single pooled rate, and linear interpolation between
+        consecutive pooled estimates is the minimal assumption that neither invents
+        structure nor throws away the ordering. Oron & Flournoy report substantially
+        lower estimation error than isotonic regression when monotonicity violations
+        are present at sample sizes typical of dose-response studies.
 
-    Extrapolation holds the end values constant, matching the convention of
-    ``sklearn.isotonic.IsotonicRegression(out_of_bounds="clip")``.
+        Extrapolation holds the end values constant, matching the convention of
+        ``sklearn.isotonic.IsotonicRegression(out_of_bounds="clip")``.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import CenteredIsotonicCalibrator
-    >>>
-    >>> x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0, 0, 1, 0, 1])
-    >>>
-    >>> cal = CenteredIsotonicCalibrator()
-    >>> cal.fit(x, y)
-    CenteredIsotonicCalibrator()
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import CenteredIsotonicCalibrator
+        >>>
+        >>> x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        >>> y = np.array([0, 0, 1, 0, 1])
+        >>>
+        >>> cal = CenteredIsotonicCalibrator()
+        >>> cal.fit(x, y)
+        CenteredIsotonicCalibrator()
 
-    PAVA gives ``[0, 0, 0.5, 0.5, 1]``, i.e. blocks ``{0.1,0.2} -> 0``,
-    ``{0.3,0.4} -> 0.5``, ``{0.5} -> 1``. The interior block collapses to its
-    centroid 0.35; the leading block anchors at its inner edge 0.2, so the curve
-    stays flat to the left of it:
+        PAVA gives ``[0, 0, 0.5, 0.5, 1]``, i.e. blocks ``{0.1,0.2} -> 0``,
+        ``{0.3,0.4} -> 0.5``, ``{0.5} -> 1``. The interior block collapses to its
+        centroid 0.35; the leading block anchors at its inner edge 0.2, so the curve
+        stays flat to the left of it:
 
-    >>> cal.calibration_curve_.x
-    array([0.2 , 0.35, 0.5 ])
-    >>> cal.transform(np.array([0.15, 0.35]))
-    array([0. , 0.5])
+        >>> cal.calibration_curve_.x
+        array([0.2 , 0.35, 0.5 ])
+        >>> cal.transform(np.array([0.15, 0.35]))
+        array([0. , 0.5])
 
-    See Also
-    --------
-    IsotonicCalibrator : The piecewise-constant fit CIR is derived from.
+    See Also:
+        IsotonicCalibrator : The piecewise-constant fit CIR is derived from.
     """
 
     def __init__(
@@ -115,18 +104,13 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
     ) -> None:
         """Fit the centered isotonic calibration map.
 
-        Parameters
-        ----------
-        X
-            Uncalibrated scores.
-        y
-            Targets: binary labels, or probabilities in ``[0, 1]``.
-        sample_weight
-            Non-negative per-observation weights.
+        Args:
+            X: Uncalibrated scores.
+            y: Targets: binary labels, or probabilities in ``[0, 1]``.
+            sample_weight: Non-negative per-observation weights.
 
-        Notes
-        -----
-        All of the work happens here so that ``transform`` is a pure lookup.
+        Notes:
+            All of the work happens here so that ``transform`` is a pure lookup.
         """
         X, y = check_arrays(X, y)
 
@@ -146,20 +130,14 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Map scores through the fitted calibration curve.
 
-        Parameters
-        ----------
-        X
-            Scores to calibrate.
+        Args:
+            X: Scores to calibrate.
 
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Calibrated probabilities.
+        Returns:
+            ndarray of shape (n_samples,): Calibrated probabilities.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "calibration_curve_"):
             raise AttributeError(

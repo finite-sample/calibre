@@ -35,22 +35,15 @@ def build(name: str, seed: int) -> Any:
     scores the calibrator then learns from, which is the subtler cousin of the
     mistake the README warns about.
 
-    Parameters
-    ----------
-    name
-        One of :data:`MODELS`.
-    seed
-        Random state for the estimator.
+    Args:
+        name: One of :data:`MODELS`.
+        seed: Random state for the estimator.
 
-    Returns
-    -------
-    sklearn.pipeline.Pipeline
-        An unfitted pipeline.
+    Returns:
+        sklearn.pipeline.Pipeline: An unfitted pipeline.
 
-    Raises
-    ------
-    ValueError
-        If the name is unknown.
+    Raises:
+        ValueError: If the name is unknown.
     """
     from sklearn.compose import ColumnTransformer
     from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
@@ -93,15 +86,11 @@ def build(name: str, seed: int) -> Any:
 def _numeric_columns(frame: Any) -> Any:
     """Select numeric columns, tolerating a plain array.
 
-    Parameters
-    ----------
-    frame
-        Feature matrix, a DataFrame or an ndarray.
+    Args:
+        frame: Feature matrix, a DataFrame or an ndarray.
 
-    Returns
-    -------
-    list or slice
-        Column selector.
+    Returns:
+        list or slice: Column selector.
     """
     import numpy as np
 
@@ -113,15 +102,11 @@ def _numeric_columns(frame: Any) -> Any:
 def _categorical_columns(frame: Any) -> Any:
     """Select non-numeric columns, tolerating a plain array.
 
-    Parameters
-    ----------
-    frame
-        Feature matrix, a DataFrame or an ndarray.
+    Args:
+        frame: Feature matrix, a DataFrame or an ndarray.
 
-    Returns
-    -------
-    list
-        Column selector, empty for an ndarray.
+    Returns:
+        list: Column selector, empty for an ndarray.
     """
     if hasattr(frame, "select_dtypes"):
         return list(frame.select_dtypes(exclude=["number", "bool"]).columns)

@@ -29,7 +29,7 @@ def _close_figures():
     doctests alone open more than that. Guarded on ``sys.modules`` so that tests
     which never touch matplotlib do not import it.
 
-    Yields
+    Yields:
     ------
     None
         Control returns to the test.

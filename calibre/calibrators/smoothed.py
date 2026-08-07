@@ -41,69 +41,49 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     restores monotonicity with a running maximum, and interpolates linearly
     between the resulting knots.
 
-    Parameters
-    ----------
-    window_length
-        Window length for the Savitzky-Golay filter, in **distinct** scores.
-        Forced odd and capped at the number of distinct scores. If None, uses
-        ``max(5, n_distinct // 10)``.
-    poly_order
-        Polynomial order for the filter. Values below 1 are raised to 1.
-    adaptive
-        Size the window per point from local density instead of using one
-        fixed window.
-    min_window
-        Minimum window length when ``adaptive=True``. Values below 3 are
-        raised to 3.
-    max_window
-        Maximum window length when ``adaptive=True``. If None, uses
-        ``n_distinct // 5``.
-    enable_diagnostics
-        Run plateau diagnostics after fitting.
+    Args:
+        window_length: Window length for the Savitzky-Golay filter, in **distinct** scores. Forced odd and capped at the number of distinct scores. If None, uses ``max(5, n_distinct // 10)``.
+        poly_order: Polynomial order for the filter. Values below 1 are raised to 1.
+        adaptive: Size the window per point from local density instead of using one fixed window.
+        min_window: Minimum window length when ``adaptive=True``. Values below 3 are raised to 3.
+        max_window: Maximum window length when ``adaptive=True``. If None, uses ``n_distinct // 5``.
+        enable_diagnostics: Run plateau diagnostics after fitting.
 
-    Attributes
-    ----------
-    calibration_curve_ : PiecewiseLinear
-        The fitted calibration map, on the distinct training scores.
-    poly_order_ : int
-        ``poly_order`` after validation.
-    min_window_ : int
-        ``min_window`` after validation.
-    n_features_in_ : int
-        Always 1. Present for scikit-learn compatibility.
+    Attributes:
+        calibration_curve_: The fitted calibration map, on the distinct training scores.
+        poly_order_: ``poly_order`` after validation.
+        min_window_: ``min_window`` after validation.
+        n_features_in_: Always 1. Present for scikit-learn compatibility.
 
-    Notes
-    -----
-    Window lengths count *distinct* scores, not observations. Tied scores are
-    pooled before smoothing, because a filter applied across repeated abscissae
-    smooths over points that carry no separate information, and an interpolant
-    cannot be built on repeated abscissae at all.
+    Notes:
+        Window lengths count *distinct* scores, not observations. Tied scores are
+        pooled before smoothing, because a filter applied across repeated abscissae
+        smooths over points that carry no separate information, and an interpolant
+        cannot be built on repeated abscissae at all.
 
-    This estimator does not preserve granularity well. Restoring monotonicity
-    with a running maximum re-flattens the curve wherever the filter introduced
-    a dip, so plateaus come back: on the package's test datasets it retains
-    roughly 13-16% of the distinct input values, against 100% for
-    :class:`CenteredIsotonicCalibrator`. If granularity is why you are here,
-    use that instead.
+        This estimator does not preserve granularity well. Restoring monotonicity
+        with a running maximum re-flattens the curve wherever the filter introduced
+        a dip, so plateaus come back: on the package's test datasets it retains
+        roughly 13-16% of the distinct input values, against 100% for
+        :class:`CenteredIsotonicCalibrator`. If granularity is why you are here,
+        use that instead.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import SmoothedIsotonicCalibrator
-    >>>
-    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
-    >>>
-    >>> cal = SmoothedIsotonicCalibrator(window_length=7)
-    >>> _ = cal.fit(X, y)
-    >>> p = cal.transform(np.array([0.15, 0.45]))
-    >>> bool(p[0] <= p[1])
-    True
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import SmoothedIsotonicCalibrator
+        >>>
+        >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+        >>>
+        >>> cal = SmoothedIsotonicCalibrator(window_length=7)
+        >>> _ = cal.fit(X, y)
+        >>> p = cal.transform(np.array([0.15, 0.45]))
+        >>> bool(p[0] <= p[1])
+        True
 
-    See Also
-    --------
-    IsotonicCalibrator : Isotonic regression without smoothing.
-    CenteredIsotonicCalibrator : Smooth by construction rather than by repair.
+    See Also:
+        IsotonicCalibrator : Isotonic regression without smoothing.
+        CenteredIsotonicCalibrator : Smooth by construction rather than by repair.
     """
 
     def __init__(
@@ -131,21 +111,16 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     ) -> None:
         """Fit the smoothed isotonic calibration map.
 
-        Parameters
-        ----------
-        X
-            Uncalibrated scores.
-        y
-            Targets: binary labels, or probabilities in ``[0, 1]``.
-        sample_weight
-            Not supported by this calibrator.
+        Args:
+            X: Uncalibrated scores.
+            y: Targets: binary labels, or probabilities in ``[0, 1]``.
+            sample_weight: Not supported by this calibrator.
 
-        Notes
-        -----
-        All of the work happens here so that ``transform`` is a pure lookup.
-        Validated parameters are written to trailing-underscore attributes; the
-        constructor arguments are left untouched so that ``get_params`` round
-        trips and ``sklearn.base.clone`` reproduces the estimator.
+        Notes:
+            All of the work happens here so that ``transform`` is a pure lookup.
+            Validated parameters are written to trailing-underscore attributes; the
+            constructor arguments are left untouched so that ``get_params`` round
+            trips and ``sklearn.base.clone`` reproduces the estimator.
         """
         self._reject_sample_weight(sample_weight)
         X, y = check_arrays(X, y)
@@ -182,20 +157,14 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Map scores through the fitted calibration curve.
 
-        Parameters
-        ----------
-        X
-            Scores to calibrate.
+        Args:
+            X: Scores to calibrate.
 
-        Returns
-        -------
-        ndarray of shape (n_samples,)
-            Calibrated probabilities.
+        Returns:
+            ndarray of shape (n_samples,): Calibrated probabilities.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "calibration_curve_"):
             raise AttributeError(
@@ -206,15 +175,11 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     def _smooth_fixed(self, y_iso: np.ndarray) -> np.ndarray:
         """Smooth the isotonic fit with one window length.
 
-        Parameters
-        ----------
-        y_iso
-            Isotonic fit on the distinct scores.
+        Args:
+            y_iso: Isotonic fit on the distinct scores.
 
-        Returns
-        -------
-        ndarray
-            Smoothed values, not yet made monotone.
+        Returns:
+            ndarray: Smoothed values, not yet made monotone.
         """
         m = y_iso.size
         window_length = (
@@ -252,17 +217,12 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     def _smooth_adaptive(self, x: np.ndarray, y_iso: np.ndarray) -> np.ndarray:
         """Smooth the isotonic fit with a per-point window from local density.
 
-        Parameters
-        ----------
-        x
-            Distinct scores, strictly increasing.
-        y_iso
-            Isotonic fit on those scores.
+        Args:
+            x: Distinct scores, strictly increasing.
+            y_iso: Isotonic fit on those scores.
 
-        Returns
-        -------
-        ndarray
-            Smoothed values, not yet made monotone.
+        Returns:
+            ndarray: Smoothed values, not yet made monotone.
         """
         m = y_iso.size
         if m <= 1:
@@ -296,21 +256,14 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     ) -> int:
         """Return the largest window whose span holds at least that many points.
 
-        Parameters
-        ----------
-        distances
-            Normalised distances from the point of interest to every score.
-        min_window
-            Smallest window to consider.
-        max_window
-            Largest window to consider.
-        m
-            Number of distinct scores.
+        Args:
+            distances: Normalised distances from the point of interest to every score.
+            min_window: Smallest window to consider.
+            max_window: Largest window to consider.
+            m: Number of distinct scores.
 
-        Returns
-        -------
-        int
-            Chosen window length.
+        Returns:
+            int: Chosen window length.
         """
         window_size = min_window
         for w in range(min_window, max_window + 2, 2):
@@ -325,21 +278,14 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     ) -> float:
         """Smooth one point against its local window.
 
-        Parameters
-        ----------
-        i
-            Index of the point to smooth.
-        window_size
-            Window length to centre on ``i``.
-        y_iso
-            Isotonic fit on the distinct scores.
-        m
-            Number of distinct scores.
+        Args:
+            i: Index of the point to smooth.
+            window_size: Window length to centre on ``i``.
+            y_iso: Isotonic fit on the distinct scores.
+            m: Number of distinct scores.
 
-        Returns
-        -------
-        float
-            Smoothed value, or the isotonic value if the window is too small.
+        Returns:
+            float: Smoothed value, or the isotonic value if the window is too small.
         """
         half_window = window_size // 2
         start_idx = max(0, i - half_window)

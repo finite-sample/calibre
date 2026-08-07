@@ -2,8 +2,7 @@
 # Copyright (c) ...
 # Licensed under the ... license.
 
-"""
-CDI-ISO: Cost- and Data-Informed Isotonic Calibration.
+"""CDI-ISO: Cost- and Data-Informed Isotonic Calibration.
 
 This calibrator solves:
     min_z  sum_i w_i (y_i - z_i)^2
@@ -185,38 +184,22 @@ def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
 
 @dataclass
 class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[misc]
-    """
-    Cost- and Data-Informed Isotonic calibrator (CDI-ISO).
+    """Cost- and Data-Informed Isotonic calibrator (CDI-ISO).
 
-    Parameters
-    ----------
-    thresholds
-        Operating thresholds in [0,1] that matter economically. If None,
-        uniform attention across the score range is assumed.
-    threshold_weights
-        Nonnegative weights matching thresholds. If None, equal weights.
-    bandwidth
-        Half-width h of the triangular kernel around each threshold (in score units,
-        after optional min-max normalization). Defaults to 0.05.
-    alpha
-        Significance level for the two-proportion normal approximation used to
-        gate minimum-slope enforcement (default 0.05 -> z≈1.96).
-    gamma
-        Global multiplier in [0,1] for the minimum-slope budget phi_i (default 0.15).
-    window
-        Number of adjacent unique-score points used on each side to form the
-        left/right evidence blocks (default 25). Automatically clipped at edges.
-    normalize_scores
-        If True (default), min-max normalize training scores to [0,1] for the
-        economics kernel; the same affine scaling is applied at transform time.
-    clip_output
-        If True (default), clip calibrated outputs to [0,1].
+    Args:
+        thresholds: Operating thresholds in [0,1] that matter economically. If None, uniform attention across the score range is assumed.
+        threshold_weights: Nonnegative weights matching thresholds. If None, equal weights.
+        bandwidth: Half-width h of the triangular kernel around each threshold (in score units, after optional min-max normalization). Defaults to 0.05.
+        alpha: Significance level for the two-proportion normal approximation used to gate minimum-slope enforcement (default 0.05 -> z≈1.96).
+        gamma: Global multiplier in [0,1] for the minimum-slope budget phi_i (default 0.15).
+        window: Number of adjacent unique-score points used on each side to form the left/right evidence blocks (default 25). Automatically clipped at edges.
+        normalize_scores: If True (default), min-max normalize training scores to [0,1] for the economics kernel; the same affine scaling is applied at transform time.
+        clip_output: If True (default), clip calibrated outputs to [0,1].
 
-    Notes
-    -----
-    - Builds local bounds L_i = phi_i - epsilon_i on sorted unique training scores.
-    - Solves a single weighted PAVA on shifted labels (O(n)) and shifts back.
-    - Predictions are stepwise-constant in the training score order.
+    Notes:
+        - Builds local bounds L_i = phi_i - epsilon_i on sorted unique training scores.
+        - Solves a single weighted PAVA on shifted labels (O(n)) and shifts back.
+        - Predictions are stepwise-constant in the training score order.
     """
 
     thresholds: Iterable[float] | None = None
@@ -257,28 +240,18 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
     ) -> CDIIsotonicCalibrator:
-        """
-        Fit CDI-ISO on (scores, y).
+        """Fit CDI-ISO on (scores, y).
 
-        Parameters
-        ----------
-        scores
-            Raw model scores; will be sorted internally. If normalize_scores=True,
-            an affine min-max transform to [0,1] is learned and applied in transform.
-        y
-            Binary labels {0,1}.
-        sample_weight
-            Nonnegative per-sample weights.
+        Args:
+            scores: Raw model scores; will be sorted internally. If normalize_scores=True, an affine min-max transform to [0,1] is learned and applied in transform.
+            y: Binary labels {0,1}.
+            sample_weight: Nonnegative per-sample weights.
 
-        Returns
-        -------
-        Returns self for method chaining.
+        Returns:
+            Returns self for method chaining.
 
-        Raises
-        ------
-        ValueError
-            If scores and y have different lengths, y contains invalid values,
-            or sample_weight has invalid values.
+        Raises:
+            ValueError: If scores and y have different lengths, y contains invalid values, or sample_weight has invalid values.
         """
         s = np.asarray(scores, dtype=float).reshape(-1)
         y = np.asarray(y, dtype=float).reshape(-1)
@@ -362,22 +335,16 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         return self
 
     def transform(self, scores: np.ndarray) -> np.ndarray:
-        """
-        Map new scores to calibrated probabilities (stepwise-constant).
+        """Map new scores to calibrated probabilities (stepwise-constant).
 
-        Parameters
-        ----------
-        scores
-            Input scores to calibrate.
+        Args:
+            scores: Input scores to calibrate.
 
-        Returns
-        -------
-        Calibrated probabilities in [0,1] (if clip_output=True).
+        Returns:
+            Calibrated probabilities in [0,1] (if clip_output=True).
 
-        Raises
-        ------
-        RuntimeError
-            If called before fit().
+        Raises:
+            RuntimeError: If called before fit().
         """
         if not self._fitted:
             raise RuntimeError("Call fit() before transform().")
@@ -446,18 +413,13 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
           - two-proportion SE across adjacent aggregated blocks in a sliding band,
           - the ``gamma`` and ``alpha`` hyperparameters.
 
-        Parameters
-        ----------
-        x_scaled
-            Scaled unique scores, shape (m,).
-        y_bar
-            Average target values per unique score, shape (m,).
-        w_block
-            Weights per unique score (counts), shape (m,).
+        Args:
+            x_scaled: Scaled unique scores, shape (m,).
+            y_bar: Average target values per unique score, shape (m,).
+            w_block: Weights per unique score (counts), shape (m,).
 
-        Returns
-        -------
-        Local bounds array of shape (m-1,).
+        Returns:
+            Local bounds array of shape (m-1,).
         """
         m = x_scaled.size
         z = _z_value(self.alpha)
@@ -515,8 +477,7 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         return np.asarray(L_list, dtype=float)
 
     def _economics_weight(self, mids: np.ndarray) -> np.ndarray:
-        """
-        Compute w_econ(mid) in [0,1] from thresholds and a triangular kernel of half-width h.
+        """Compute w_econ(mid) in [0,1] from thresholds and a triangular kernel of half-width h.
 
         If thresholds is None, return ones (uniform attention). Otherwise, for thresholds T_j
         with weights a_j, set

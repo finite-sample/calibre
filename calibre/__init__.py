@@ -1,5 +1,4 @@
-"""
-Calibre: Model Probability Calibration Library.
+"""Calibre: Model Probability Calibration Library.
 
 This library provides various methods for calibrating probability predictions
 from machine learning models to improve their reliability.
@@ -150,20 +149,14 @@ def __getattr__(name: str) -> object:
     matplotlib -- being imported when nobody asks for it. matplotlib is an
     optional dependency and must stay one.
 
-    Parameters
-    ----------
-    name
-        Attribute being looked up.
+    Args:
+        name: Attribute being looked up.
 
-    Returns
-    -------
-    object
-        The requested attribute.
+    Returns:
+        object: The requested attribute.
 
-    Raises
-    ------
-    AttributeError
-        If ``name`` is not a lazily-exposed attribute.
+    Raises:
+        AttributeError: If ``name`` is not a lazily-exposed attribute.
     """
     if name == "plots":
         from . import plots
@@ -175,9 +168,7 @@ def __getattr__(name: str) -> object:
 def __dir__() -> list[str]:
     """List the module's attributes, including the lazy ones.
 
-    Returns
-    -------
-    list of str
-        Sorted attribute names.
+    Returns:
+        list of str: Sorted attribute names.
     """
     return sorted(set(__all__) | set(globals()))

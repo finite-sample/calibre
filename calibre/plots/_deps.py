@@ -21,21 +21,16 @@ _INSTALL_HINT = (
 def require_matplotlib() -> tuple[ModuleType, ModuleType]:
     """Import matplotlib, or raise an error naming the install command.
 
-    Returns
-    -------
-    tuple of module
-        ``(matplotlib, matplotlib.pyplot)``.
+    Returns:
+        tuple of module: ``(matplotlib, matplotlib.pyplot)``.
 
-    Raises
-    ------
-    ImportError
-        If matplotlib is not installed. The original exception is chained.
+    Raises:
+        ImportError: If matplotlib is not installed. The original exception is chained.
 
-    Examples
-    --------
-    >>> mpl, plt = require_matplotlib()
-    >>> mpl.__name__
-    'matplotlib'
+    Examples:
+        >>> mpl, plt = require_matplotlib()
+        >>> mpl.__name__
+        'matplotlib'
     """
     try:
         import matplotlib as mpl
