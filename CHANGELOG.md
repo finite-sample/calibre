@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.0] - 2026-08-06
 
 ### Added
 
@@ -195,6 +195,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inverse link** rather than merely being monotone; and that calibration helps a
   miscalibrated model by more than three standard errors, paired within replication.
 
+- **A reproducible benchmark, with committed results.** `benchmarks/` is an
+  importable package (not shipped in the wheel) run by `python -m benchmarks.run`:
+  thirty seeds over ten methods and ten dataset/model cells, including three
+  scikit-learn baselines. Within a cell the calibrator is the only thing that
+  varies — the out-of-fold and test scores are computed once and shared — and the
+  test split is touched exactly once.
+
+  It replaces a README table and a page of star ratings that had no script behind
+  them. The results are committed, so the docs build never re-runs the benchmark
+  and never hits the network, and the docs table is generated from them rather
+  than typed.
+
+  Guards rather than promises: `calibre_isotonic` must reproduce
+  `sklearn_isotonic` to 1e-12 on every row, `aggregate.py` refuses to summarise a
+  cell missing any of its seeds, paired differences carry bootstrap intervals that
+  are reported spanning zero when they do, and there is no composite score.
+  Regimes where calibre loses are included at full weight and named: temperature
+  scaling is six times more accurate against the known truth on `overconfident`,
+  and on `breast_cancer/logreg` leaving the model uncalibrated beats isotonic.
+
 ### Changed
 
 - **`RelaxedPAVACalibrator` now defaults to `min_slope="auto"`**, which resolves to
@@ -235,6 +255,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with a test that fails if any public metric is ever left out.
 
 ### Documentation
+
+- **`NearlyIsotonicCalibrator` is documented as the wrong tool for granularity.**
+  Its objective fits one value per observation to the labels, so a small `lam`
+  returns something close to the raw 0/1 labels: measured out of sample,
+  `lam=0.001` keeps 1074 distinct values at a held-out Brier of 0.191 against
+  isotonic's 0.116, and every step up the grid buys score back by giving
+  granularity away. That frontier is dominated outright —
+  `CenteredIsotonicCalibrator` reaches 2647 distinct values at a *better* score
+  than isotonic — so no default was invented to hide it.
+
+- **The README documented none of this release.** It now covers `calibre.plots`,
+  smECE, `calibration_report`, `bootstrap_ci` and `plugin_calibration_error`; its
+  comparison table is regenerated from the committed benchmark grid; and it names
+  the methods that beat calibre rather than only the ones that do not.
+
 
 - **The API reference was two releases behind.** `calibre.evaluation` (all of 0.8.0),
   `calibre.multiclass` (all of 0.9.0), `calibre.selection` and `calibre.diagnostics`
