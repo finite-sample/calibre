@@ -81,7 +81,11 @@ def test_readme_block_runs(line_no, code):
 # deleted, so running the code is not enough -- the claimed numbers must match too.
 # `# >` is accepted as well because `ruff format` normalises comment spacing inside
 # Markdown code blocks.
-_EXPECTED = re.compile(r"^\s*#\s?>\s?(?P<text>.*)$", re.M)
+# `[ \t]` rather than `\s` throughout: `\s` matches a newline, so on a bare `#>`
+# line recording a blank line of output the optional trailing `\s?` swallowed the
+# line break and `.*` captured the *next* line instead. That silently corrupted
+# every expectation following a blank one.
+_EXPECTED = re.compile(r"^[ \t]*#[ \t]?>[ \t]?(?P<text>.*)$", re.M)
 
 
 @pytest.mark.parametrize(
@@ -128,7 +132,15 @@ def test_readme_block_output_matches(line_no, code, capsys):
     capsys
         pytest stdout capture.
     """
-    expected = [m.group("text").rstrip() for m in _EXPECTED.finditer(code)]
+    # Blank lines are dropped from both sides, not just from the printed output.
+    # Filtering only one side made it impossible to declare the output of anything
+    # that prints a blank line -- a multi-line report, say -- because the `#>`
+    # marker recording that blank line had nothing to match against.
+    expected = [
+        text
+        for m in _EXPECTED.finditer(code)
+        if (text := m.group("text").rstrip()).strip()
+    ]
     namespace: dict[str, object] = {"__name__": "__readme__"}
     exec(compile(code, f"README.md:{line_no}", "exec"), namespace)
     printed = [
@@ -138,4 +150,42 @@ def test_readme_block_output_matches(line_no, code, capsys):
     assert printed == expected, (
         f"README.md block at line {line_no} claims output it does not produce.\n"
         f"claimed:\n  " + "\n  ".join(expected) + "\nactual:\n  " + "\n  ".join(printed)
+    )
+
+
+def test_a_blank_expectation_does_not_swallow_the_next_line():
+    """The `#>` extractor must not run two claimed lines together.
+
+    `\\s` matches a newline, so the original pattern's optional trailing `\\s?`
+    consumed the line break on a bare `#>` -- the marker for a blank line of
+    output -- and `.*` then captured the following line. The corruption was
+    silent: the expectation simply became wrong, and any block whose output
+    contained a blank line could never be declared correctly.
+    """
+    code = "print(x)\n#> first\n#>\n#> second\n"
+    assert [m.group("text").rstrip() for m in _EXPECTED.finditer(code)] == [
+        "first",
+        "",
+        "second",
+    ]
+
+
+def test_readme_names_only_functions_that_exist():
+    """Every ``plot_*`` / ``calibre.*`` name the README claims must be importable.
+
+    Prose is not executed, so a plausible-sounding function name in a paragraph is
+    invisible to the block tests above. Three invented names shipped in a draft of
+    the plotting section this way.
+    """
+    import calibre
+    import calibre.plots
+
+    text = README.read_text()
+    claimed = set(re.findall(r"`(plot_\w+)`", text))
+    assert claimed, "no plot_* names found; the pattern has gone stale"
+
+    exported = set(calibre.plots.__all__)
+    assert claimed <= exported, (
+        f"README names functions that calibre.plots does not export: "
+        f"{sorted(claimed - exported)}"
     )

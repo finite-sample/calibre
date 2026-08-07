@@ -1,5 +1,4 @@
-"""
-Nearly-isotonic regression for flexible monotonic calibration.
+"""Nearly-isotonic regression for flexible monotonic calibration.
 
 This module provides nearly-isotonic regression, which relaxes the strict
 monotonicity constraint by penalizing rather than prohibiting violations.
@@ -33,77 +32,88 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     rather than prohibiting violations. This allows for a more flexible fit
     while still maintaining a generally monotonic trend.
 
-    Parameters
-    ----------
-    lam
-        Regularization parameter controlling the strength of monotonicity constraint.
-        Higher values enforce stricter monotonicity.
-    method
-        Solver for the optimization problem. Both are exact and agree to solver
-        tolerance; ``path`` is the faster and needs no CVXPY.
+    Args:
+        lam: Regularization parameter controlling the strength of monotonicity constraint. Higher values enforce stricter monotonicity.
+        method: Solver for the optimization problem. Both are exact and agree to solver tolerance; ``path`` is the faster and needs no CVXPY.
 
-        - ``'path'``: the exact solution path (O(n log n)).
-        - ``'cvx'``: convex optimization via CVXPY.
-    clip_output
-        Clip calibrated values into ``[0, 1]``. Appropriate for probability
-        calibration; turn it off to recover the unconstrained optimum of the
-        objective above, which is what the estimator is actually defined as.
-    enable_diagnostics
-        Whether to enable plateau diagnostics analysis.
+            - ``'path'``: the exact solution path (O(n log n)). - ``'cvx'``: convex optimization via CVXPY.
+        cv: Number of cross-validation folds used when a hyperparameter is left at ``"auto"``. Ignored when every hyperparameter is pinned.
+        scoring: Proper scoring rule the ``"auto"`` search minimises. Deliberately not a calibration error: ECE and its relatives are minimised by a constant forecast, so selecting on one would reward throwing resolution away.
+        random_state: Seed for the cross-validation split, so an ``"auto"`` selection is reproducible.
+        clip_output: Clip calibrated values into ``[0, 1]``. Appropriate for probability calibration; turn it off to recover the unconstrained optimum of the objective above, which is what the estimator is actually defined as.
+        enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
 
-    Notes
-    -----
-    Nearly-isotonic regression solves the following optimization problem:
+    Notes:
+        Nearly-isotonic regression solves the following optimization problem:
 
-    .. math::
-        \min_{\beta} \sum_{i=1}^{n} (y_i - \beta_i)^2 + \lambda \sum_{i=1}^{n-1} \max(0, \beta_i - \beta_{i+1})
+        .. math::
+            \min_{\beta} \sum_{i=1}^{n} (y_i - \beta_i)^2 + \lambda \sum_{i=1}^{n-1} \max(0, \beta_i - \beta_{i+1})
 
-    where :math:`\beta` is the calibrated output, :math:`y` are the true labels,
-    and :math:`\lambda > 0` controls the strength of the monotonicity penalty.
+        where :math:`\beta` is the calibrated output, :math:`y` are the true labels,
+        and :math:`\lambda > 0` controls the strength of the monotonicity penalty.
 
-    This formulation penalizes violations of monotonicity proportionally to their
-    magnitude, allowing small violations when they significantly improve the fit.
+        This formulation penalizes violations of monotonicity proportionally to their
+        magnitude, allowing small violations when they significantly improve the fit.
 
-    **Interpreting lam.** Read it as a bias-variance knob on pooling rather than
-    as permission for non-monotone structure: ``lam = 0`` returns the data
-    untouched, ``lam -> inf`` returns the isotonic fit, and intermediate values
-    give shorter plateaus than isotonic regression -- finer granularity -- in
-    exchange for bounded violations.
+        **Interpreting lam.** Read it as a bias-variance knob on pooling rather than
+        as permission for non-monotone structure: ``lam = 0`` returns the data
+        untouched, ``lam -> inf`` returns the isotonic fit, and intermediate values
+        give shorter plateaus than isotonic regression -- finer granularity -- in
+        exchange for bounded violations.
 
-    **Scaling differs from the source paper.** Tibshirani, Hoefling & Tibshirani
-    (2011, *Technometrics* 53(1), 54-61) put a factor of 1/2 on the squared-error
-    term:
+        **This is not the calibrator to reach for if you want granularity.** The
+        granularity above is real but it is not free, and here it is not even
+        cheap. Because the objective fits one value per observation to the *labels*,
+        a small ``lam`` returns something close to the raw 0/1 labels: lots of
+        distinct values, all of them overfitted. Measured out of sample on a
+        logit-inflated design at n=3000, ``lam=0.001`` keeps 1074 distinct values at
+        a held-out Brier of 0.191 against isotonic's 0.116, and every step up the
+        ``lam`` grid buys score back by giving granularity away until, by
+        ``lam=100``, the fit *is* isotonic regression.
 
-    .. math::
-        \min_{\beta} \tfrac{1}{2} \sum_i (y_i - \beta_i)^2
-        + \lambda_{\text{paper}} \sum_i \max(0, \beta_i - \beta_{i+1})
+        That frontier is dominated. On the same data
+        :class:`~calibre.CenteredIsotonicCalibrator` keeps 2647 distinct values at a
+        held-out Brier of 0.1159 -- more granularity than any ``lam`` reaches, at a
+        *better* score than isotonic. So there is no default ``lam`` worth moving to,
+        and none is claimed: unlike
+        :class:`~calibre.RelaxedPAVACalibrator`, whose default now breaks plateaus
+        apart at a cost in the fifth decimal, this estimator's defaults leave it
+        close to isotonic on purpose. Use it when you want *bounded monotonicity
+        violations* -- the thing it uniquely provides -- and use CIR or the spline
+        calibrators when you want resolution.
 
-    The objective above omits it, so ``lam`` here is *twice* the paper's
-    :math:`\lambda`:
+        **Scaling differs from the source paper.** Tibshirani, Hoefling & Tibshirani
+        (2011, *Technometrics* 53(1), 54-61) put a factor of 1/2 on the squared-error
+        term:
 
-    .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
+        .. math::
+            \min_{\beta} \tfrac{1}{2} \sum_i (y_i - \beta_i)^2
+            + \lambda_{\text{paper}} \sum_i \max(0, \beta_i - \beta_{i+1})
 
-    Double any penalty value taken from the paper before passing it in. Both
-    solvers are pinned against the authors' R implementation (``neariso``) in
-    ``tests/test_r_reference.py``.
+        The objective above omits it, so ``lam`` here is *twice* the paper's
+        :math:`\lambda`:
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import NearlyIsotonicCalibrator
-    >>>
-    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
-    >>>
-    >>> cal = NearlyIsotonicCalibrator(lam=0.5)
-    >>> _ = cal.fit(X, y)
-    >>> X_calibrated = cal.transform(np.array([0.15, 0.35, 0.55]))
+        .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
 
-    See Also
-    --------
-    IsotonicCalibrator : Strict monotonicity constraint
-    RegularizedIsotonicCalibrator : L2 regularization with strict monotonicity
+        Double any penalty value taken from the paper before passing it in. Both
+        solvers are pinned against the authors' R implementation (``neariso``) in
+        ``tests/test_r_reference.py``.
+
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import NearlyIsotonicCalibrator
+        >>>
+        >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        >>> y = np.array([0.12, 0.18, 0.35, 0.25, 0.55])
+        >>>
+        >>> cal = NearlyIsotonicCalibrator(lam=0.5)
+        >>> _ = cal.fit(X, y)
+        >>> X_calibrated = cal.transform(np.array([0.15, 0.35, 0.55]))
+
+    See Also:
+        IsotonicCalibrator : Strict monotonicity constraint
+        RegularizedIsotonicCalibrator : L2 regularization with strict monotonicity
     """
 
     #: Candidate lambdas searched when ``lam="auto"``. Spans "essentially the raw
@@ -138,17 +148,20 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     ) -> None:
         """Implement the nearly-isotonic regression fitting logic.
 
-        Parameters
-        ----------
-        X
-            The training input samples.
-        y
-            The target values.
+        Args:
+            X: The training input samples.
+            y: The target values.
+            sample_weight: Must be None. This calibrator is not weight-aware, and
+                silently discarding weights would quietly return a different
+                estimator than the caller asked for, so they are rejected.
 
-        Notes
-        -----
-        This method implements the actual fitting logic. Data storage,
-        diagnostics, and return value are handled by the base class fit() method.
+        Raises:
+            NotImplementedError: If ``sample_weight`` is not None.
+            ValueError: If ``method`` is neither ``"path"`` nor ``"cvx"``.
+
+        Notes:
+            This method implements the actual fitting logic. Data storage,
+            diagnostics, and return value are handled by the base class fit() method.
         """
         self._reject_sample_weight(sample_weight)
         X, y = check_arrays(X, y)
@@ -180,23 +193,15 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     def _resolve_lam(self, X: np.ndarray, y: np.ndarray) -> float:
         """Return the lambda to fit with, selecting it if asked.
 
-        Parameters
-        ----------
-        X
-            Uncalibrated scores.
-        y
-            Targets.
+        Args:
+            X: Uncalibrated scores.
+            y: Targets.
 
-        Returns
-        -------
-        float
-            The penalty to use. Written to ``lam_``; the ``lam`` constructor
-            argument is never modified, so ``get_params`` round trips.
+        Returns:
+            float: The penalty to use. Written to ``lam_``; the ``lam`` constructor argument is never modified, so ``get_params`` round trips.
 
-        Raises
-        ------
-        ValueError
-            If ``lam`` is negative, or is a string other than ``"auto"``.
+        Raises:
+            ValueError: If ``lam`` is negative, or is a string other than ``"auto"``.
         """
         from ..selection import resolve_auto
 
@@ -217,20 +222,14 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Map scores through the fitted calibration curve.
 
-        Parameters
-        ----------
-        X
-            The values to be calibrated.
+        Args:
+            X: The values to be calibrated.
 
-        Returns
-        -------
-        X_calibrated : array-like of shape (n_samples,)
-            Calibrated values.
+        Returns:
+            X_calibrated: Calibrated values.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "calibration_curve_"):
             raise AttributeError(
@@ -241,17 +240,12 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     def _solve_cvx(self, y_mean: np.ndarray, weight: np.ndarray) -> np.ndarray:
         """Solve the nearly-isotonic problem with CVXPY on the pooled grid.
 
-        Parameters
-        ----------
-        y_mean
-            Weighted mean target at each unique score.
-        weight
-            Total weight at each unique score.
+        Args:
+            y_mean: Weighted mean target at each unique score.
+            weight: Total weight at each unique score.
 
-        Returns
-        -------
-        ndarray of shape (n_unique,)
-            The optimal fitted values.
+        Returns:
+            ndarray of shape (n_unique,): The optimal fitted values.
         """
         beta = cp.Variable(len(y_mean))
 

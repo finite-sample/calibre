@@ -54,32 +54,26 @@ def aggregate_ties(
     which one survives depends on the sort's tie-breaking, making the result
     nondeterministic.
 
-    Parameters
-    ----------
-    x
-        Predictor values. Need not be sorted.
-    y
-        Target values.
-    sample_weight
-        Non-negative per-observation weights. Defaults to 1.
+    Args:
+        x: Predictor values. Need not be sorted.
+        y: Target values.
+        sample_weight: Non-negative per-observation weights. Defaults to 1.
 
-    Returns
-    -------
-    x_unique : ndarray of shape (n_unique,)
-        Sorted unique values of ``x``.
-    y_mean : ndarray of shape (n_unique,)
-        Weighted mean of ``y`` within each tie group. Groups with zero total
-        weight are reported as 0.
-    weight : ndarray of shape (n_unique,)
-        Total weight of each tie group.
+    Returns:
+        x_unique: Sorted unique values of ``x``.
+        y_mean: Weighted mean of ``y`` within each tie group. Groups with zero total weight are reported as 0.
+        weight: Total weight of each tie group.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> x = np.array([2.0, 1.0, 1.0, 2.0])
-    >>> y = np.array([1.0, 0.0, 1.0, 0.0])
-    >>> aggregate_ties(x, y)
-    (array([1., 2.]), array([0.5, 0.5]), array([2., 2.]))
+    Raises:
+        ValueError: If ``sample_weight`` does not match ``y`` in shape, holds a
+            non-finite or negative value, or sums to zero.
+
+    Examples:
+        >>> import numpy as np
+        >>> x = np.array([2.0, 1.0, 1.0, 2.0])
+        >>> y = np.array([1.0, 0.0, 1.0, 0.0])
+        >>> aggregate_ties(x, y)
+        (array([1., 2.]), array([0.5, 0.5]), array([2., 2.]))
     """
     x = np.asarray(x, dtype=float).ravel()
     y = np.asarray(y, dtype=float).ravel()
@@ -88,6 +82,12 @@ def aggregate_ties(
         if sample_weight is None
         else np.asarray(sample_weight, dtype=float).ravel()
     )
+    if w.shape != y.shape:
+        raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
+    if np.sum(w) <= 0.0:
+        raise ValueError("sample_weight must contain at least one positive weight")
 
     x_unique, inverse = np.unique(x, return_inverse=True)
     n_groups = x_unique.size
@@ -117,30 +117,22 @@ def weighted_pava(y: np.ndarray, sample_weight: np.ndarray | None = None) -> np.
     merge backwards into weighted means while the last two blocks violate the
     ordering.
 
-    Parameters
-    ----------
-    y
-        Target values, in the order the monotonicity constraint applies to.
-    sample_weight
-        Non-negative weights. Defaults to 1.
+    Args:
+        y: Target values, in the order the monotonicity constraint applies to.
+        sample_weight: Non-negative weights. Defaults to 1.
 
-    Returns
-    -------
-    ndarray of shape (n_samples,)
-        Fitted values, non-decreasing, one per input element.
+    Returns:
+        ndarray of shape (n_samples,): Fitted values, non-decreasing, one per input element.
 
-    Raises
-    ------
-    ValueError
-        If ``y`` is empty, shapes disagree, or any weight is negative.
+    Raises:
+        ValueError: If ``y`` is empty, shapes disagree, or any weight is negative.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> weighted_pava(np.array([1.0, 0.0]))
-    array([0.5, 0.5])
-    >>> weighted_pava(np.array([1.0, 0.0]), np.array([3.0, 1.0]))
-    array([0.75, 0.75])
+    Examples:
+        >>> import numpy as np
+        >>> weighted_pava(np.array([1.0, 0.0]))
+        array([0.5, 0.5])
+        >>> weighted_pava(np.array([1.0, 0.0]), np.array([3.0, 1.0]))
+        array([0.75, 0.75])
     """
     y = np.asarray(y, dtype=float).ravel()
     if y.size == 0:
@@ -152,8 +144,8 @@ def weighted_pava(y: np.ndarray, sample_weight: np.ndarray | None = None) -> np.
     )
     if w.shape != y.shape:
         raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
-    if np.any(w < 0.0):
-        raise ValueError("sample_weight must be non-negative")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
 
     # Block stacks. means[k] is non-decreasing in k by construction.
     means = np.empty(y.size, dtype=float)
@@ -194,17 +186,12 @@ def monotone_projection(
     smoother's output needs to be made monotone. Prefer this over
     :func:`cumulative_max`, which is not a projection.
 
-    Parameters
-    ----------
-    y
-        Values to project.
-    sample_weight
-        Non-negative weights. Defaults to 1.
+    Args:
+        y: Values to project.
+        sample_weight: Non-negative weights. Defaults to 1.
 
-    Returns
-    -------
-    ndarray of shape (n_samples,)
-        The closest non-decreasing sequence in weighted L2.
+    Returns:
+        ndarray of shape (n_samples,): The closest non-decreasing sequence in weighted L2.
     """
     return weighted_pava(y, sample_weight)
 
@@ -218,21 +205,16 @@ def cumulative_max(y: np.ndarray) -> np.ndarray:
     order, which is occasionally what a caller wants; when in doubt use
     :func:`monotone_projection`.
 
-    Parameters
-    ----------
-    y
-        Values to make non-decreasing.
+    Args:
+        y: Values to make non-decreasing.
 
-    Returns
-    -------
-    ndarray of shape (n_samples,)
-        ``out[i] = max(y[0], ..., y[i])``.
+    Returns:
+        ndarray of shape (n_samples,): ``out[i] = max(y[0], ..., y[i])``.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> cumulative_max(np.array([0.1, 0.3, 0.2, 0.5, 0.4]))
-    array([0.1, 0.3, 0.3, 0.5, 0.5])
+    Examples:
+        >>> import numpy as np
+        >>> cumulative_max(np.array([0.1, 0.3, 0.2, 0.5, 0.4]))
+        array([0.1, 0.3, 0.3, 0.5, 0.5])
     """
     return np.asarray(np.maximum.accumulate(np.asarray(y, dtype=float).ravel()))
 
@@ -265,33 +247,24 @@ def shift_to_pava(
     - ``L < 0``   epsilon-monotone: bounded decreases permitted
     - ``L > 0``   minimum slope: strictly increasing, so no plateaus at all
 
-    Parameters
-    ----------
-    y
-        Target values in constraint order.
-    sample_weight
-        Non-negative weights. Defaults to 1.
-    L
-        Lower bound on each of the ``n - 1`` increments. A scalar is broadcast.
+    Args:
+        y: Target values in constraint order.
+        sample_weight: Non-negative weights. Defaults to 1.
+        L: Lower bound on each of the ``n - 1`` increments. A scalar is broadcast.
 
-    Returns
-    -------
-    ndarray of shape (n_samples,)
-        Fitted values satisfying the increment constraints.
+    Returns:
+        ndarray of shape (n_samples,): Fitted values satisfying the increment constraints.
 
-    Raises
-    ------
-    ValueError
-        If ``L`` has the wrong length.
+    Raises:
+        ValueError: If ``L`` has the wrong length.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y = np.array([0.0, 1.0, 1.0, 0.0])
-    >>> shift_to_pava(y)                                # standard isotonic
-    array([0.        , 0.66666667, 0.66666667, 0.66666667])
-    >>> bool(np.all(np.diff(shift_to_pava(y, L=0.05)) >= 0.05 - 1e-12))
-    True
+    Examples:
+        >>> import numpy as np
+        >>> y = np.array([0.0, 1.0, 1.0, 0.0])
+        >>> shift_to_pava(y)                                # standard isotonic
+        array([0.        , 0.66666667, 0.66666667, 0.66666667])
+        >>> bool(np.all(np.diff(shift_to_pava(y, L=0.05)) >= 0.05 - 1e-12))
+        True
     """
     y = np.asarray(y, dtype=float).ravel()
     n = y.size
@@ -333,80 +306,66 @@ def nearly_isotonic_path(
     ``lam -> inf`` returns the isotonic fit, and intermediate values give shorter
     plateaus than isotonic regression at the cost of bounded violations.
 
-    Parameters
-    ----------
-    y
-        Target values in constraint order.
-    lam
-        Penalty on monotonicity violations. See Notes on scaling.
-    sample_weight
-        Non-negative weights. Defaults to 1.
-    return_path
-        Also return the merge events as ``(lambda, n_blocks)`` pairs. The block
-        count is an unbiased estimate of the fit's degrees of freedom, which is
-        what makes ``lam`` selectable rather than guessed.
+    Args:
+        y: Target values in constraint order.
+        lam: Penalty on monotonicity violations. See Notes on scaling.
+        sample_weight: Non-negative weights. Defaults to 1.
+        return_path: Also return the merge events as ``(lambda, n_blocks)`` pairs. The block count is an unbiased estimate of the fit's degrees of freedom, which is what makes ``lam`` selectable rather than guessed.
 
-    Returns
-    -------
-    beta : ndarray of shape (n_samples,)
-        The exact minimiser at ``lam``.
-    path : list of (float, int), optional
-        Returned when ``return_path`` is set.
+    Returns:
+        beta: The exact minimiser at ``lam``.
+        path: Returned when ``return_path`` is set.
 
-    Raises
-    ------
-    ValueError
-        If ``y`` is empty or ``lam`` is negative.
+    Raises:
+        ValueError: If ``y`` is empty or ``lam`` is negative.
 
-    Notes
-    -----
-    **Scaling.** The reference formulation (Tibshirani, Hoefling & Tibshirani
-    2011, *Technometrics* 53(1), 54-61) carries a factor of one half on the
-    squared-error term. The objective above does not, so
+    Notes:
+        **Scaling.** The reference formulation (Tibshirani, Hoefling & Tibshirani
+        2011, *Technometrics* 53(1), 54-61) carries a factor of one half on the
+        squared-error term. The objective above does not, so
 
-    .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
+        .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
 
-    A penalty value taken from the paper must be doubled before being passed
-    here. This is verified against the authors' own R implementation
-    (``neariso``) in ``tests/test_r_reference.py``.
+        A penalty value taken from the paper must be doubled before being passed
+        here. This is verified against the authors' own R implementation
+        (``neariso``) in ``tests/test_r_reference.py``.
 
-    **How the path is computed.** Subgradient stationarity gives
-    :math:`2 w_i(\beta_i - y_i) + \lambda(g_i - g_{i-1}) = 0`, where
-    :math:`g_i \in [0, 1]` is the subgradient of the hinge on adjacency
-    :math:`i` and :math:`g_0 = g_n = 0`. Summing over a block :math:`A_k` of
-    tied coordinates, the interior subgradients cancel telescopically and leave
+        **How the path is computed.** Subgradient stationarity gives
+        :math:`2 w_i(\beta_i - y_i) + \lambda(g_i - g_{i-1}) = 0`, where
+        :math:`g_i \in [0, 1]` is the subgradient of the hinge on adjacency
+        :math:`i` and :math:`g_0 = g_n = 0`. Summing over a block :math:`A_k` of
+        tied coordinates, the interior subgradients cancel telescopically and leave
 
-    .. math::
-        \beta_k(\lambda) = \bar{y}_k
-        - \frac{\lambda}{2}\cdot\frac{G_k - G_{k-1}}{W_k}
+        .. math::
+            \beta_k(\lambda) = \bar{y}_k
+            - \frac{\lambda}{2}\cdot\frac{G_k - G_{k-1}}{W_k}
 
-    with :math:`\bar y_k` the block's weighted mean, :math:`W_k` its total
-    weight, and :math:`G_k \in \{0, 1\}` indicating whether the boundary
-    between blocks :math:`k` and :math:`k+1` is violated. So each block's value
-    is *linear in* :math:`\lambda` with slope
-    :math:`s_k = -(G_k - G_{k-1}) / (2 W_k)`, and two adjacent blocks meet after
+        with :math:`\bar y_k` the block's weighted mean, :math:`W_k` its total
+        weight, and :math:`G_k \in \{0, 1\}` indicating whether the boundary
+        between blocks :math:`k` and :math:`k+1` is violated. So each block's value
+        is *linear in* :math:`\lambda` with slope
+        :math:`s_k = -(G_k - G_{k-1}) / (2 W_k)`, and two adjacent blocks meet after
 
-    .. math::
-        \Delta_k = \frac{\beta_{k+1} - \beta_k}{s_k - s_{k+1}}
+        .. math::
+            \Delta_k = \frac{\beta_{k+1} - \beta_k}{s_k - s_{k+1}}
 
-    The two ingredients that make this correct are exactly the ones a naive
-    implementation drops: the collision time is a gap divided by a *difference of
-    slopes* (so block sizes govern the merge order), and block values *drift with*
-    :math:`\lambda` between merges instead of sitting still. Using the raw gap
-    :math:`\beta_k - \beta_{k+1}` as the collision time, and freezing values
-    between merges, yields a different -- and suboptimal -- estimator.
+        The two ingredients that make this correct are exactly the ones a naive
+        implementation drops: the collision time is a gap divided by a *difference of
+        slopes* (so block sizes govern the merge order), and block values *drift with*
+        :math:`\lambda` between merges instead of sitting still. Using the raw gap
+        :math:`\beta_k - \beta_{k+1}` as the collision time, and freezing values
+        between merges, yields a different -- and suboptimal -- estimator.
 
-    Blocks never split as :math:`\lambda` grows, so merges are permanent.
+        Blocks never split as :math:`\lambda` grows, so merges are permanent.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> y = np.array([0.1, 0.4, 0.2, 0.5])
-    >>> nearly_isotonic_path(y, lam=0.0)
-    array([0.1, 0.4, 0.2, 0.5])
-    >>> beta = nearly_isotonic_path(y, lam=1e6)          # -> isotonic
-    >>> np.allclose(beta, weighted_pava(y))
-    True
+    Examples:
+        >>> import numpy as np
+        >>> y = np.array([0.1, 0.4, 0.2, 0.5])
+        >>> nearly_isotonic_path(y, lam=0.0)
+        array([0.1, 0.4, 0.2, 0.5])
+        >>> beta = nearly_isotonic_path(y, lam=1e6)          # -> isotonic
+        >>> np.allclose(beta, weighted_pava(y))
+        True
     """
     y = np.asarray(y, dtype=float).ravel()
     n = y.size
@@ -422,8 +381,8 @@ def nearly_isotonic_path(
     )
     if w.shape != y.shape:
         raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
-    if np.any(w < 0.0):
-        raise ValueError("sample_weight must be non-negative")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
 
     # Block state. Blocks are consecutive runs; `size` counts original indices so
     # the result can be expanded at the end.
@@ -526,39 +485,29 @@ def collapse_blocks(
     why centered isotonic regression is strictly monotone in the interior but
     may stay flat near the boundaries.
 
-    Parameters
-    ----------
-    x
-        Strictly increasing predictor grid.
-    fitted
-        Non-decreasing fitted values on that grid.
-    sample_weight
-        Non-negative weights. Defaults to 1.
-    anchor_terminal
-        Anchor the first and last blocks at their inner edge instead of their
-        centroid. Matches ``cir::cirPAVA``.
+    Args:
+        x: Strictly increasing predictor grid.
+        fitted: Non-decreasing fitted values on that grid.
+        sample_weight: Non-negative weights. Defaults to 1.
+        anchor_terminal: Anchor the first and last blocks at their inner edge instead of their centroid. Matches ``cir::cirPAVA``.
 
-    Returns
-    -------
-    x_collapsed : ndarray of shape (n_blocks,)
-        Representative predictor value for each flat block.
-    y_collapsed : ndarray of shape (n_blocks,)
-        The block's fitted value.
+    Returns:
+        x_collapsed: Representative predictor value for each flat block.
+        y_collapsed: The block's fitted value.
 
-    Examples
-    --------
-    A single interior plateau collapses to its centroid:
+    Examples:
+        A single interior plateau collapses to its centroid:
 
-    >>> import numpy as np
-    >>> x = np.array([1.0, 2.0, 3.0, 4.0])
-    >>> collapse_blocks(x, np.array([0.0, 0.5, 0.5, 1.0]))
-    (array([1. , 2.5, 4. ]), array([0. , 0.5, 1. ]))
+        >>> import numpy as np
+        >>> x = np.array([1.0, 2.0, 3.0, 4.0])
+        >>> collapse_blocks(x, np.array([0.0, 0.5, 0.5, 1.0]))
+        (array([1. , 2.5, 4. ]), array([0. , 0.5, 1. ]))
 
-    A leading plateau anchors at its inner edge, so the curve stays flat out to
-    the left boundary rather than sloping up from it:
+        A leading plateau anchors at its inner edge, so the curve stays flat out to
+        the left boundary rather than sloping up from it:
 
-    >>> collapse_blocks(x, np.array([0.0, 0.0, 0.5, 1.0]))
-    (array([2., 3., 4.]), array([0. , 0.5, 1. ]))
+        >>> collapse_blocks(x, np.array([0.0, 0.0, 0.5, 1.0]))
+        (array([2., 3., 4.]), array([0. , 0.5, 1. ]))
     """
     x = np.asarray(x, dtype=float).ravel()
     fitted = np.asarray(fitted, dtype=float).ravel()
@@ -604,25 +553,18 @@ class PiecewiseLinear:
     ``interp1d`` accepts duplicated abscissae and silently returns a value from
     whichever tied point happened to survive its internal sort.
 
-    Parameters
-    ----------
-    x
-        Knot locations. Must be strictly increasing.
-    y
-        Function value at each knot.
+    Args:
+        x: Knot locations. Must be strictly increasing.
+        y: Function value at each knot.
 
-    Raises
-    ------
-    ValueError
-        If the arrays are empty, disagree in length, or ``x`` is not strictly
-        increasing.
+    Raises:
+        ValueError: If the arrays are empty, disagree in length, or ``x`` is not strictly increasing.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> f = PiecewiseLinear(np.array([0.0, 1.0]), np.array([0.0, 1.0]))
-    >>> f(np.array([-1.0, 0.25, 2.0]))
-    array([0.  , 0.25, 1.  ])
+    Examples:
+        >>> import numpy as np
+        >>> f = PiecewiseLinear(np.array([0.0, 1.0]), np.array([0.0, 1.0]))
+        >>> f(np.array([-1.0, 0.25, 2.0]))
+        array([0.  , 0.25, 1.  ])
     """
 
     __slots__ = ("x", "y")
@@ -645,15 +587,11 @@ class PiecewiseLinear:
     def __call__(self, x_new: np.ndarray) -> np.ndarray:
         """Evaluate the function, holding the end values outside the knot range.
 
-        Parameters
-        ----------
-        x_new
-            Points to evaluate at.
+        Args:
+            x_new: Points to evaluate at.
 
-        Returns
-        -------
-        ndarray
-            Interpolated values.
+        Returns:
+            ndarray: Interpolated values.
         """
         x_new = np.asarray(x_new, dtype=float).ravel()
         if self.x.size == 1:
@@ -665,25 +603,18 @@ class PiecewiseLinear:
 class StepFunction:
     """A right-continuous step function on a fixed breakpoint grid.
 
-    Parameters
-    ----------
-    x
-        Breakpoints. Must be strictly increasing.
-    y
-        Value taken on ``[x[i], x[i+1])``.
+    Args:
+        x: Breakpoints. Must be strictly increasing.
+        y: Value taken on ``[x[i], x[i+1])``.
 
-    Raises
-    ------
-    ValueError
-        If the arrays are empty, disagree in length, or ``x`` is not strictly
-        increasing.
+    Raises:
+        ValueError: If the arrays are empty, disagree in length, or ``x`` is not strictly increasing.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> f = StepFunction(np.array([0.0, 1.0]), np.array([0.2, 0.8]))
-    >>> f(np.array([-1.0, 0.5, 1.0, 5.0]))
-    array([0.2, 0.2, 0.8, 0.8])
+    Examples:
+        >>> import numpy as np
+        >>> f = StepFunction(np.array([0.0, 1.0]), np.array([0.2, 0.8]))
+        >>> f(np.array([-1.0, 0.5, 1.0, 5.0]))
+        array([0.2, 0.2, 0.8, 0.8])
     """
 
     __slots__ = ("x", "y")
@@ -703,15 +634,11 @@ class StepFunction:
     def __call__(self, x_new: np.ndarray) -> np.ndarray:
         """Evaluate the step function.
 
-        Parameters
-        ----------
-        x_new
-            Points to evaluate at.
+        Args:
+            x_new: Points to evaluate at.
 
-        Returns
-        -------
-        ndarray
-            Step values.
+        Returns:
+            ndarray: Step values.
         """
         x_new = np.asarray(x_new, dtype=float).ravel()
         idx = np.searchsorted(self.x, x_new, side="right") - 1
@@ -754,43 +681,28 @@ class MonotoneSplineBasis:
     This is the same construction as the SCOP-splines of Pya & Wood (2015), used
     by R's ``scam``, and the penalised B-splines of Eilers & Marx (1996).
 
-    Parameters
-    ----------
-    n_knots
-        Number of knots. The basis has ``n_knots + degree - 1`` columns before the
-        constant one is dropped.
-    degree
-        Polynomial degree of the B-splines.
-    knots
-        ``"quantile"`` places knots at data quantiles, ``"uniform"`` at equal
-        spacing. Quantile is usually right for calibration, where scores cluster
-        wherever the base model is confident.
-    extrapolation
-        Passed through to ``SplineTransformer``. ``"constant"`` holds the basis
-        flat outside the knot range, so the fitted curve plateaus rather than
-        diverging.
+    Args:
+        n_knots: Number of knots. The basis has ``n_knots + degree - 1`` columns before the constant one is dropped.
+        degree: Polynomial degree of the B-splines.
+        knots: ``"quantile"`` places knots at data quantiles, ``"uniform"`` at equal spacing. Quantile is usually right for calibration, where scores cluster wherever the base model is confident.
+        extrapolation: Passed through to ``SplineTransformer``. ``"constant"`` holds the basis flat outside the knot range, so the fitted curve plateaus rather than diverging.
 
-    Attributes
-    ----------
-    transformer_ : SplineTransformer
-        The fitted B-spline transformer.
-    n_basis_ : int
-        Number of design columns, i.e. the required coefficient count.
+    Attributes:
+        transformer_: The fitted B-spline transformer.
+        n_basis_: Number of design columns, i.e. the required coefficient count.
 
-    Notes
-    -----
-    Construct one of these per fit. Sharing a single instance across
-    cross-validation folds is what produced the mismatch between retained knots
-    and retained coefficients in earlier versions of this package.
+    Notes:
+        Construct one of these per fit. Sharing a single instance across
+        cross-validation folds is what produced the mismatch between retained knots
+        and retained coefficients in earlier versions of this package.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> basis = MonotoneSplineBasis(n_knots=6, degree=3)
-    >>> x = np.linspace(0.0, 1.0, 200)
-    >>> M = basis.fit(x).design(x)
-    >>> bool(np.all(np.diff(M, axis=0) >= -1e-10))   # every column monotone
-    True
+    Examples:
+        >>> import numpy as np
+        >>> basis = MonotoneSplineBasis(n_knots=6, degree=3)
+        >>> x = np.linspace(0.0, 1.0, 200)
+        >>> M = basis.fit(x).design(x)
+        >>> bool(np.all(np.diff(M, axis=0) >= -1e-10))   # every column monotone
+        True
     """
 
     __slots__ = (
@@ -817,20 +729,14 @@ class MonotoneSplineBasis:
     def fit(self, x: np.ndarray) -> MonotoneSplineBasis:
         """Place the knots from ``x``.
 
-        Parameters
-        ----------
-        x
-            Predictor values.
+        Args:
+            x: Predictor values.
 
-        Returns
-        -------
-        MonotoneSplineBasis
-            self, for chaining.
+        Returns:
+            MonotoneSplineBasis: self, for chaining.
 
-        Raises
-        ------
-        ValueError
-            If the configuration is invalid.
+        Raises:
+            ValueError: If the configuration is invalid.
         """
         from sklearn.preprocessing import SplineTransformer
 
@@ -864,20 +770,14 @@ class MonotoneSplineBasis:
     def design(self, x: np.ndarray) -> np.ndarray:
         """Build the monotone design matrix at ``x``.
 
-        Parameters
-        ----------
-        x
-            Points to evaluate the basis at.
+        Args:
+            x: Points to evaluate the basis at.
 
-        Returns
-        -------
-        ndarray of shape (n_samples, n_basis_)
-            Every column non-decreasing in ``x``.
+        Returns:
+            ndarray of shape (n_samples, n_basis_): Every column non-decreasing in ``x``.
 
-        Raises
-        ------
-        AttributeError
-            If called before :meth:`fit`.
+        Raises:
+            AttributeError: If called before :meth:`fit`.
         """
         if not hasattr(self, "transformer_"):
             raise AttributeError("MonotoneSplineBasis is not fitted yet.")
@@ -896,22 +796,14 @@ def monotone_spline_basis(
 ) -> MonotoneSplineBasis:
     """Construct a fresh :class:`MonotoneSplineBasis`.
 
-    Parameters
-    ----------
-    n_knots
-        Number of knots.
-    degree
-        B-spline degree.
-    knots
-        ``"quantile"`` or ``"uniform"``.
-    extrapolation
-        ``SplineTransformer`` extrapolation mode.
+    Args:
+        n_knots: Number of knots.
+        degree: B-spline degree.
+        knots: ``"quantile"`` or ``"uniform"``.
+        extrapolation: ``SplineTransformer`` extrapolation mode.
 
-    Returns
-    -------
-    MonotoneSplineBasis
-        An unfitted basis. Always a new object, so callers cannot accidentally
-        share mutable state across folds.
+    Returns:
+        MonotoneSplineBasis: An unfitted basis. Always a new object, so callers cannot accidentally share mutable state across folds.
     """
     return MonotoneSplineBasis(
         n_knots=n_knots, degree=degree, knots=knots, extrapolation=extrapolation
@@ -927,15 +819,11 @@ def _difference_matrix(p: int) -> Any:
     line unpenalised, so the identity map and the empirical base rate both survive
     shrinkage. A first-order penalty would instead pull the fit toward flat.
 
-    Parameters
-    ----------
-    p
-        Number of increments.
+    Args:
+        p: Number of increments.
 
-    Returns
-    -------
-    sparse matrix of shape (p - 1, p)
-        The difference operator, or an empty operator when ``p < 2``.
+    Returns:
+        sparse matrix of shape (p - 1, p): The difference operator, or an empty operator when ``p < 2``.
     """
     from scipy import sparse
 
@@ -969,41 +857,25 @@ def fit_monotone_spline(
     ``delta >= 0`` makes the fit monotone by construction -- no post-hoc
     projection and no tolerance to tune.
 
-    Parameters
-    ----------
-    design
-        Monotone design matrix of shape ``(n_samples, n_basis)``.
-    y
-        Targets in ``[0, 1]``.
-    sample_weight
-        Non-negative weights. Defaults to 1.
-    alpha
-        Roughness penalty on the increments.
-    link
-        ``"logit"`` fits a penalised Bernoulli likelihood, so predictions live in
-        ``(0, 1)`` with no clipping and the objective is the proper score for
-        binary labels. ``"identity"`` fits penalised least squares on the
-        probability scale, which is a single bounded linear solve and is therefore
-        easy to check against an external QP solver.
+    Args:
+        design: Monotone design matrix of shape ``(n_samples, n_basis)``.
+        y: Targets in ``[0, 1]``.
+        sample_weight: Non-negative weights. Defaults to 1.
+        alpha: Roughness penalty on the increments.
+        link: ``"logit"`` fits a penalised Bernoulli likelihood, so predictions live in ``(0, 1)`` with no clipping and the objective is the proper score for binary labels. ``"identity"`` fits penalised least squares on the probability scale, which is a single bounded linear solve and is therefore easy to check against an external QP solver.
 
-    Returns
-    -------
-    intercept : float
-        The unconstrained intercept.
-    delta : ndarray of shape (n_basis,)
-        Non-negative increment coefficients.
+    Returns:
+        intercept: The unconstrained intercept.
+        delta: Non-negative increment coefficients.
 
-    Raises
-    ------
-    ValueError
-        If ``link`` is unknown, ``alpha`` is negative, or shapes disagree.
+    Raises:
+        ValueError: If ``link`` is unknown, ``alpha`` is negative, or shapes disagree.
 
-    Notes
-    -----
-    Both objectives are convex on the feasible set ``delta >= 0``, so the returned
-    solution is a global optimum: the identity case is a convex QP solved by
-    bounded least squares, and the logit case is a convex penalised likelihood
-    solved by L-BFGS-B.
+    Notes:
+        Both objectives are convex on the feasible set ``delta >= 0``, so the returned
+        solution is a global optimum: the identity case is a convex QP solved by
+        bounded least squares, and the logit case is a convex penalised likelihood
+        solved by L-BFGS-B.
     """
     from scipy import sparse
     from scipy.optimize import lsq_linear, minimize
@@ -1027,8 +899,10 @@ def fit_monotone_spline(
     )
     if w.shape != y.shape:
         raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
-    if np.any(w < 0):
-        raise ValueError("sample_weight must be non-negative")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
+    if np.sum(w) <= 0.0:
+        raise ValueError("sample_weight must contain at least one positive weight")
 
     n, p = M.shape
     D = _difference_matrix(p)

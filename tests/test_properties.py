@@ -208,40 +208,38 @@ class TestCalibrationImprovement:
     @pytest.mark.parametrize(
         "pattern", ["overconfident_nn", "underconfident_rf", "sigmoid_distorted"]
     )
-    def test_calibration_metrics_improvement(
+    def test_calibration_does_not_deteriorate_scores(
         self, core_calibrators, data_generator, pattern
     ):
-        """Test that calibrators improve ECE and maintain reasonable Brier scores."""
+        """A single draw can only support a non-deterioration bound.
+
+        This test used to claim it verified improvement, on one dataset of 400
+        observations, with `calibrated_brier <= original_brier * 2.0` and an ECE
+        comparison that counted a 10% worsening as an improvement. A calibrator
+        that doubled the Brier score passed.
+
+        Tightening those thresholds does not fix it. `NearlyIsotonicCalibrator`
+        at `lam=1.0` genuinely reports a worse ECE than the uncalibrated scores on
+        this particular draw (0.110 against 0.071) while improving in 40 of 40
+        independent draws at a larger sample size -- the statistic is simply too
+        noisy at n=400, fitted and scored on the same data, to carry the claim.
+
+        So the improvement claim lives in ``tests/test_monte_carlo.py``, paired
+        across replications and with a Monte Carlo standard error on it. What
+        remains here is the cheap guard a single draw *can* support: calibration
+        must not make the proper score materially worse.
+        """
         y_pred, y_true = data_generator.generate_dataset(pattern, n_samples=400)
-
-        original_ece = expected_calibration_error(y_true, y_pred)
         original_brier = brier_score(y_true, y_pred)
-
-        improved_count = 0
-        total_count = 0
 
         for name, calibrator in core_calibrators.items():
             calibrator.fit(y_pred, y_true)
             y_calib = calibrator.transform(y_pred)
-
-            # Test ECE improvement
-            calibrated_ece = expected_calibration_error(y_true, y_calib)
-            if calibrated_ece <= original_ece * 1.1:  # 10% tolerance
-                improved_count += 1
-            total_count += 1
-
-            # Test Brier score bounds
             calibrated_brier = brier_score(y_true, y_calib)
-            assert calibrated_brier <= 0.5, f"{name} poor Brier on {pattern}"
-            assert calibrated_brier <= original_brier * 2.0, (
-                f"{name} deteriorated Brier on {pattern}"
+            assert calibrated_brier <= original_brier + 0.02, (
+                f"{name} deteriorated Brier on {pattern}: "
+                f"{calibrated_brier:.4f} against {original_brier:.4f} uncalibrated"
             )
-
-        # At least 60% should improve ECE
-        improvement_rate = improved_count / max(total_count, 1)
-        assert improvement_rate >= 0.6, (
-            f"Only {improvement_rate:.1%} improved ECE on {pattern}"
-        )
 
     def test_reliability_improvement(self, data_generator):
         """Test that calibration improves reliability diagram alignment."""

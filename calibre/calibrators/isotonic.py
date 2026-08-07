@@ -1,5 +1,4 @@
-"""
-Isotonic regression calibrator with optional plateau diagnostics.
+"""Isotonic regression calibrator with optional plateau diagnostics.
 
 This module provides isotonic regression calibration, which is a non-parametric
 method that fits a monotonically increasing function to data. It can optionally
@@ -21,57 +20,46 @@ logger = logging.getLogger(__name__)
 
 
 class IsotonicCalibrator(BaseCalibrator):
-    """
-    Isotonic regression calibrator.
+    """Isotonic regression calibrator.
 
     This calibrator wraps sklearn's IsotonicRegression for probability calibration.
 
-    Parameters
-    ----------
-    y_min
-        Lower bound for the calibrated values.
-    y_max
-        Upper bound for the calibrated values.
-    increasing
-        Whether the calibration function should be increasing.
-    out_of_bounds
-        How to handle out-of-bounds values in transform.
-        Options: 'nan', 'clip', 'raise'.
-    enable_diagnostics
-        Whether to enable plateau diagnostics analysis.
+    Args:
+        y_min: Lower bound for the calibrated values.
+        y_max: Upper bound for the calibrated values.
+        increasing: Whether the calibration function should be increasing.
+        out_of_bounds: How to handle out-of-bounds values in transform. Options: 'nan', 'clip', 'raise'.
+        enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import IsotonicCalibrator
-    >>>
-    >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-    >>> y = np.array([0, 0, 1, 1, 1])
-    >>>
-    >>> # Basic usage
-    >>> cal = IsotonicCalibrator()
-    >>> _ = cal.fit(X, y)
-    >>> X_calibrated = cal.transform(X)
-    >>>
-    >>> # With diagnostics
-    >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-    >>> _ = cal.fit(X, y)
-    >>> cal.has_diagnostics()
-    True
-    >>> cal.get_diagnostics()["n_plateaus"]
-    2
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import IsotonicCalibrator
+        >>>
+        >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        >>> y = np.array([0, 0, 1, 1, 1])
+        >>>
+        >>> # Basic usage
+        >>> cal = IsotonicCalibrator()
+        >>> _ = cal.fit(X, y)
+        >>> X_calibrated = cal.transform(X)
+        >>>
+        >>> # With diagnostics
+        >>> cal = IsotonicCalibrator(enable_diagnostics=True)
+        >>> _ = cal.fit(X, y)
+        >>> cal.has_diagnostics()
+        True
+        >>> cal.get_diagnostics()["n_plateaus"]
+        2
 
-    Notes
-    -----
-    Isotonic regression finds the best monotonic fit to the data, which is
-    particularly useful for calibration because well-calibrated predictions
-    should maintain the rank order of predictions while improving probability
-    estimates.
+    Notes:
+        Isotonic regression finds the best monotonic fit to the data, which is
+        particularly useful for calibration because well-calibrated predictions
+        should maintain the rank order of predictions while improving probability
+        estimates.
 
-    See Also
-    --------
-    NearlyIsotonicCalibrator : Relaxed monotonicity constraint
-    SmoothedIsotonicCalibrator : Isotonic with smoothing
+    See Also:
+        NearlyIsotonicCalibrator : Relaxed monotonicity constraint
+        SmoothedIsotonicCalibrator : Isotonic with smoothing
     """
 
     def __init__(
@@ -98,20 +86,17 @@ class IsotonicCalibrator(BaseCalibrator):
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
     ) -> None:
-        """
-        Implement the isotonic regression fitting logic.
+        """Implement the isotonic regression fitting logic.
 
-        Parameters
-        ----------
-        X
-            The training input samples (predicted probabilities).
-        y
-            The target values (true labels).
+        Args:
+            X: The training input samples (predicted probabilities).
+            y: The target values (true labels).
+            sample_weight: Per-observation weights, passed straight through to
+                scikit-learn's ``IsotonicRegression.fit``.
 
-        Notes
-        -----
-        This method implements the actual fitting logic. Data storage,
-        diagnostics, and return value are handled by the base class fit() method.
+        Notes:
+            This method implements the actual fitting logic. Data storage,
+            diagnostics, and return value are handled by the base class fit() method.
         """
         X, y = check_arrays(X, y)
 
@@ -125,22 +110,16 @@ class IsotonicCalibrator(BaseCalibrator):
         self.isotonic_.fit(X, y, sample_weight=sample_weight)
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """
-        Apply isotonic calibration to new data.
+        """Apply isotonic calibration to new data.
 
-        Parameters
-        ----------
-        X
-            The values to be calibrated.
+        Args:
+            X: The values to be calibrated.
 
-        Returns
-        -------
-        Calibrated values.
+        Returns:
+            Calibrated values.
 
-        Raises
-        ------
-        ValueError
-            If called before fit().
+        Raises:
+            ValueError: If called before fit().
         """
         if self.isotonic_ is None:
             raise ValueError("Model must be fitted before transform")

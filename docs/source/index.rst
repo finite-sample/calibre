@@ -13,23 +13,48 @@ Calibre: Advanced Calibration Models
    :target: https://opensource.org/licenses/MIT
    :alt: License: MIT
 
-Calibration is a critical step in deploying machine learning models. While techniques like isotonic regression have been standard for this task, they come with significant limitations:
+**Probability calibration that doesn't flatten your scores.**
 
-1. **Loss of granularity**: Traditional isotonic regression often collapses many distinct probability values into a small number of unique values, which can be problematic for decision-making.
+Your classifier's probabilities are usually wrong — a model that says "80%" may
+be right 60% of the time. Isotonic regression is the standard fix, and it works,
+but it pays for accuracy with resolution: it is a step function, so it collapses
+many distinct scores into a handful of values. On a 2,000-point held-out set,
+isotonic regression turns 2,000 distinct scores into **56**. Everything inside a
+step becomes indistinguishable — which matters as soon as you rank, threshold,
+or bucket the output.
 
-2. **Rigid monotonicity**: Perfect monotonicity might not always be necessary or beneficial; small violations might be acceptable if they better preserve the information content of the original predictions.
+Calibre gives you calibrators that fix the probabilities *and* keep the
+ordering, together with the measurement tools to check that they did.
 
-Calibre addresses these limitations by implementing a suite of advanced calibration techniques that provide more nuanced control over model probability calibration. Its methods are designed to preserve granularity while still favoring a generally monotonic trend.
+Calibrating
+-----------
 
-Features
---------
+- **Centered isotonic regression**: collapses PAVA's flat blocks to their
+  centroid and interpolates. Non-parametric, nothing to tune, no plateaus. The
+  recommended default.
+- **Monotone I-splines**: smooth calibration curves, with the smoothing either
+  chosen by cross-validation on log-loss or set by you.
+- **Relaxed PAVA**: bounds each adjacent increment. ``epsilon`` permits small
+  decreases; ``min_slope`` forbids plateaus outright. O(n).
+- **Nearly-isotonic regression**: penalises rather than forbids monotonicity
+  violations, when a small reordering buys a better fit.
+- **Regularized isotonic regression**: a monotone spline with an explicit
+  curvature penalty.
 
-- **Nearly-isotonic regression**: Allows controlled violations of monotonicity to better preserve data granularity
-- **I-spline calibration**: Uses monotonic splines for smooth calibration functions
-- **Relaxed PAVA**: Ignores "small" violations based on percentile thresholds in the data
-- **Regularized isotonic regression**: Monotone spline fit with a curvature penalty for smoother calibration curves while maintaining monotonicity
-- **Locally smoothed isotonic**: Applies Savitzky-Golay filtering to isotonic regression results to reduce the "staircase effect" while preserving monotonicity
-- **Adaptive smoothed isotonic**: Uses variable-sized smoothing windows based on data density to provide better detail in dense regions and smoother curves in sparse regions
+Measuring
+---------
+
+- **CORP reliability diagrams and score decompositions**: split a proper score
+  into ``MCB`` (what recalibration would save you), ``DSC`` (what your scores
+  buy over the base rate) and ``UNC`` (irreducible difficulty). No bin count to
+  choose. Pinned against R's ``reliabilitydiag`` to 1e-16.
+- **Bias-aware calibration error**: binned ECE is biased upward, and the bias
+  grows with the bin count. ``debiased_calibration_error`` and
+  ``sweep_calibration_error`` correct for it.
+- **Multiclass diagnostics**: ``miscalibration_profile`` tells you *which*
+  multiclass method your data needs, which is worth about a factor of six.
+- **Granularity metrics**: how much resolution the calibration cost you — the
+  thing no other calibration package reports.
 
 Quick Start
 -----------
@@ -40,22 +65,34 @@ Install Calibre:
 
    pip install calibre
 
-Basic usage:
-
 .. code-block:: python
 
    import numpy as np
-   from calibre import NearlyIsotonicCalibrator
-   
-   # Example data: model predictions and true binary outcomes
-   np.random.seed(42)
-   y_pred = np.sort(np.random.uniform(0, 1, 1000))
-   y_true = np.random.binomial(1, y_pred, 1000)
-   
-   # Calibrate with nearly isotonic regression
-   calibrator = NearlyIsotonicCalibrator(lam=1.0)
-   calibrator.fit(y_pred, y_true)
-   y_calibrated = calibrator.transform(y_pred)
+   from sklearn.model_selection import train_test_split
+
+   from calibre import CenteredIsotonicCalibrator, IsotonicCalibrator
+
+   # An overconfident model: true log-odds z, but the model reports 1.8 * z.
+   rng = np.random.default_rng(0)
+   z = rng.normal(0, 2, 4000)
+   y = (rng.random(4000) < 1 / (1 + np.exp(-z))).astype(float)
+   scores = 1 / (1 + np.exp(-1.8 * z))
+
+   # Always fit the calibrator on data the model did not train on.
+   s_fit, s_test, y_fit, y_test = train_test_split(
+       scores, y, test_size=0.5, random_state=0
+   )
+
+   isotonic = IsotonicCalibrator().fit(s_fit, y_fit)
+   centered = CenteredIsotonicCalibrator().fit(s_fit, y_fit)
+
+   print("distinct values, isotonic:", len(np.unique(isotonic.transform(s_test))))
+   print("distinct values, calibre: ", len(np.unique(centered.transform(s_test))))
+   # > distinct values, isotonic: 82
+   # > distinct values, calibre:  1863
+
+Both are well calibrated. Only one of them still tells you which of two cases is
+the riskier bet.
 
 Interactive Examples
 --------------------

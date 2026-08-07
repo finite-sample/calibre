@@ -1,5 +1,4 @@
-"""
-Base classes and interfaces for calibration.
+"""Base classes and interfaces for calibration.
 
 This module provides the foundational classes that all calibrators inherit from,
 as well as optional mixins for additional functionality like diagnostics.
@@ -24,38 +23,34 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
     consistent API and functionality. This follows the scikit-learn transformer
     interface with fit/transform/fit_transform methods.
 
-    Parameters
-    ----------
-    enable_diagnostics
-        Whether to run plateau diagnostics after fitting.
+    Args:
+        enable_diagnostics: Whether to run plateau diagnostics after fitting.
 
-    Notes
-    -----
-    Subclasses must implement the fit() and transform() methods.
-    The fit_transform() method is provided by default.
+    Notes:
+        Subclasses must implement the fit() and transform() methods.
+        The fit_transform() method is provided by default.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre import BaseCalibrator
-    >>>
-    >>> class SimpleCalibrator(BaseCalibrator):
-    ...     def __init__(self, enable_diagnostics=False):
-    ...         super().__init__(enable_diagnostics=enable_diagnostics)
-    ...     def fit(self, X, y):
-    ...         self.mean_ = np.mean(y)
-    ...         return self
-    ...
-    ...     def transform(self, X):
-    ...         return np.full_like(X, self.mean_)
-    >>>
-    >>> X = np.array([0.1, 0.3, 0.5])
-    >>> y = np.array([0, 1, 1])
-    >>>
-    >>> cal = SimpleCalibrator()
-    >>> _ = cal.fit(X, y)
-    >>> cal.transform(X)
-    array([0.66666667, 0.66666667, 0.66666667])
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import BaseCalibrator
+        >>>
+        >>> class SimpleCalibrator(BaseCalibrator):
+        ...     def __init__(self, enable_diagnostics=False):
+        ...         super().__init__(enable_diagnostics=enable_diagnostics)
+        ...     def fit(self, X, y):
+        ...         self.mean_ = np.mean(y)
+        ...         return self
+        ...
+        ...     def transform(self, X):
+        ...         return np.full_like(X, self.mean_)
+        >>>
+        >>> X = np.array([0.1, 0.3, 0.5])
+        >>> y = np.array([0, 1, 1])
+        >>>
+        >>> cal = SimpleCalibrator()
+        >>> _ = cal.fit(X, y)
+        >>> cal.transform(X)
+        array([0.66666667, 0.66666667, 0.66666667])
     """
 
     def __init__(self, enable_diagnostics: bool = False) -> None:
@@ -76,20 +71,13 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         data storage and diagnostics, while delegating the actual fitting
         logic to the abstract _fit_impl() method that subclasses must implement.
 
-        Parameters
-        ----------
-        X
-            The values to be calibrated (e.g., predicted probabilities).
-        y
-            The target values (e.g., true labels).
-        sample_weight
-            Non-negative per-observation weights. Calibrators that cannot honour
-            weights raise rather than ignore them.
+        Args:
+            X: The values to be calibrated (e.g., predicted probabilities).
+            y: The target values (e.g., true labels).
+            sample_weight: Non-negative per-observation weights. Calibrators that cannot honour weights raise rather than ignore them.
 
-        Returns
-        -------
-        BaseCalibrator
-            Returns self for method chaining.
+        Returns:
+            BaseCalibrator: Returns self for method chaining.
         """
         # Store fit data for potential diagnostics
         self._fit_data_X = X
@@ -116,28 +104,21 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         the calibration-specific fitting logic. The base fit() method handles
         data storage, diagnostics, and return value automatically.
 
-        Parameters
-        ----------
-        X
-            The values to be calibrated (e.g., predicted probabilities).
-        y
-            The target values (e.g., true labels).
-        sample_weight
-            Non-negative per-observation weights.
+        Args:
+            X: The values to be calibrated (e.g., predicted probabilities).
+            y: The target values (e.g., true labels).
+            sample_weight: Non-negative per-observation weights.
 
-        Raises
-        ------
-        NotImplementedError
-            This method must be implemented by subclasses.
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
 
-        Notes
-        -----
-        Subclasses should implement this method instead of overriding fit().
-        The fit() method in the base class ensures consistent behavior
-        for diagnostics and data storage.
+        Notes:
+            Subclasses should implement this method instead of overriding fit().
+            The fit() method in the base class ensures consistent behavior
+            for diagnostics and data storage.
 
-        Implementations must do all of their work here, so that ``transform``
-        is a lookup against a fitted object rather than a re-solve.
+            Implementations must do all of their work here, so that ``transform``
+            is a lookup against a fitted object rather than a re-solve.
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement the _fit_impl() method"
@@ -149,15 +130,11 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         Silently discarding weights would quietly return the wrong estimator, so
         calibrators that have not yet been made weight-aware call this instead.
 
-        Parameters
-        ----------
-        sample_weight
-            The weights passed to :meth:`fit`.
+        Args:
+            sample_weight: The weights passed to :meth:`fit`.
 
-        Raises
-        ------
-        NotImplementedError
-            If ``sample_weight`` is not None.
+        Raises:
+            NotImplementedError: If ``sample_weight`` is not None.
         """
         if sample_weight is not None:
             raise NotImplementedError(
@@ -168,19 +145,14 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply calibration to new data.
 
-        Parameters
-        ----------
-        X
-            The values to be calibrated.
+        Args:
+            X: The values to be calibrated.
 
-        Returns
-        -------
-        Calibrated values.
+        Returns:
+            Calibrated values.
 
-        Raises
-        ------
-        NotImplementedError
-            This method must be implemented by subclasses.
+        Raises:
+            NotImplementedError: This method must be implemented by subclasses.
         """
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement the transform() method"
@@ -199,35 +171,27 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         in a single call. The default implementation simply calls fit()
         followed by transform().
 
-        Parameters
-        ----------
-        X
-            The values to be calibrated.
-        y
-            The target values.
-        sample_weight
-            Non-negative per-observation weights.
-        **fit_params
-            Ignored. Accepted for scikit-learn pipeline compatibility.
+        Args:
+            X: The values to be calibrated.
+            y: The target values.
+            sample_weight: Non-negative per-observation weights.
+            **fit_params: Ignored. Accepted for scikit-learn pipeline compatibility.
 
-        Returns
-        -------
-        Calibrated values.
+        Returns:
+            Calibrated values.
 
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from calibre import IsotonicCalibrator
-        >>> X = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-        >>> y = np.array([0, 0, 1, 1, 1])
-        >>> cal = IsotonicCalibrator()
-        >>> X_calibrated = cal.fit_transform(X, y)
+        Examples:
+            >>> import numpy as np
+            >>> from calibre import IsotonicCalibrator
+            >>> X = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
+            >>> y = np.array([0, 0, 1, 1, 1])
+            >>> cal = IsotonicCalibrator()
+            >>> X_calibrated = cal.fit_transform(X, y)
         """
         return self.fit(X, y, sample_weight).transform(X)
 
     def _run_diagnostics(self) -> None:
-        """
-        Run diagnostic analysis on the fitted calibrator.
+        """Run diagnostic analysis on the fitted calibrator.
 
         This method is called automatically after fitting if enable_diagnostics=True.
         It calls the standalone diagnostic functions from the diagnostics module.
@@ -249,79 +213,66 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             self.diagnostics_ = None
 
     def has_diagnostics(self) -> bool:
-        """
-        Check if diagnostic information is available.
+        """Check if diagnostic information is available.
 
-        Returns
-        -------
-        has_diag : bool
-            True if diagnostics have been computed and are available.
+        Returns:
+            has_diag: True if diagnostics have been computed and are available.
 
-        Examples
-        --------
-        >>> from calibre import IsotonicCalibrator
-        >>> import numpy as np
-        >>>
-        >>> X = np.array([0.1, 0.3, 0.5])
-        >>> y = np.array([0, 1, 1])
-        >>>
-        >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-        >>> _ = cal.fit(X, y)
-        >>> cal.has_diagnostics()
-        True
+        Examples:
+            >>> from calibre import IsotonicCalibrator
+            >>> import numpy as np
+            >>>
+            >>> X = np.array([0.1, 0.3, 0.5])
+            >>> y = np.array([0, 1, 1])
+            >>>
+            >>> cal = IsotonicCalibrator(enable_diagnostics=True)
+            >>> _ = cal.fit(X, y)
+            >>> cal.has_diagnostics()
+            True
         """
         return self.diagnostics_ is not None
 
     def get_diagnostics(self) -> dict | None:
-        """
-        Get diagnostic results.
+        """Get diagnostic results.
 
-        Returns
-        -------
-        dict | None
-            Diagnostic results from plateau analysis, or None if diagnostics
-            were not computed or are not available.
+        Returns:
+            dict | None: Diagnostic results from plateau analysis, or None if diagnostics were not computed or are not available.
 
-        Examples
-        --------
-        >>> from calibre import IsotonicCalibrator
-        >>> import numpy as np
-        >>>
-        >>> X = np.array([0.1, 0.3, 0.5])
-        >>> y = np.array([0, 1, 1])
-        >>>
-        >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-        >>> _ = cal.fit(X, y)
-        >>> cal.get_diagnostics()["n_plateaus"]
-        1
+        Examples:
+            >>> from calibre import IsotonicCalibrator
+            >>> import numpy as np
+            >>>
+            >>> X = np.array([0.1, 0.3, 0.5])
+            >>> y = np.array([0, 1, 1])
+            >>>
+            >>> cal = IsotonicCalibrator(enable_diagnostics=True)
+            >>> _ = cal.fit(X, y)
+            >>> cal.get_diagnostics()["n_plateaus"]
+            1
         """
         return self.diagnostics_
 
     def diagnostic_summary(self) -> str:
-        """
-        Get a human-readable summary of diagnostic analysis.
+        """Get a human-readable summary of diagnostic analysis.
 
-        Returns
-        -------
-        summary : str
-            Human-readable plateau summary.
+        Returns:
+            summary: Human-readable plateau summary.
 
-        Examples
-        --------
-        >>> from calibre import IsotonicCalibrator
-        >>> import numpy as np
-        >>>
-        >>> X = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-        >>> y = np.array([0, 0, 1, 1, 1])
-        >>>
-        >>> cal = IsotonicCalibrator(enable_diagnostics=True)
-        >>> _ = cal.fit(X, y)
-        >>> print(cal.diagnostic_summary())
-        Detected 2 plateau(s):
-        <BLANKLINE>
-        Warnings:
-          ... Plateau 1 at [0.100, 0.300] has only 2 samples - may be unreliable
-          ... Plateau 2 at [0.500, 0.900] has only 3 samples - may be unreliable
+        Examples:
+            >>> from calibre import IsotonicCalibrator
+            >>> import numpy as np
+            >>>
+            >>> X = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
+            >>> y = np.array([0, 0, 1, 1, 1])
+            >>>
+            >>> cal = IsotonicCalibrator(enable_diagnostics=True)
+            >>> _ = cal.fit(X, y)
+            >>> print(cal.diagnostic_summary())
+            Detected 2 plateau(s):
+            <BLANKLINE>
+            Warnings:
+              ... Plateau 1 at [0.100, 0.300] has only 2 samples - may be unreliable
+              ... Plateau 2 at [0.500, 0.900] has only 3 samples - may be unreliable
         """
         if not self.enable_diagnostics or self.diagnostics_ is None:
             return "Diagnostics not available. Set enable_diagnostics=True to enable."
@@ -345,54 +296,44 @@ class MonotonicMixin:
     This mixin provides utility methods for calibrators that aim to
     preserve or enforce monotonic relationships between inputs and outputs.
 
-    Methods
-    -------
-    check_monotonicity(y)
-        Check if an array is monotonically increasing.
-    enforce_monotonicity(y)
-        Enforce monotonicity on an array.
+    Methods:
+        check_monotonicity(y): Check if an array is monotonically increasing.
+        enforce_monotonicity(y): Enforce monotonicity on an array.
 
-    Notes
-    -----
-    This is a utility mixin that doesn't require any specific attributes.
-    It's designed to be mixed in with BaseCalibrator subclasses that
-    need monotonicity guarantees.
+    Notes:
+        This is a utility mixin that doesn't require any specific attributes.
+        It's designed to be mixed in with BaseCalibrator subclasses that
+        need monotonicity guarantees.
     """
 
     @staticmethod
     def check_monotonicity(y: np.ndarray, strict: bool = False) -> bool:
         """Check if an array is monotonically increasing.
 
-        Parameters
-        ----------
-        y
-            Values to check for monotonicity.
-        strict
-            If True, check for strictly increasing (no equal consecutive values).
-            If False, check for non-decreasing (allows equal consecutive values).
+        Args:
+            y: Values to check for monotonicity.
+            strict: If True, check for strictly increasing (no equal consecutive values). If False, check for non-decreasing (allows equal consecutive values).
 
-        Returns
-        -------
-        True if the array is monotonic according to the specified criteria.
+        Returns:
+            True if the array is monotonic according to the specified criteria.
 
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from calibre.base import MonotonicMixin
-        >>>
-        >>> y1 = np.array([0.1, 0.2, 0.3, 0.4])
-        >>> MonotonicMixin.check_monotonicity(y1)
-        True
-        >>>
-        >>> y2 = np.array([0.1, 0.3, 0.2, 0.4])
-        >>> MonotonicMixin.check_monotonicity(y2)
-        False
-        >>>
-        >>> y3 = np.array([0.1, 0.2, 0.2, 0.3])
-        >>> MonotonicMixin.check_monotonicity(y3, strict=False)
-        True
-        >>> MonotonicMixin.check_monotonicity(y3, strict=True)
-        False
+        Examples:
+            >>> import numpy as np
+            >>> from calibre.base import MonotonicMixin
+            >>>
+            >>> y1 = np.array([0.1, 0.2, 0.3, 0.4])
+            >>> MonotonicMixin.check_monotonicity(y1)
+            True
+            >>>
+            >>> y2 = np.array([0.1, 0.3, 0.2, 0.4])
+            >>> MonotonicMixin.check_monotonicity(y2)
+            False
+            >>>
+            >>> y3 = np.array([0.1, 0.2, 0.2, 0.3])
+            >>> MonotonicMixin.check_monotonicity(y3, strict=False)
+            True
+            >>> MonotonicMixin.check_monotonicity(y3, strict=True)
+            False
         """
         y = np.asarray(y)
         if len(y) <= 1:
@@ -412,30 +353,25 @@ class MonotonicMixin:
         This method ensures the array is non-decreasing by replacing any
         value that is less than the previous value with the previous value.
 
-        Parameters
-        ----------
-        y
-            Values to make monotonic.
-        inplace
-            If True, modify the array in place. Otherwise, return a copy.
+        Args:
+            y: Values to make monotonic.
+            inplace: If True, modify the array in place. Otherwise, return a copy.
 
-        Returns
-        -------
-        Monotonically increasing version of the input array.
+        Returns:
+            Monotonically increasing version of the input array.
 
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from calibre.base import MonotonicMixin
-        >>>
-        >>> y = np.array([0.1, 0.3, 0.2, 0.5, 0.4])
-        >>> y_mono = MonotonicMixin.enforce_monotonicity(y)
-        >>> print(y_mono)
-        [0.1 0.3 0.3 0.5 0.5]
-        >>>
-        >>> # Original array unchanged
-        >>> print(y)
-        [0.1 0.3 0.2 0.5 0.4]
+        Examples:
+            >>> import numpy as np
+            >>> from calibre.base import MonotonicMixin
+            >>>
+            >>> y = np.array([0.1, 0.3, 0.2, 0.5, 0.4])
+            >>> y_mono = MonotonicMixin.enforce_monotonicity(y)
+            >>> print(y_mono)
+            [0.1 0.3 0.3 0.5 0.5]
+            >>>
+            >>> # Original array unchanged
+            >>> print(y)
+            [0.1 0.3 0.2 0.5 0.4]
         """
         y_result = y if inplace else np.asarray(y).copy()
 

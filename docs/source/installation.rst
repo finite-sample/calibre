@@ -9,25 +9,35 @@ Calibre requires Python 3.12 or later.
 Installing from PyPI
 ---------------------
 
-The easiest way to install Calibre is from PyPI using pip:
-
 .. code-block:: bash
 
    pip install calibre
 
-This will install Calibre along with all required dependencies:
+This installs Calibre along with its runtime dependencies:
 
 - numpy >= 1.20.0
 - scipy >= 1.7.0
 - scikit-learn >= 1.0.0
 - cvxpy >= 1.2.0
-- pandas >= 1.3.0
-- matplotlib >= 3.4.0
+
+That is the whole list. pandas and matplotlib were runtime dependencies before
+0.7.0 and are not any more — nothing in the package imported them.
+
+Plotting
+--------
+
+:doc:`api/plots` needs matplotlib, which is an optional extra:
+
+.. code-block:: bash
+
+   pip install 'calibre[plots]'
+
+Everything else in calibre works without it. Importing ``calibre`` never imports
+matplotlib, so the core package stays light for anyone who only needs the
+numbers.
 
 Installing from Source
 ----------------------
-
-To install the latest development version from source:
 
 .. code-block:: bash
 
@@ -38,21 +48,21 @@ To install the latest development version from source:
 Development Installation
 ------------------------
 
-For development, install with additional development dependencies:
-
 .. code-block:: bash
 
    git clone https://github.com/finite-sample/calibre.git
    cd calibre
    uv sync --all-extras --dev
+   uv run pytest
 
-This includes:
+.. important::
 
-- pytest >= 6.0.0 (testing)
-- pytest-cov >= 2.12.0 (coverage)
-- black >= 21.5b2 (code formatting)
-- isort >= 5.9.0 (import sorting)
-- flake8 >= 3.8.0 (linting)
+   Development dependencies are a :pep:`735` ``[dependency-groups]`` entry, so
+   ``pip install -e ".[dev]"`` does **not** work. Use ``uv sync --all-extras
+   --dev``.
+
+Tooling is ruff (formatting and linting) plus pytest, pytest-cov and pyright.
+black, isort and flake8 were replaced by ruff in 0.4.1.
 
 Documentation Dependencies
 --------------------------
@@ -61,45 +71,35 @@ To build the documentation locally:
 
 .. code-block:: bash
 
-   pip install -e ".[docs]"
+   uv sync --all-extras --dev
+   make docs
 
-This includes:
-
-- sphinx >= 7.0.0
-- sphinx-rtd-theme >= 2.0.0
-- sphinx-autodoc-typehints >= 1.24.0
-- nbsphinx >= 0.9.0
-- myst-parser >= 2.0.0
+The docs group pulls sphinx, furo, myst-parser, sphinx-copybutton,
+sphinx-autodoc-typehints and nbsphinx, plus matplotlib and pandas, which the
+example notebooks use.
 
 Verifying Installation
 ----------------------
 
-To verify that Calibre is installed correctly:
-
 .. code-block:: python
 
    import calibre
-   print(f"Calibre version: {calibre.__version__}")
 
-You should see the version number printed without any errors.
+   print(f"Calibre version: {calibre.__version__}")
 
 Troubleshooting
 ---------------
 
-Common Issues
-~~~~~~~~~~~~~
-
 **ImportError: No module named 'cvxpy'**
 
-This usually means CVXPY failed to install. Try installing it separately:
+CVXPY is a hard runtime dependency because ``nearly_isotonic.py`` imports it at
+module level. If it failed to install, try it on its own:
 
 .. code-block:: bash
 
    pip install cvxpy
 
-**Installation fails on macOS**
-
-If you encounter issues on macOS, try using conda instead:
+On macOS, conda is often easier:
 
 .. code-block:: bash
 
@@ -108,8 +108,6 @@ If you encounter issues on macOS, try using conda instead:
 
 **Memory errors during installation**
 
-If you encounter memory errors, try installing with pip's no-cache option:
-
 .. code-block:: bash
 
    pip install --no-cache-dir calibre
@@ -117,8 +115,7 @@ If you encounter memory errors, try installing with pip's no-cache option:
 Getting Help
 ~~~~~~~~~~~~
 
-If you encounter installation issues:
-
-1. Check the `GitHub Issues <https://github.com/finite-sample/calibre/issues>`_ for similar problems
-2. Create a new issue with details about your system and error messages
-3. Include the output of ``pip --version`` and ``python --version``
+If you hit an installation problem, check the `GitHub Issues
+<https://github.com/finite-sample/calibre/issues>`_ for similar reports, then
+open a new one including the output of ``pip --version`` and ``python
+--version``.

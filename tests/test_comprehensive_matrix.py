@@ -30,6 +30,30 @@ from calibre.metrics import (
 )
 from tests.data_generators import CalibrationDataGenerator
 
+# Declared at module scope because @pytest.mark.parametrize is evaluated at
+# collection time, before setup_class populates cls.calibrator_configs. A test
+# asserts the two stay in step, so adding a calibrator to one and not the other
+# fails rather than silently going untested.
+_CALIBRATOR_NAMES = (
+    "nir_strict_cvx",
+    "nir_relaxed_cvx",
+    "nir_strict_path",
+    "nir_relaxed_path",
+    "ispline_small",
+    "ispline_medium",
+    "ispline_large",
+    "rpava_strict_adaptive",
+    "rpava_loose_adaptive",
+    "rpava_strict_block",
+    "rpava_loose_block",
+    "rir_weak",
+    "rir_medium",
+    "rir_strong",
+    "sir_fixed_small",
+    "sir_fixed_medium",
+    "sir_adaptive",
+)
+
 
 class TestMatrix:
     """Comprehensive test matrix for calibration algorithms."""
@@ -101,20 +125,21 @@ class TestMatrix:
     ) -> dict[str, Any]:
         """Run a single test combination and return results."""
         try:
-            # Generate data
-            if pattern in [
-                "weather_forecasting",
-                "click_through_rate",
-                "medical_diagnosis",
-            ]:
-                # These patterns have their own noise/parameter handling
-                y_pred, y_true = self.data_generator.generate_dataset(
-                    pattern, n_samples=n_samples
-                )
-            else:
-                y_pred, y_true = self.data_generator.generate_dataset(
-                    pattern, n_samples=n_samples, noise_level=noise_level
-                )
+            # Ask the generator whether it takes a noise level rather than
+            # keeping a list here. The list was wrong in both directions: it
+            # exempted click_through_rate, which does take one, and omitted
+            # imbalanced_binary, which does not -- so every imbalanced_binary
+            # combination raised TypeError and was recorded as a calibrator
+            # failure. That is one pattern in eight, which is exactly the 12.5%
+            # that the old `success_rate >= 0.7` assertion had room to absorb.
+            extra = (
+                {"noise_level": noise_level}
+                if self.data_generator.accepts(pattern, "noise_level")
+                else {}
+            )
+            y_pred, y_true = self.data_generator.generate_dataset(
+                pattern, n_samples=n_samples, **extra
+            )
 
             # Create calibrator
             calibrator = self.calibrator_configs[calibrator_name]()
@@ -497,87 +522,55 @@ class TestMatrix:
                 )
 
     @pytest.mark.slow
-    def test_comprehensive_matrix(self):
-        """Run the full test matrix (marked as slow)."""
-        failed_combinations = []
-        success_combinations = []
+    def test_the_parametrised_names_match_the_configured_ones(self):
+        """The module-level list must not drift from the configured calibrators.
 
-        total_combinations = (
-            len(self.calibrator_configs)
-            * len(self.data_patterns)
-            * len(self.sample_sizes)
-            * len(self.noise_levels)
-        )
+        Parametrisation reads the module-level tuple, so a calibrator added to
+        ``calibrator_configs`` alone would never be exercised by the matrix and
+        nothing would say so.
+        """
+        assert set(_CALIBRATOR_NAMES) == set(self.calibrator_configs)
 
-        print(f"\nRunning comprehensive test matrix: {total_combinations} combinations")
+    @pytest.mark.parametrize("calibrator_name", sorted(_CALIBRATOR_NAMES))
+    def test_comprehensive_matrix(self, calibrator_name):
+        """Every pattern/size/noise combination must run without error.
 
-        combination_count = 0
-        for calibrator_name in self.calibrator_configs:
-            for pattern in self.data_patterns:
-                for n_samples in self.sample_sizes:
-                    for noise_level in self.noise_levels:
-                        combination_count += 1
+        Parametrised by calibrator for two reasons. It used to be one test
+        looping over all 1296 combinations, which took 48 seconds -- a third of
+        the suite's serial runtime -- and, being a single test, could not be
+        distributed by xdist, so one worker held it while the others idled. And
+        a failure named nothing: the assertion was an aggregate rate, so the
+        report said only that some unspecified fraction of combinations failed.
 
-                        if combination_count % 50 == 0:
-                            print(f"Progress: {combination_count}/{total_combinations}")
-
-                        result = self._run_single_test(
-                            calibrator_name, pattern, n_samples, noise_level
+        The threshold used to be ``success_rate >= 0.7``. That tolerated 30% of
+        combinations failing, and it was in fact absorbing a hard failure:
+        ``imbalanced_binary`` raised ``TypeError`` for *every* calibrator, size
+        and noise level, because the caller passed it a ``noise_level`` its
+        generator does not accept. One pattern in eight is 12.5%, comfortably
+        inside the 30% allowance, so every calibrator scored exactly 87.5% and
+        the suite reported success. With that fixed the real rate is 100%, so
+        that is what is asserted -- a combination that errors is a bug, not a
+        statistic.
+        """
+        failures = []
+        total = 0
+        for pattern in self.data_patterns:
+            for n_samples in self.sample_sizes:
+                for noise_level in self.noise_levels:
+                    total += 1
+                    result = self._run_single_test(
+                        calibrator_name, pattern, n_samples, noise_level
+                    )
+                    if not result["success"]:
+                        failures.append(
+                            f"{pattern}/n={n_samples}/noise={noise_level}: "
+                            f"{result.get('error')}"
                         )
 
-                        if result["success"]:
-                            success_combinations.append(result)
-                        else:
-                            failed_combinations.append(result)
-
-        success_rate = len(success_combinations) / total_combinations
-        print(f"\nOverall success rate: {success_rate:.1%}")
-        print(f"Successful combinations: {len(success_combinations)}")
-        print(f"Failed combinations: {len(failed_combinations)}")
-
-        # Should have reasonable success rate
-        assert success_rate >= 0.7, f"Success rate too low: {success_rate:.1%}"
-
-        # Analyze failures
-        if failed_combinations:
-            failure_by_calibrator = {}
-            failure_by_pattern = {}
-
-            for failure in failed_combinations:
-                cal = failure["calibrator"]
-                pat = failure["pattern"]
-
-                failure_by_calibrator[cal] = failure_by_calibrator.get(cal, 0) + 1
-                failure_by_pattern[pat] = failure_by_pattern.get(pat, 0) + 1
-
-            print("\nFailures by calibrator:")
-            for cal, count in sorted(
-                failure_by_calibrator.items(), key=lambda x: x[1], reverse=True
-            ):
-                rate = count / (
-                    len(self.data_patterns)
-                    * len(self.sample_sizes)
-                    * len(self.noise_levels)
-                )
-                print(f"  {cal}: {count} failures ({rate:.1%})")
-
-            print("\nFailures by pattern:")
-            for pat, count in sorted(
-                failure_by_pattern.items(), key=lambda x: x[1], reverse=True
-            ):
-                rate = count / (
-                    len(self.calibrator_configs)
-                    * len(self.sample_sizes)
-                    * len(self.noise_levels)
-                )
-                print(f"  {pat}: {count} failures ({rate:.1%})")
-
-        # Store results for analysis
-        self.results = {
-            "successful": success_combinations,
-            "failed": failed_combinations,
-            "success_rate": success_rate,
-        }
+        assert not failures, (
+            f"{calibrator_name} failed {len(failures)} of {total} combinations:\n  "
+            + "\n  ".join(failures[:10])
+        )
 
 
 class TestMatrixAnalysis:

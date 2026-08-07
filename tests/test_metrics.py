@@ -498,3 +498,27 @@ def test_sweep_rejects_a_norm_below_one():
     p, y = _calibrated_sample(5, 100)
     with pytest.raises(ValueError, match="p must be at least 1"):
         calibre.metrics.sweep_calibration_error(y, p, p=0)
+
+
+def test_all_names_are_defined():
+    """Every name promised by ``__all__`` must exist."""
+    missing = [n for n in calibre.metrics.__all__ if not hasattr(calibre.metrics, n)]
+    assert missing == []
+
+
+def test_all_covers_every_public_function():
+    """No public metric may be missing from ``__all__``.
+
+    ``__all__`` used to be declared partway down the module, above
+    ``debiased_calibration_error`` and ``sweep_calibration_error``, so those two
+    were silently absent from ``from calibre.metrics import *``. This test fails
+    if a public metric is ever added without being exported.
+    """
+    import inspect
+
+    public = {
+        name
+        for name, obj in inspect.getmembers(calibre.metrics, inspect.isfunction)
+        if not name.startswith("_") and inspect.getmodule(obj) is calibre.metrics
+    }
+    assert public - set(calibre.metrics.__all__) == set()

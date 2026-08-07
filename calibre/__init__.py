@@ -1,5 +1,4 @@
-"""
-Calibre: Model Probability Calibration Library.
+"""Calibre: Model Probability Calibration Library.
 
 This library provides various methods for calibrating probability predictions
 from machine learning models to improve their reliability.
@@ -9,6 +8,12 @@ from __future__ import annotations
 
 # Get version from pyproject.toml - single source of truth
 import importlib.metadata
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    # Resolved lazily at runtime by __getattr__ below, so that matplotlib stays
+    # an optional dependency. Imported here only so type checkers can see it.
+    from . import plots
 
 # Import modules (users can do: from calibre import metrics)
 from . import metrics
@@ -33,6 +38,7 @@ from .diagnostics import detect_plateaus, run_plateau_diagnostics
 
 # Import the CORP evaluation stack
 from .evaluation import (
+    bootstrap_ci,
     confidence_bands,
     consistency_bands,
     corp_reliability,
@@ -51,7 +57,9 @@ from .metrics import (
     maximum_calibration_error,
     mean_calibration_error,
     plateau_quality_score,
+    plugin_calibration_error,
     progressive_sampling_diversity,
+    smooth_calibration_error,
     sweep_calibration_error,
     tie_preservation_score,
     unique_value_counts,
@@ -67,6 +75,9 @@ from .multiclass import (
     top_label_ece,
 )
 
+# Import the one-call summary
+from .report import CalibrationReport, calibration_report
+
 # Import the shared cross-validation machinery
 from .selection import cross_val_calibrate, make_folds, select_by_cv
 
@@ -77,6 +88,7 @@ __all__ = [
     "BaseCalibrator",
     # Calibrators
     "CDIIsotonicCalibrator",
+    "CalibrationReport",
     "CenteredIsotonicCalibrator",
     "IsotonicCalibrator",
     "MonotonicMixin",
@@ -88,9 +100,11 @@ __all__ = [
     "TemperatureScaler",
     # Metrics functions
     "binned_calibration_error",
+    "bootstrap_ci",
     "brier_score",
     "calibration_curve",
     "calibration_diversity_index",
+    "calibration_report",
     "classwise_decomposition",
     "classwise_ece",
     "classwise_reliability",
@@ -111,13 +125,50 @@ __all__ = [
     "metrics",
     "miscalibration_profile",
     "plateau_quality_score",
+    # Plotting (optional: needs `pip install 'calibre[plots]'`)
+    "plots",
+    "plugin_calibration_error",
     "progressive_sampling_diversity",
     # Diagnostic functions
     "run_plateau_diagnostics",
     "score_decomposition",
     "select_by_cv",
+    "smooth_calibration_error",
     "sweep_calibration_error",
     "tie_preservation_score",
     "top_label_ece",
     "unique_value_counts",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Resolve :mod:`calibre.plots` on first access.
+
+    :pep:`562` module-level lookup, so that ``calibre.plots`` works after a plain
+    ``import calibre`` without the plotting subpackage -- and therefore
+    matplotlib -- being imported when nobody asks for it. matplotlib is an
+    optional dependency and must stay one.
+
+    Args:
+        name: Attribute being looked up.
+
+    Returns:
+        object: The requested attribute.
+
+    Raises:
+        AttributeError: If ``name`` is not a lazily-exposed attribute.
+    """
+    if name == "plots":
+        from . import plots
+
+        return plots
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    """List the module's attributes, including the lazy ones.
+
+    Returns:
+        list of str: Sorted attribute names.
+    """
+    return sorted(set(__all__) | set(globals()))

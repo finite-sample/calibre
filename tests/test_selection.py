@@ -185,6 +185,103 @@ def test_select_by_cv_recovers_a_planted_optimum():
     assert best["lam"] == 100.0
 
 
+def test_select_by_cv_passes_training_weights_to_fold_fits():
+    """A weighted search must train each candidate with training-fold weights."""
+    x, y = _data(20, n=80)
+    weights = np.linspace(1.0, 3.0, y.size)
+    seen = []
+
+    class Recorder:
+        def __init__(self, marker=0):
+            self.marker = marker
+
+        def fit(self, X, y, sample_weight=None):
+            seen.append(None if sample_weight is None else np.asarray(sample_weight))
+            return self
+
+        def transform(self, X):
+            return np.full_like(X, 0.5, dtype=float)
+
+    select_by_cv(
+        lambda **kw: Recorder(**kw), {"marker": [1]}, x, y, sample_weight=weights, cv=4
+    )
+
+    assert seen
+    assert all(w is not None for w in seen)
+    assert sorted(len(w) for w in seen) == sorted(
+        len(train) for train, _ in make_folds(x, y, cv=4)
+    )
+
+
+def test_select_by_cv_does_not_invent_weights_when_none_are_supplied():
+    """Unit weights are for scoring only; unsupported calibrators must not see them."""
+    x, y = _data(21, n=80)
+    seen = []
+
+    class Recorder:
+        def __init__(self, marker=0):
+            self.marker = marker
+
+        def fit(self, X, y, sample_weight=None):
+            seen.append(sample_weight)
+            return self
+
+        def transform(self, X):
+            return np.full_like(X, 0.5, dtype=float)
+
+    select_by_cv(lambda **kw: Recorder(**kw), {"marker": [1]}, x, y, cv=4)
+
+    assert seen
+    assert all(w is None for w in seen)
+
+
+@pytest.mark.parametrize(
+    ("cls", "name"),
+    [(RegularizedIsotonicCalibrator, "alpha"), (RelaxedPAVACalibrator, "epsilon")],
+)
+def test_auto_selection_forwards_sample_weight(monkeypatch, cls, name):
+    """Auto-parameter search must use the same weights as the final fit."""
+    import calibre.selection as selection
+
+    x, y = _data(22, n=80)
+    weights = np.linspace(1.0, 4.0, y.size)
+    captured = {}
+
+    def fake_select_by_cv(*args, sample_weight=None, **kwargs):
+        captured["sample_weight"] = sample_weight
+        return {name: 0.0}
+
+    monkeypatch.setattr(selection, "select_by_cv", fake_select_by_cv)
+
+    cls().fit(x, y, sample_weight=weights)
+
+    np.testing.assert_allclose(captured["sample_weight"], weights)
+
+
+@pytest.mark.parametrize(
+    ("sample_weight", "match"),
+    [
+        (np.ones(79), "same shape"),
+        (np.r_[np.ones(79), np.nan], "finite non-negative"),
+        (np.r_[np.ones(79), -1.0], "finite non-negative"),
+        (np.zeros(80), "at least one positive"),
+    ],
+)
+def test_select_by_cv_rejects_malformed_sample_weights(sample_weight, match):
+    """Malformed weights should fail before fitting candidates or scoring folds."""
+    x, y = _data(23, n=80)
+
+    with pytest.raises(ValueError, match=match):
+        select_by_cv(
+            lambda **kw: IsotonicCalibrator(**kw),
+            {"out_of_bounds": ["clip"]},
+            x,
+            y,
+            sample_weight=sample_weight,
+            cv=4,
+        )
+
+
 def test_select_by_cv_rejects_calibration_error_as_a_criterion():
     """ECE is biased, so it is not offered as a selection criterion."""
     x, y = _data(10, n=200)

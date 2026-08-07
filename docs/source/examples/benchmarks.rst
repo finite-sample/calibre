@@ -1,478 +1,149 @@
 Performance Benchmarks
 ======================
 
-This section provides performance comparisons and benchmarks for different calibration methods.
+Every number on this page is produced by :mod:`benchmarks`, whose results are
+committed to the repository. ``python -m benchmarks.run`` reproduces them, and
+the docs build reads the committed CSVs rather than re-running anything.
 
-Interactive Performance Notebook
----------------------------------
+.. note::
 
-The most comprehensive benchmarks are available in our interactive Jupyter notebook:
+   This page previously carried a star-rating table scoring the calibrators on
+   "calibration error", "granularity preservation", "speed" and "robustness".
+   Those ratings had no provenance — no script produced them and no measurement
+   backed them. They were removed, and this is what replaced them.
 
-- **Location**: :doc:`../notebooks/04_performance_comparison` in the documentation
-- **Content**: Systematic comparison across all calibration methods
-- **Features**: Visual comparisons, quantitative metrics, computational efficiency analysis
+The design
+----------
 
-Accessing the Performance Notebook
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Thirty seeds over ten methods and ten dataset/model cells. Within a cell the
+calibrator is **the only thing that varies**: the out-of-fold scores and the test
+scores are computed once and shared, so a difference between two calibrators
+cannot be resampling noise. The test split is touched exactly once — nothing is
+selected, tuned or inspected on it.
 
-.. code-block:: bash
+Calibrators fit on out-of-fold scores from ``cross_val_predict``, because a
+model's scores on its own training rows are already too good and a calibrator
+fitted there learns the wrong correction.
 
-   # Clone repository
-   git clone https://github.com/finite-sample/calibre.git
-   cd calibre
-   
-   # Install dependencies
-   uv sync --all-extras --dev
-   
-   # Start Jupyter
-   jupyter notebook docs/source/notebooks/04_performance_comparison.ipynb
+Library defaults only. Tuning calibre's methods against an untuned isotonic
+baseline would settle the comparison by construction. One asymmetry is worth
+naming rather than hiding: :class:`~calibre.SplineCalibrator`, and the ``"auto"``
+defaults of the relaxed and regularized calibrators, choose their own
+hyperparameters by internal cross-validation. That is a real advantage over a
+fixed competitor, and it is paid for in the fit time the benchmark also records.
 
-Or view it online in the documentation: :doc:`../notebooks/04_performance_comparison`
+Everything that could be tuned to flatter calibre — datasets, seeds, model and
+calibrator settings, the baseline, which metrics are primary — lives in
+``benchmarks/config.py``, so the choices are visible in one diff.
 
-Method Comparison Summary
--------------------------
+Results
+-------
 
-Based on extensive benchmarking across different datasets and scenarios:
+The ``overconfident`` design: a model reporting ``1.8 * z`` for true log-odds
+``z``. Lower Brier is better. "vs known truth" is available because the design is
+synthetic, and it is the strongest evidence on the page. "Wins" counts seeds where
+the method beat ``sklearn_isotonic`` on held-out Brier.
 
-Performance Summary Table
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. list-table:: Calibration Method Performance
+.. csv-table::
+   :file: ../_static/bench/headline.csv
    :header-rows: 1
-   :widths: 25 15 15 15 15 15
+   :widths: 26 12 12 12 12 16 10
 
-   * - Method
-     - Calibration Error
-     - Granularity Preservation
-     - Computational Speed
-     - Robustness
-     - Use Case
-   * - Nearly Isotonic (strict)
-     - ★★★★★
-     - ★★☆☆☆
-     - ★★★☆☆
-     - ★★★★☆
-     - High-stakes decisions
-   * - Nearly Isotonic (relaxed)
-     - ★★★★☆
-     - ★★★★☆
-     - ★★★☆☆
-     - ★★★★☆
-     - Balanced approach
-   * - I-Spline
-     - ★★★★☆
-     - ★★★☆☆
-     - ★★☆☆☆
-     - ★★★☆☆
-     - Smooth calibration
-   * - Relaxed PAVA
-     - ★★★☆☆
-     - ★★★★★
-     - ★★★★★
-     - ★★★★★
-     - Large datasets
-   * - Regularized Isotonic
-     - ★★★☆☆
-     - ★★★☆☆
-     - ★★★★☆
-     - ★★★☆☆
-     - Smooth results needed
-   * - Smoothed Isotonic
-     - ★★★☆☆
-     - ★★★☆☆
-     - ★★★★☆
-     - ★★★★☆
-     - Visualization
+Three things to read off it.
 
-Detailed Performance Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**The Brier gains over isotonic are small.** The large win is the distinct-value
+column: around 1400–1600 values instead of 49, at a Brier difference in the fourth
+decimal. :class:`~calibre.RelaxedPAVACalibrator` is the cleanest case — it beats
+isotonic on 28 of 30 seeds by an average of 0.00001, which is to say it costs
+nothing, and keeps 28 times the resolution.
 
-Calibration Error Comparison
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+**scikit-learn's parametric methods win this design outright.** Both score better
+than anything in calibre and land four times closer to the known truth. That is
+not an artefact: the distortion here *is* a pure temperature change, so a
+one-parameter model is exactly specified and a non-parametric one is paying for
+flexibility it does not need. This is a regime where calibre loses, and it is a
+real one.
 
-.. code-block:: python
+**smECE barely separates the methods**, because it is a calibration measure and
+resolution is not miscalibration. No single number settles this comparison, which
+is why the page shows several and refuses to combine them.
 
-   import numpy as np
-   import matplotlib.pyplot as plt
-   from sklearn.datasets import make_classification
-   from sklearn.ensemble import RandomForestClassifier
-   from sklearn.model_selection import train_test_split
-   
-   from calibre import (
-       NearlyIsotonicCalibrator,
-       SplineCalibrator,
-       RelaxedPAVACalibrator,
-       RegularizedIsotonicCalibrator,
-       SmoothedIsotonicCalibrator,
-       mean_calibration_error,
-       expected_calibration_error
-   )
-   
-   def comprehensive_benchmark(n_datasets=10, n_samples=2000):
-       """Run comprehensive benchmark across multiple datasets."""
-       
-       calibrators = {
-           'Nearly Isotonic (λ=10)': NearlyIsotonicCalibrator(lam=10.0, method='path'),
-           'Nearly Isotonic (λ=1)': NearlyIsotonicCalibrator(lam=1.0, method='path'),
-           'Nearly Isotonic (λ=0.1)': NearlyIsotonicCalibrator(lam=0.1, method='path'),
-           'I-Spline': SplineCalibrator(n_knots=10, degree=3, cv=3),
-           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
-           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.1),
-           'Smoothed Isotonic': SmoothedIsotonicCalibrator(window_length=7, poly_order=3)
-       }
-       
-       results = {name: {'mce': [], 'ece': [], 'time': []} for name in calibrators.keys()}
-       
-       for dataset_idx in range(n_datasets):
-           print(f"\\rProcessing dataset {dataset_idx + 1}/{n_datasets}", end='')
-           
-           # Generate dataset with varying characteristics
-           X, y = make_classification(
-               n_samples=n_samples,
-               n_features=20,
-               n_informative=15,
-               n_redundant=2,
-               random_state=dataset_idx * 42
-           )
-           
-           X_train, X_test, y_train, y_test = train_test_split(
-               X, y, test_size=0.5, random_state=dataset_idx
-           )
-           
-           # Train base model
-           model = RandomForestClassifier(n_estimators=100, random_state=dataset_idx)
-           model.fit(X_train, y_train)
-           y_pred = model.predict_proba(X_test)[:, 1]
-           
-           # Test each calibrator
-           for name, calibrator in calibrators.items():
-               try:
-                   import time
-                   start_time = time.time()
-                   
-                   # Fit and transform
-                   calibrator.fit(y_pred, y_test)
-                   y_cal = calibrator.transform(y_pred)
-                   
-                   end_time = time.time()
-                   
-                   # Calculate metrics
-                   mce = mean_calibration_error(y_test, y_cal)
-                   ece = expected_calibration_error(y_test, y_cal, n_bins=10)
-                   
-                   results[name]['mce'].append(mce)
-                   results[name]['ece'].append(ece)
-                   results[name]['time'].append(end_time - start_time)
-                   
-               except Exception as e:
-                   print(f"\\nError with {name}: {e}")
-                   results[name]['mce'].append(np.nan)
-                   results[name]['ece'].append(np.nan)
-                   results[name]['time'].append(np.nan)
-       
-       print()  # New line after progress
-       return results
-   
-   # Run benchmark
-   benchmark_results = comprehensive_benchmark(n_datasets=5, n_samples=1000)
-   
-   # Display results
-   print("\\nBenchmark Results (Mean ± Std):")
-   print(f"{'Method':<25} {'MCE':<15} {'ECE':<15} {'Time (ms)':<15}")
-   print("-" * 75)
-   
-   for name, metrics in benchmark_results.items():
-       mce_mean = np.nanmean(metrics['mce'])
-       mce_std = np.nanstd(metrics['mce'])
-       ece_mean = np.nanmean(metrics['ece'])
-       ece_std = np.nanstd(metrics['ece'])
-       time_mean = np.nanmean(metrics['time']) * 1000  # Convert to ms
-       time_std = np.nanstd(metrics['time']) * 1000
-       
-       print(f"{name:<25} {mce_mean:.3f}±{mce_std:.3f}    "
-             f"{ece_mean:.3f}±{ece_std:.3f}    {time_mean:.1f}±{time_std:.1f}")
+What resolution actually looks like
+-----------------------------------
 
-Scalability Analysis
-~~~~~~~~~~~~~~~~~~~~
+One thin tick per distinct output value, one strip per method, drawn across the
+input range. The number of ticks *is* the number of distinct values.
 
-.. code-block:: python
+.. image:: ../_static/bench/resolution_loss.svg
+   :alt: One tick per distinct calibrated value, one strip per calibrator
+   :width: 100%
 
-   def scalability_benchmark():
-       """Test performance across different dataset sizes."""
-       
-       dataset_sizes = [500, 1000, 2000, 5000, 10000]
-       methods = {
-           'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0, method='path'),
-           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
-           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.1)
-       }
-       
-       timing_results = {method: [] for method in methods.keys()}
-       
-       for n_samples in dataset_sizes:
-           print(f"Testing with {n_samples} samples...")
-           
-           # Generate data
-           X, y = make_classification(n_samples=n_samples, n_features=20, random_state=42)
-           X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)
-           
-           # Train model
-           model = RandomForestClassifier(n_estimators=50, random_state=42)
-           model.fit(X_train, y_train)
-           y_pred = model.predict_proba(X_test)[:, 1]
-           
-           for method_name, calibrator in methods.items():
-               import time
-               
-               # Time the calibration process
-               start_time = time.time()
-               calibrator.fit(y_pred, y_test)
-               y_cal = calibrator.transform(y_pred)
-               end_time = time.time()
-               
-               timing_results[method_name].append(end_time - start_time)
-       
-       # Plot results
-       plt.figure(figsize=(10, 6))
-       for method_name, times in timing_results.items():
-           plt.plot(dataset_sizes, times, 'o-', label=method_name, linewidth=2)
-       
-       plt.xlabel('Dataset Size')
-       plt.ylabel('Time (seconds)')
-       plt.title('Calibration Method Scalability')
-       plt.legend()
-       plt.grid(True, alpha=0.3)
-       plt.yscale('log')
-       plt.show()
-       
-       return timing_results
-   
-   # Run scalability test
-   scalability_results = scalability_benchmark()
+The obvious objection is that the extra values might be noise. If they were, the
+methods keeping them would sit higher on the score axis:
 
-Dataset-Specific Performance
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. image:: ../_static/bench/resolution_frontier.svg
+   :alt: Held-out Brier score against distinct calibrated values retained
+   :width: 100%
 
-Performance on Different Data Types
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+They do not. The frontier is flat: two clusters more than a decade apart in
+resolution, at the same height.
 
-.. code-block:: python
+Paired differences against the baseline
+---------------------------------------
 
-   def dataset_specific_benchmark():
-       """Test performance on different types of datasets."""
-       
-       datasets = {
-           'balanced': lambda: make_classification(
-               n_samples=2000, n_features=20, weights=[0.5, 0.5], random_state=42
-           ),
-           'imbalanced': lambda: make_classification(
-               n_samples=2000, n_features=20, weights=[0.9, 0.1], random_state=42
-           ),
-           'high_dim': lambda: make_classification(
-               n_samples=2000, n_features=100, n_informative=20, random_state=42
-           ),
-           'low_info': lambda: make_classification(
-               n_samples=2000, n_features=20, n_informative=5, n_redundant=10, random_state=42
-           )
-       }
-       
-       calibrators = {
-           'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
-           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
-           'I-Spline': SplineCalibrator(n_knots=8, cv=3)
-       }
-       
-       results = {}
-       
-       for dataset_name, dataset_func in datasets.items():
-           print(f"\\nTesting on {dataset_name} dataset:")
-           
-           X, y = dataset_func()
-           X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)
-           
-           # Train model
-           model = RandomForestClassifier(n_estimators=100, random_state=42)
-           model.fit(X_train, y_train)
-           y_pred = model.predict_proba(X_test)[:, 1]
-           
-           dataset_results = {}
-           
-           for cal_name, calibrator in calibrators.items():
-               try:
-                   calibrator.fit(y_pred, y_test)
-                   y_cal = calibrator.transform(y_pred)
-                   
-                   mce = mean_calibration_error(y_test, y_cal)
-                   ece = expected_calibration_error(y_test, y_cal)
-                   
-                   dataset_results[cal_name] = {'mce': mce, 'ece': ece}
-                   print(f"  {cal_name}: MCE={mce:.4f}, ECE={ece:.4f}")
-                   
-               except Exception as e:
-                   print(f"  {cal_name}: Failed - {e}")
-                   dataset_results[cal_name] = {'mce': np.nan, 'ece': np.nan}
-           
-           results[dataset_name] = dataset_results
-       
-       return results
-   
-   # Run dataset-specific benchmark
-   dataset_results = dataset_specific_benchmark()
+Seed variance dwarfs the effect being measured, so levels would invite reading
+noise as a result. Differencing *within* a seed removes the dataset draw, the
+model fit and the split, leaving only the calibrator. The interval resamples
+**seeds**, because the seed is the unit of replication.
 
-Robustness Analysis
-~~~~~~~~~~~~~~~~~~~
+.. image:: ../_static/bench/brier_deltas.svg
+   :alt: Per-seed Brier improvement over sklearn_isotonic, with intervals
+   :width: 100%
 
-Noise Sensitivity
-~~~~~~~~~~~~~~~~~
+An interval that spans zero is drawn spanning zero. Across all 90 method-cells, 45
+beat ``sklearn_isotonic`` with an interval clear of zero.
 
-.. code-block:: python
+Where calibre loses
+-------------------
 
-   def noise_sensitivity_test():
-       """Test calibrator robustness to different noise levels."""
-       
-       noise_levels = [0.0, 0.05, 0.1, 0.2, 0.3]
-       calibrators = {
-           'Nearly Isotonic': NearlyIsotonicCalibrator(lam=1.0),
-           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.03),  # a little more slack for noisy data
-           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.5)
-       }
-       
-       results = {name: [] for name in calibrators.keys()}
-       
-       for noise_level in noise_levels:
-           print(f"Testing noise level: {noise_level}")
-           
-           # Generate clean data
-           X, y = make_classification(n_samples=2000, n_features=20, random_state=42)
-           X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)
-           
-           # Train model
-           model = RandomForestClassifier(n_estimators=100, random_state=42)
-           model.fit(X_train, y_train)
-           y_pred_clean = model.predict_proba(X_test)[:, 1]
-           
-           # Add noise to predictions
-           noise = np.random.normal(0, noise_level, len(y_pred_clean))
-           y_pred_noisy = np.clip(y_pred_clean + noise, 0, 1)
-           
-           for name, calibrator in calibrators.items():
-               try:
-                   calibrator.fit(y_pred_noisy, y_test)
-                   y_cal = calibrator.transform(y_pred_noisy)
-                   mce = mean_calibration_error(y_test, y_cal)
-                   results[name].append(mce)
-               except:
-                   results[name].append(np.nan)
-       
-       # Plot results
-       plt.figure(figsize=(10, 6))
-       for name, mce_values in results.items():
-           plt.plot(noise_levels, mce_values, 'o-', label=name, linewidth=2)
-       
-       plt.xlabel('Noise Level')
-       plt.ylabel('Mean Calibration Error')
-       plt.title('Robustness to Prediction Noise')
-       plt.legend()
-       plt.grid(True, alpha=0.3)
-       plt.show()
-       
-       return results
-   
-   # Run noise sensitivity test
-   noise_results = noise_sensitivity_test()
+Named rather than buried, because a benchmark that only reports wins is not a
+benchmark.
 
-Memory Usage Analysis
-~~~~~~~~~~~~~~~~~~~~~
+- **``overconfident``** — Platt and temperature scaling beat every calibre method,
+  as above.
+- **``breast_cancer/logreg``** — *not calibrating at all* beats isotonic by 0.0013
+  Brier, interval [0.0003, 0.0025], on 22 of 30 seeds. Logistic regression is
+  already close to calibrated there and the test half is only about 228 rows, so
+  pooling costs more than it buys.
+- **``NearlyIsotonicCalibrator``** at its defaults is close to plain isotonic on
+  these designs — 51 distinct values against 49. Its resolution frontier is
+  dominated by centered isotonic regression, which reaches more distinct values at
+  a better score, so no default was invented to hide this. See the class docstring.
 
-.. code-block:: python
+``nonmonotone`` was built expecting calibre to lose, since no monotone calibrator
+can express a non-monotone truth. It did not: :class:`~calibre.RegularizedIsotonicCalibrator`
+scores 0.2156 against Platt's 0.2224, because the parametric methods cannot follow
+the dip either and give up more. That is what measuring is for.
 
-   import psutil
-   import os
-   
-   def memory_usage_benchmark():
-       """Analyze memory usage of different calibrators."""
-       
-       def get_memory_usage():
-           process = psutil.Process(os.getpid())
-           return process.memory_info().rss / 1024 / 1024  # MB
-       
-       # Generate large dataset
-       X, y = make_classification(n_samples=50000, n_features=20, random_state=42)
-       X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)
-       
-       model = RandomForestClassifier(n_estimators=100, random_state=42)
-       model.fit(X_train, y_train)
-       y_pred = model.predict_proba(X_test)[:, 1]
-       
-       calibrators = {
-           'Nearly Isotonic (CVX)': NearlyIsotonicCalibrator(lam=1.0, method='cvx'),
-           'Nearly Isotonic (Path)': NearlyIsotonicCalibrator(lam=1.0, method='path'),
-           'Relaxed PAVA': RelaxedPAVACalibrator(epsilon=0.02),
-           'Regularized Isotonic': RegularizedIsotonicCalibrator(alpha=0.1)
-       }
-       
-       memory_results = {}
-       
-       for name, calibrator in calibrators.items():
-           print(f"Testing memory usage for {name}...")
-           
-           # Measure baseline memory
-           baseline_memory = get_memory_usage()
-           
-           try:
-               # Fit calibrator
-               calibrator.fit(y_pred, y_test)
-               
-               # Measure peak memory
-               peak_memory = get_memory_usage()
-               
-               # Transform data
-               y_cal = calibrator.transform(y_pred)
-               
-               # Measure final memory
-               final_memory = get_memory_usage()
-               
-               memory_results[name] = {
-                   'peak_usage': peak_memory - baseline_memory,
-                   'final_usage': final_memory - baseline_memory
-               }
-               
-           except Exception as e:
-               print(f"Failed: {e}")
-               memory_results[name] = {'peak_usage': np.nan, 'final_usage': np.nan}
-       
-       # Display results
-       print("\\nMemory Usage Results:")
-       print(f"{'Method':<25} {'Peak (MB)':<12} {'Final (MB)':<12}")
-       print("-" * 50)
-       
-       for name, usage in memory_results.items():
-           print(f"{name:<25} {usage['peak_usage']:<12.1f} {usage['final_usage']:<12.1f}")
-       
-       return memory_results
-   
-   # Run memory benchmark
-   memory_results = memory_usage_benchmark()
+What keeps it honest
+--------------------
 
-Benchmark Reproduction
-~~~~~~~~~~~~~~~~~~~~~~
+Guards, not promises. Each of these fails loudly:
 
-To reproduce these benchmarks:
+- ``calibre_isotonic`` must reproduce ``sklearn_isotonic`` to 1e-12 on every row.
+  calibre's wrapper is a thin layer over scikit-learn's, so any divergence is a
+  bug — and a benchmark that hid it would be reporting calibre's advantage over
+  its own baseline.
+- ``aggregate.py`` refuses to summarise a cell missing any of its seeds, naming
+  the offenders. A dataset that errored on half its seeds would otherwise be
+  averaged over whatever survived.
+- **No composite score.** Score and resolution stay on separate axes. Folding them
+  into one number is where a thumb goes on the scale.
+- Figures are drawn through :mod:`calibre.plots`, so a regression in the plotting
+  layer breaks the benchmark build instead of quietly producing a wrong picture
+  here.
 
-1. **Install Calibre with development dependencies**:
-
-   .. code-block:: bash
-
-      uv sync --all-extras --dev
-
-2. **Run the interactive performance comparison notebook**:
-
-   .. code-block:: bash
-
-      jupyter notebook docs/source/notebooks/04_performance_comparison.ipynb
-
-3. **Execute individual benchmark functions** from this documentation
-
-4. **Customize benchmarks** for your specific datasets and use cases
-
-Our interactive notebooks provide comprehensive visualizations, systematic comparisons, and detailed analysis. See :doc:`../notebooks/04_performance_comparison` for the most current benchmarks, and :doc:`index` for all available examples.
+netcal is optional and off by default, enabled with ``--include-netcal``. It is
+not a hard dependency: the moment it lags a Python release, a required import
+would make the whole harness un-runnable — which silently stops the benchmark
+being re-run, the failure this design exists to prevent.

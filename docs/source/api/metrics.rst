@@ -1,7 +1,43 @@
 Calibration Metrics
 ===================
 
-This module provides various metrics for evaluating calibration quality.
+This module provides metrics for evaluating calibration quality.
+
+For the CORP reliability diagram and the ``MCB``/``DSC``/``UNC`` score
+decomposition — which need no bin count and cannot be tuned in your favour —
+see :doc:`evaluation`.
+
+Bias-aware calibration error
+----------------------------
+
+The plugin binned estimator is biased upward: part of each bin's gap is sampling
+noise in the label mean rather than miscalibration, and the bias grows with the
+bin count. These two estimators correct for that, and are the ones to reach for
+when the number will be reported.
+
+Smooth Calibration Error (smECE)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.smooth_calibration_error
+
+Unlike everything below it, smECE has no bin count *and* no bandwidth to choose,
+and it is a consistent measure of distance from calibration. It is the one to
+reach for when the number will be quoted without qualification.
+
+Debiased Calibration Error
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.debiased_calibration_error
+
+Sweep Calibration Error
+~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.sweep_calibration_error
+
+Plugin Calibration Error
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.plugin_calibration_error
 
 Calibration Error Metrics
 --------------------------
@@ -26,6 +62,15 @@ Maximum Calibration Error
 
 .. autofunction:: calibre.maximum_calibration_error
 
+.. note::
+
+   These estimators are not interchangeable, and their magnitudes are not
+   comparable. :func:`~calibre.expected_calibration_error` and
+   :func:`~calibre.sweep_calibration_error` are :math:`\ell_1`;
+   :func:`~calibre.debiased_calibration_error` is :math:`\ell_2`.
+   :func:`~calibre.expected_calibration_error` uses uniform-width bins, while the
+   two bias-aware estimators use equal-mass bins. Compare like with like.
+
 Scoring Metrics
 ---------------
 
@@ -47,10 +92,37 @@ Correlation Metrics
 
 .. autofunction:: calibre.correlation_metrics
 
+Granularity Metrics
+-------------------
+
+These measure what a calibrator did to the *resolution* of your scores — the
+thing isotonic regression quietly destroys. No other calibration package
+reports them.
+
 Unique Value Counts
 ~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: calibre.unique_value_counts
+
+Calibration Diversity Index
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.calibration_diversity_index
+
+Tie Preservation Score
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.tie_preservation_score
+
+Plateau Quality Score
+~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.plateau_quality_score
+
+Progressive Sampling Diversity
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. autofunction:: calibre.progressive_sampling_diversity
 
 Usage Examples
 --------------
@@ -60,76 +132,70 @@ Basic Evaluation
 
 .. code-block:: python
 
-   from calibre import (
-       mean_calibration_error,
-       expected_calibration_error,
-       brier_score
-   )
    import numpy as np
-   
-   # Example data
+
+   from calibre import (
+       brier_score,
+       expected_calibration_error,
+       mean_calibration_error,
+   )
+
    y_true = np.array([0, 0, 1, 1, 1])
    y_pred = np.array([0.1, 0.3, 0.6, 0.8, 0.9])
-   
-   # Calculate metrics
-   mce = mean_calibration_error(y_true, y_pred)
-   ece = expected_calibration_error(y_true, y_pred, n_bins=5)
-   bs = brier_score(y_true, y_pred)
-   
-   print(f"Mean Calibration Error: {mce:.4f}")
-   print(f"Expected Calibration Error: {ece:.4f}")
-   print(f"Brier Score: {bs:.4f}")
 
-Comprehensive Evaluation
-~~~~~~~~~~~~~~~~~~~~~~~~
+   print(f"Brier score {brier_score(y_true, y_pred):.4f}")
+   print(f"ECE         {expected_calibration_error(y_true, y_pred, n_bins=5):.4f}")
+   print(f"bias        {mean_calibration_error(y_true, y_pred):.4f}")
+
+``brier_score`` is a proper scoring rule and the one to optimise.
+``mean_calibration_error`` is calibration in the large, ``|mean(prediction) −
+base rate|``.
+
+Reporting an honest calibration error
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On data that is calibrated by construction the true error is zero, so whatever
+the plugin estimator reports is bias:
 
 .. code-block:: python
+
+   import numpy as np
+
+   from calibre import debiased_calibration_error, sweep_calibration_error
+   from calibre.metrics import expected_calibration_error
+
+   rng = np.random.default_rng(0)
+   p = rng.uniform(0, 1, 4000)
+   y = rng.binomial(1, p).astype(float)
+
+   print(f"plugin ECE  {expected_calibration_error(y, p, n_bins=15):.4f}")
+   print(f"debiased    {debiased_calibration_error(y, p, n_bins=15):.4f}")
+   print(f"sweep       {sweep_calibration_error(y, p):.4f}")
+
+Measuring what calibration cost you in resolution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   import numpy as np
 
    from calibre import (
-       binned_calibration_error,
-       correlation_metrics,
-       unique_value_counts
+       CenteredIsotonicCalibrator,
+       IsotonicCalibrator,
+       unique_value_counts,
    )
-   
-   # Binned calibration with details
-   bce, details = binned_calibration_error(
-       y_true, y_pred, 
-       n_bins=10, 
-       return_details=True
-   )
-   
-   print(f"Binned Calibration Error: {bce:.4f}")
-   print(f"Bin centers: {details['bin_centers']}")
-   print(f"Bin accuracies: {details['bin_true_means']}")
-   
-   # Correlation analysis
-   corr = correlation_metrics(y_true, y_pred)
-   print(f"Spearman correlation: {corr['spearman_corr_to_y_true']:.4f}")
-   
-   # Granularity analysis
-   counts = unique_value_counts(y_pred)
-   print(f"Unique values: {counts['n_unique_y_pred']}")
 
-Plotting Calibration Curves
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   rng = np.random.default_rng(0)
+   scores = rng.uniform(0, 1, 2000)
+   labels = rng.binomial(1, scores).astype(float)
 
-.. code-block:: python
+   for name, cal in (
+       ("isotonic", IsotonicCalibrator()),
+       ("centered", CenteredIsotonicCalibrator()),
+   ):
+       out = cal.fit(scores, labels).transform(scores)
+       counts = unique_value_counts(out, y_orig=scores)
+       print(f"{name:9s} {counts['n_unique_y_pred']:5d} distinct values")
 
-   import matplotlib.pyplot as plt
-   from calibre import calibration_curve
-   
-   # Generate calibration curve data
-   fraction_pos, mean_pred, counts = calibration_curve(
-       y_true, y_pred, n_bins=10
-   )
-   
-   # Plot reliability diagram
-   plt.figure(figsize=(8, 6))
-   plt.plot([0, 1], [0, 1], 'k--', label='Perfect calibration')
-   plt.plot(mean_pred, fraction_pos, 'bo-', label='Model')
-   plt.xlabel('Mean Predicted Probability')
-   plt.ylabel('Fraction of Positives')
-   plt.title('Calibration Plot')
-   plt.legend()
-   plt.grid(True, alpha=0.3)
-   plt.show()
+Both are well calibrated. Only one of them still tells you which of two cases
+is the riskier bet.

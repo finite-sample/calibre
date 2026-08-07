@@ -5,6 +5,7 @@ This module provides functions to generate synthetic datasets that mimic
 common miscalibration patterns observed in real machine learning models.
 """
 
+import inspect
 import zlib
 from typing import Any
 
@@ -472,7 +473,24 @@ class CalibrationDataGenerator:
             )
             % (2**32)
         )
-        generators = {
+        generators = self._generators()
+
+        if pattern not in generators:
+            raise ValueError(
+                f"Unknown pattern '{pattern}'. Available patterns: {list(generators.keys())}"
+            )
+
+        return generators[pattern](n_samples=n_samples, **kwargs)
+
+    def _generators(self) -> dict[str, Any]:
+        """Map each pattern name to the method that generates it.
+
+        Returns
+        -------
+        dict
+            Pattern name to bound generator method.
+        """
+        return {
             "overconfident_nn": self.overconfident_neural_network,
             "underconfident_rf": self.underconfident_random_forest,
             "sigmoid_distorted": self.sigmoid_temperature_distorted,
@@ -483,12 +501,40 @@ class CalibrationDataGenerator:
             "medical_diagnosis": self.medical_diagnosis_pattern,
         }
 
+    def accepts(self, pattern: str, parameter: str) -> bool:
+        """Whether a pattern's generator takes the named keyword.
+
+        Callers vary parameters that only some patterns support, and a
+        hard-coded list of which is which drifts silently: it named
+        ``click_through_rate`` as not taking ``noise_level`` when it does, and
+        omitted ``imbalanced_binary``, which does not -- so every
+        ``imbalanced_binary`` combination in the comprehensive matrix raised
+        ``TypeError`` and was counted as a calibrator failure. Deriving the
+        answer from the signature cannot drift.
+
+        Parameters
+        ----------
+        pattern
+            Pattern name.
+        parameter
+            Keyword to test for.
+
+        Returns
+        -------
+        bool
+            True if the generator accepts that keyword.
+
+        Raises
+        ------
+        ValueError
+            If the pattern is unknown.
+        """
+        generators = self._generators()
         if pattern not in generators:
             raise ValueError(
-                f"Unknown pattern '{pattern}'. Available patterns: {list(generators.keys())}"
+                f"Unknown pattern '{pattern}'. Available: {sorted(generators)}"
             )
-
-        return generators[pattern](n_samples=n_samples, **kwargs)
+        return parameter in inspect.signature(generators[pattern]).parameters
 
     def get_pattern_info(self) -> dict[str, dict[str, Any]]:
         """Get information about available patterns and their parameters.

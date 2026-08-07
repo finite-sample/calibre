@@ -1,5 +1,4 @@
-"""
-Array operation utilities.
+"""Array operation utilities.
 
 This module provides functions for common array operations used in calibration,
 such as sorting, transforming, and manipulating arrays.
@@ -13,37 +12,28 @@ import numpy as np
 def sort_by_x(
     X: np.ndarray, y: np.ndarray
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Sort arrays by X values and return sort indices.
+    """Sort arrays by X values and return sort indices.
 
-    Parameters
-    ----------
-    X
-        Values to sort by.
-    y
-        Values to sort along with X.
+    Args:
+        X: Values to sort by.
+        y: Values to sort along with X.
 
-    Returns
-    -------
-    sort_idx : ndarray of shape (n_samples,)
-        Indices that would sort X.
-    X_sorted : ndarray of shape (n_samples,)
-        Sorted X array.
-    y_sorted : ndarray of shape (n_samples,)
-        Sorted y array.
+    Returns:
+        sort_idx: Indices that would sort X.
+        X_sorted: Sorted X array.
+        y_sorted: Sorted y array.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.array_ops import sort_by_x
-    >>>
-    >>> X = np.array([0.3, 0.1, 0.2])
-    >>> y = np.array([1, 0, 0])
-    >>> idx, X_sorted, y_sorted = sort_by_x(X, y)
-    >>> print(X_sorted)
-    [0.1 0.2 0.3]
-    >>> print(y_sorted)
-    [0 0 1]
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.array_ops import sort_by_x
+        >>>
+        >>> X = np.array([0.3, 0.1, 0.2])
+        >>> y = np.array([1, 0, 0])
+        >>> idx, X_sorted, y_sorted = sort_by_x(X, y)
+        >>> print(X_sorted)
+        [0.1 0.2 0.3]
+        >>> print(y_sorted)
+        [0 0 1]
     """
     X = np.asarray(X)
     y = np.asarray(y)
@@ -56,95 +46,74 @@ def sort_by_x(
 
 
 def clip_to_range(X: np.ndarray, lower: float = 0.0, upper: float = 1.0) -> np.ndarray:
-    """
-    Clip array values to a specified range.
+    """Clip array values to a specified range.
 
-    Parameters
-    ----------
-    X
-        Array to clip.
-    lower
-        Lower bound.
-    upper
-        Upper bound.
+    Args:
+        X: Array to clip.
+        lower: Lower bound.
+        upper: Upper bound.
 
-    Returns
-    -------
-    X_clipped : ndarray
-        Clipped array.
+    Returns:
+        X_clipped: Clipped array.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.array_ops import clip_to_range
-    >>>
-    >>> X = np.array([-0.1, 0.5, 1.2])
-    >>> X_clipped = clip_to_range(X, 0.0, 1.0)
-    >>> print(X_clipped)
-    [0.  0.5 1. ]
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.array_ops import clip_to_range
+        >>>
+        >>> X = np.array([-0.1, 0.5, 1.2])
+        >>> X_clipped = clip_to_range(X, 0.0, 1.0)
+        >>> print(X_clipped)
+        [0.  0.5 1. ]
     """
     return np.clip(X, lower, upper)
 
 
 def ensure_1d(X: np.ndarray) -> np.ndarray:
-    """
-    Ensure array is 1-dimensional by raveling.
+    """Ensure array is 1-dimensional by raveling.
 
-    Parameters
-    ----------
-    X
-        Array to ensure is 1D.
+    Args:
+        X: Array to ensure is 1D.
 
-    Returns
-    -------
-    X_1d : ndarray of shape (n_samples,)
-        1-dimensional array.
+    Returns:
+        X_1d: 1-dimensional array.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.array_ops import ensure_1d
-    >>>
-    >>> X = np.array([[0.1, 0.2, 0.3]])
-    >>> X_1d = ensure_1d(X)
-    >>> print(X_1d.shape)
-    (3,)
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.array_ops import ensure_1d
+        >>>
+        >>> X = np.array([[0.1, 0.2, 0.3]])
+        >>> X_1d = ensure_1d(X)
+        >>> print(X_1d.shape)
+        (3,)
     """
     return np.asarray(X).ravel()
 
 
 def restore_order(X_sorted: np.ndarray, original_order: np.ndarray) -> np.ndarray:
-    """
-    Restore original order of a sorted array.
+    """Restore original order of a sorted array.
 
-    Parameters
-    ----------
-    X_sorted
-        Sorted array.
-    original_order
-        Original sort indices from sort_by_x.
+    Args:
+        X_sorted: Sorted array.
+        original_order: Original sort indices from sort_by_x.
 
-    Returns
-    -------
-    X_restored : ndarray
-        Array in original order.
+    Returns:
+        X_restored: Array in original order.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.array_ops import sort_by_x, restore_order
-    >>>
-    >>> X = np.array([0.3, 0.1, 0.2])
-    >>> y = np.array([1, 0, 0])
-    >>> idx, X_sorted, y_sorted = sort_by_x(X, y)
-    >>>
-    >>> # Do something with sorted arrays
-    >>> y_sorted_modified = y_sorted * 2
-    >>>
-    >>> # Restore original order
-    >>> y_restored = restore_order(y_sorted_modified, idx)
-    >>> print(y_restored)
-    [2 0 0]
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.array_ops import sort_by_x, restore_order
+        >>>
+        >>> X = np.array([0.3, 0.1, 0.2])
+        >>> y = np.array([1, 0, 0])
+        >>> idx, X_sorted, y_sorted = sort_by_x(X, y)
+        >>>
+        >>> # Do something with sorted arrays
+        >>> y_sorted_modified = y_sorted * 2
+        >>>
+        >>> # Restore original order
+        >>> y_restored = restore_order(y_sorted_modified, idx)
+        >>> print(y_restored)
+        [2 0 0]
     """
     X_sorted = np.asarray(X_sorted)
     X_restored = np.empty_like(X_sorted)
@@ -155,34 +124,26 @@ def restore_order(X_sorted: np.ndarray, original_order: np.ndarray) -> np.ndarra
 def find_unique_sorted(
     X: np.ndarray, tolerance: float = 1e-10
 ) -> tuple[np.ndarray, np.ndarray]:
-    """
-    Find unique values in a sorted array with tolerance.
+    """Find unique values in a sorted array with tolerance.
 
-    Parameters
-    ----------
-    X
-        Sorted array to find unique values in.
-    tolerance
-        Tolerance for considering values equal.
+    Args:
+        X: Sorted array to find unique values in.
+        tolerance: Tolerance for considering values equal.
 
-    Returns
-    -------
-    unique_values : ndarray
-        Unique values.
-    unique_indices : ndarray
-        Indices of first occurrence of each unique value.
+    Returns:
+        unique_values: Unique values.
+        unique_indices: Indices of first occurrence of each unique value.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.array_ops import find_unique_sorted
-    >>>
-    >>> X = np.array([0.1, 0.1, 0.2, 0.2, 0.2, 0.3])
-    >>> unique_vals, unique_idx = find_unique_sorted(X)
-    >>> print(unique_vals)
-    [0.1 0.2 0.3]
-    >>> print(unique_idx)
-    [0 2 5]
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.array_ops import find_unique_sorted
+        >>>
+        >>> X = np.array([0.1, 0.1, 0.2, 0.2, 0.2, 0.3])
+        >>> unique_vals, unique_idx = find_unique_sorted(X)
+        >>> print(unique_vals)
+        [0.1 0.2 0.3]
+        >>> print(unique_idx)
+        [0 2 5]
     """
     X = np.asarray(X)
 
@@ -203,35 +164,26 @@ def find_unique_sorted(
 def group_by_value(
     X: np.ndarray, y: np.ndarray, tolerance: float = 1e-10
 ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-    """
-    Group y values by unique X values.
+    """Group y values by unique X values.
 
-    Parameters
-    ----------
-    X
-        Values to group by (must be sorted).
-    y
-        Values to group.
-    tolerance
-        Tolerance for considering X values equal.
+    Args:
+        X: Values to group by (must be sorted).
+        y: Values to group.
+        tolerance: Tolerance for considering X values equal.
 
-    Returns
-    -------
-    groups : list of ndarray
-        List of y value groups.
-    group_indices : list of ndarray
-        List of indices for each group.
+    Returns:
+        groups: List of y value groups.
+        group_indices: List of indices for each group.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.array_ops import group_by_value
-    >>>
-    >>> X = np.array([0.1, 0.1, 0.2, 0.2, 0.3])
-    >>> y = np.array([0, 1, 1, 1, 0])
-    >>> groups, indices = group_by_value(X, y)
-    >>> print([g.tolist() for g in groups])
-    [[0, 1], [1, 1], [0]]
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.array_ops import group_by_value
+        >>>
+        >>> X = np.array([0.1, 0.1, 0.2, 0.2, 0.3])
+        >>> y = np.array([0, 1, 1, 1, 0])
+        >>> groups, indices = group_by_value(X, y)
+        >>> print([g.tolist() for g in groups])
+        [[0, 1], [1, 1], [0]]
     """
     X = np.asarray(X)
     y = np.asarray(y)
@@ -258,39 +210,28 @@ def interpolate_monotonic(
     bounds_error: bool = False,
     fill_value: float | tuple[float, float] | None = None,
 ) -> np.ndarray:
-    """
-    Interpolate monotonic function at new points.
+    """Interpolate monotonic function at new points.
 
-    Parameters
-    ----------
-    X_train
-        Training X values (must be sorted).
-    y_train
-        Training y values (should be monotonic).
-    X_test
-        Test X values to interpolate at.
-    bounds_error
-        Whether to raise error for out-of-bounds values.
-    fill_value
-        Value(s) to use for out-of-bounds points.
-        If None, uses (y_train[0], y_train[-1]).
+    Args:
+        X_train: Training X values (must be sorted).
+        y_train: Training y values (should be monotonic).
+        X_test: Test X values to interpolate at.
+        bounds_error: Whether to raise error for out-of-bounds values.
+        fill_value: Value(s) to use for out-of-bounds points. If None, uses (y_train[0], y_train[-1]).
 
-    Returns
-    -------
-    y_test : ndarray of shape (n_test,)
-        Interpolated values.
+    Returns:
+        y_test: Interpolated values.
 
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from calibre.utils.array_ops import interpolate_monotonic
-    >>>
-    >>> X_train = np.array([0.0, 0.5, 1.0])
-    >>> y_train = np.array([0.0, 0.3, 1.0])
-    >>> X_test = np.array([0.25, 0.75])
-    >>> y_test = interpolate_monotonic(X_train, y_train, X_test)
-    >>> print(y_test)
-    [0.15 0.65]
+    Examples:
+        >>> import numpy as np
+        >>> from calibre.utils.array_ops import interpolate_monotonic
+        >>>
+        >>> X_train = np.array([0.0, 0.5, 1.0])
+        >>> y_train = np.array([0.0, 0.3, 1.0])
+        >>> X_test = np.array([0.25, 0.75])
+        >>> y_test = interpolate_monotonic(X_train, y_train, X_test)
+        >>> print(y_test)
+        [0.15 0.65]
     """
     X_train = np.asarray(X_train)
     y_train = np.asarray(y_train)
