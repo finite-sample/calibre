@@ -42,8 +42,11 @@ plots = ["matplotlib>=3.9"]
 # tests to fail rather than skip, and a test that skips when an optional
 # dependency is absent tests nothing. The absence path is covered by simulating
 # absence (tests/test_plots_deps.py), not by leaving matplotlib uninstalled.
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-xdist>=3.0", "ruff>=0.7.0", "pre-commit>=3.0", "pydoclint>=0.8.3", "pyright>=1.1.390", "matplotlib>=3.9"]
+dev = ["simcheck @ git+https://github.com/finite-sample/simcheck", "pytest>=7.0", "pytest-cov>=4.0", "pytest-xdist>=3.0", "ruff>=0.7.0", "pre-commit>=3.0", "pydoclint>=0.8.3", "pyright>=1.1.390", "matplotlib>=3.9"]
 test = [
+    # The Monte Carlo gates. A dependency-group entry, never a published
+    # extra: PyPI rejects direct URL references in project metadata.
+    "simcheck @ git+https://github.com/finite-sample/simcheck",
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.0",

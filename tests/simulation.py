@@ -58,6 +58,7 @@ from dataclasses import dataclass, field
 from itertools import pairwise
 
 import numpy as np
+from simcheck import binomial_band
 
 __all__ = [
     "DESIGNS",
@@ -643,6 +644,16 @@ def assert_coverage(
 ) -> None:
     """Assert empirical coverage matches a nominal level within Monte Carlo error.
 
+    The band comes from :func:`simcheck.binomial_band`, which takes the standard
+    error under the *null* -- ``sqrt(p(1-p)/n)`` at the nominal ``p``. This
+    function previously used the standard error of the *observed* proportion,
+    which is the Wald form and degenerates when every replication covers or none
+    does; it needed a ``1/n`` floor to stay usable at all. Testing whether
+    coverage equals a stated level is a hypothesis about the null value, so the
+    null's standard error is the right one, and the floor is then unnecessary
+    rather than merely patched over. Where the observation sits near nominal the
+    two agree exactly.
+
     Parameters
     ----------
     hits
@@ -663,10 +674,11 @@ def assert_coverage(
         ``nominal``.
     """
     covered = hits / n
-    se = mc_se_proportion(hits, n)
+    low, high = binomial_band(nominal, n, sigmas=n_se)
+    se = float(np.sqrt(nominal * (1.0 - nominal) / n))
     deviation = abs(covered - nominal) / se if se > 0 else float("inf")
-    assert deviation <= n_se, (
+    assert low <= covered <= high, (
         f"{label}: coverage {covered:.1%} vs nominal {nominal:.1%} is "
-        f"{deviation:.1f} Monte Carlo standard errors away "
-        f"(se {se:.4f}, R {n}, allowed {n_se})"
+        f"{deviation:.1f} Monte Carlo standard errors away, outside the "
+        f"{n_se:g}-sigma band [{low:.1%}, {high:.1%}] over R {n}"
     )

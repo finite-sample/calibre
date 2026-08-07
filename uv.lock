@@ -122,6 +122,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
     { name = "ruff" },
+    { name = "simcheck" },
 ]
 docs = [
     { name = "furo" },
@@ -140,6 +141,7 @@ test = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
+    { name = "simcheck" },
 ]
 
 [package.metadata]
@@ -162,6 +164,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=4.0" },
     { name = "pytest-xdist", specifier = ">=3.0" },
     { name = "ruff", specifier = ">=0.7.0" },
+    { name = "simcheck", git = "https://github.com/finite-sample/simcheck" },
 ]
 docs = [
     { name = "furo" },
@@ -180,6 +183,7 @@ test = [
     { name = "pytest", specifier = ">=7.0" },
     { name = "pytest-cov", specifier = ">=4.0" },
     { name = "pytest-xdist", specifier = ">=3.0" },
+    { name = "simcheck", git = "https://github.com/finite-sample/simcheck" },
 ]
 
 [[package]]
@@ -2220,6 +2224,14 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/34/26/f5d29e25ffdb535afef2d35cdb55b325298f96debd670da4c325e08d70f4/setuptools-83.0.0.tar.gz", hash = "sha256:025bccbbf0fa05b6192bc64ae1e7b16e001fd6d6d4d5de03c97b1c1ade523bef", size = 1154254 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5d/40/e1e72872c6354b306daef1703549e8e83b4d43cfea356311bf722a043752/setuptools-83.0.0-py3-none-any.whl", hash = "sha256:29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3", size = 1008090 },
+]
+
+[[package]]
+name = "simcheck"
+version = "0.0.0.post6.dev0+9dbd1f9"
+source = { git = "https://github.com/finite-sample/simcheck#9dbd1f9e91650a8f251d40441f63b7ba24441f6f" }
+dependencies = [
+    { name = "numpy" },
 ]
 
 [[package]]
