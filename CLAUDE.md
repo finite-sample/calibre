@@ -278,9 +278,13 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 - Uses pytest fixtures for test data generation
 - Coverage reporting via pytest-cov
 - Tests must fail rather than skip. Do not add `except Exception: pytest.skip(...)`.
-- Total tests: 1054, all passing (includes doctests, collected via --doctest-modules)
-- `-n auto` is in `addopts`: the suite is ~170s with coverage against ~600s serial,
-  with identical results. It was added because the CI job timeout is 15 minutes.
+- Total tests: 1071, all passing (includes doctests, collected via --doctest-modules)
+- **`-n auto` is deliberately not in `addopts`.** Locally it is worth it (~140s on
+  eight workers against ~600s serial, identical results), so run `pytest -n auto`
+  yourself. It must not be the default: xdist sizes `auto` from `os.cpu_count()`,
+  which on a containerised runner reports the host's CPUs rather than the ones the
+  container can use. Setting it in `addopts` took CI's Ubuntu test step from 7m37s
+  to 24m26s and timed out the 20-minute wheel job.
 - A repo-root `conftest.py` sets `MPLBACKEND=Agg` and closes figures after each test.
   It must import nothing but the standard library: setting the backend only works
   before matplotlib is first imported.

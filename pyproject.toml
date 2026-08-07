@@ -147,11 +147,13 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--doctest-modules",
-    # The suite is ~600s serial, against a 15-minute CI job timeout -- close
-    # enough that a slow runner would start failing on the clock rather than on
-    # the code. At -n 8 it is ~110s with identical results.
-    "-n",
-    "auto",
+    # Deliberately NOT `-n auto`. Locally it is a large win -- ~600s serial
+    # against ~140s on eight workers -- but xdist's `auto` sizes the pool from
+    # `os.cpu_count()`, which on a containerised CI runner reports the host's
+    # CPUs rather than the two or four the container may actually use. Setting it
+    # here took the Ubuntu test step from 7m37s to 24m26s and pushed the
+    # 20-minute wheel job into a timeout. Pass `-n auto` on the command line when
+    # you want it; do not make it the default that CI inherits.
     "--cov=calibre",
     "--cov-report=term-missing",
     "--cov-report=html",

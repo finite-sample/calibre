@@ -249,6 +249,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **One eighth of the comprehensive test matrix had never run.**
+  `_run_single_test` passed `noise_level` to every pattern outside a hard-coded
+  exemption list, and that list was wrong in both directions: it exempted
+  `click_through_rate`, which does accept one, and omitted `imbalanced_binary`,
+  which does not. So every `imbalanced_binary` combination raised `TypeError` and
+  was recorded as a *calibrator* failure — 216 of 1296 combinations, for every
+  calibrator, at every sample size and noise level.
+
+  It went unnoticed because the assertion was `success_rate >= 0.7`. One pattern
+  in eight is 12.5%, comfortably inside a 30% allowance, so all seventeen
+  calibrators scored exactly 87.5% and the suite reported success. The list is
+  now derived from the generator's signature (`CalibrationDataGenerator.accepts`),
+  so it cannot drift, and with the combinations actually running the real rate is
+  100% — which is what is now asserted, per calibrator.
+
+  The test is also parametrised by calibrator rather than looping over all 1296
+  combinations in one 48-second test, so a failure names the calibrator instead
+  of reporting an aggregate rate.
+
 - `calibre.metrics.__all__` was declared partway down the module, above
   `debiased_calibration_error` and `sweep_calibration_error`, so
   `from calibre.metrics import *` silently omitted both. Moved to the end of the file,
