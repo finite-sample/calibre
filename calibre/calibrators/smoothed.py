@@ -23,6 +23,7 @@ from scipy.signal import savgol_filter
 from .._core import PiecewiseLinear, aggregate_ties, weighted_pava
 from ..base import (
     DEFAULT_POLY_ORDER,
+    MIN_SAVGOL_WINDOW,
     MIN_VARIANCE_THRESHOLD,
     BaseCalibrator,
     MonotonicMixin,
@@ -247,7 +248,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
             window_size = self._find_optimal_window_size(
                 distances, self.min_window_, max_window, m
             )
-            if window_size >= 5:
+            if window_size >= MIN_SAVGOL_WINDOW:
                 y_smoothed[i] = self._apply_local_smoothing(i, window_size, y_iso, m)
         return y_smoothed
 
@@ -294,7 +295,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         window_len = end_idx - start_idx
         if window_len % 2 == 0:
             window_len -= 1
-        if window_len < 5:
+        if window_len < MIN_SAVGOL_WINDOW:
             return float(y_iso[i])
 
         poly_ord = min(self.poly_order_, window_len - 1)
