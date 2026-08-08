@@ -384,6 +384,11 @@ class MonotonicMixin:
 
 # Module constants for validation and default values
 DEFAULT_MIN_WINDOW = 5
+# Shortest window a Savitzky-Golay filter can use here. The filter needs
+# window_length > polyorder and an odd length, so a cubic fit (DEFAULT_POLY_ORDER)
+# bottoms out at 5. Named because it appeared as a bare 5 in two places in
+# smoothed.py, where changing one and not the other would silently half-apply.
+MIN_SAVGOL_WINDOW = 5
 DEFAULT_POLY_ORDER = 3
 DEFAULT_N_BOOTSTRAPS = 100
 DEFAULT_N_SPLITS = 5
@@ -397,6 +402,7 @@ __all__ = [
     "DEFAULT_N_BOOTSTRAPS",
     "DEFAULT_N_SPLITS",
     "DEFAULT_POLY_ORDER",
+    "MIN_SAVGOL_WINDOW",
     "MIN_VARIANCE_THRESHOLD",
     "WINDOW_DIVISOR",
     "BaseCalibrator",

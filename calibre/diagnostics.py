@@ -13,6 +13,12 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# Plateau widths, in number of tied samples, at which the reported
+# `sample_density` label changes. Conventional cut points for a human-readable
+# summary, not thresholds anything is inferred from.
+SPARSE_PLATEAU_WIDTH = 5
+MODERATE_PLATEAU_WIDTH = 10
+
 
 def run_plateau_diagnostics(
     X: np.ndarray,
@@ -164,10 +170,12 @@ def analyze_plateau_simple(
     x_min = float(np.min(X_plateau))
     x_max = float(np.max(X_plateau))
 
-    # Assess sample density (simple thresholds)
-    if width < 5:
+    # The labels are a convenience for reading a diagnostic, not a statistical
+    # statement, and the cut points are conventional rather than derived -- which
+    # is exactly why they are named here instead of sitting bare in the branch.
+    if width < SPARSE_PLATEAU_WIDTH:
         sample_density = "very_sparse"
-    elif width < 10:
+    elif width < MODERATE_PLATEAU_WIDTH:
         sample_density = "sparse"
     else:
         sample_density = "adequate"
