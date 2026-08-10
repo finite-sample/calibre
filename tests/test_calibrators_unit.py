@@ -18,7 +18,7 @@ from calibre import (
     SmoothedIsotonicCalibrator,
     SplineCalibrator,
 )
-from calibre.metrics import brier_score
+from calibre.metrics import binned_calibration_error, brier_score
 
 
 @pytest.fixture
@@ -40,6 +40,97 @@ def calibration_data():
 
 
 @pytest.fixture
+def miscalibrated_data():
+    """A calibration problem a calibrator can be judged on.
+
+    ``calibration_data`` above cannot serve for accuracy claims. It sets
+    ``y_true = x`` exactly, and every calibrator here is monotone in ``x`` by
+    construction, so any comparison of ``transform(x)`` against ``y_true``
+    reduces to "a monotone function of x correlates with x" -- which is true of
+    the input itself, and of anything that does nothing. Its targets also reach
+    ~1.52, so they are not probabilities and two calibrators reject them
+    outright under their defaults.
+
+    This one is the real thing: probabilities in (0, 1), outcomes drawn from
+    them, and ``score`` a monotone distortion of the truth. Being monotone, the
+    distortion leaves the ranking untouched and every rank-based statistic
+    blind to it -- which is exactly the failure a calibrator exists to repair,
+    and exactly what ``corr`` could not see.
+
+    Returns:
+        tuple: ``(score, y, p_true)`` -- the miscalibrated score, the binary
+        outcomes, and the probabilities that generated them.
+    """
+    rng = np.random.default_rng(0)
+    n = 2000
+    p_true = rng.uniform(0.02, 0.98, n)
+    score = p_true**1.8
+    y = rng.binomial(1, p_true).astype(float)
+    return score, y, p_true
+
+
+class DoesNothing:
+    """A calibrator-shaped object that returns its input untouched.
+
+    The control. Every accuracy assertion in this file is checked against it,
+    because an assertion no implementation can fail is not evidence. The six
+    ``corr(y_true, y_calib) > 0.5`` checks this replaced all passed with this
+    object scoring 0.9837.
+    """
+
+    def fit(self, X, y):
+        return self
+
+    def transform(self, X):
+        return np.asarray(X, dtype=float)
+
+
+def _calibration_error(predictions, y):
+    """Binned calibration error of ``predictions`` against outcomes ``y``.
+
+    Args:
+        predictions: Predicted probabilities.
+        y: Binary outcomes.
+
+    Returns:
+        float: Binned calibration error over ten equal-width bins.
+    """
+    error = binned_calibration_error(y, np.clip(predictions, 0.0, 1.0), n_bins=10)
+    # The signature is `float | dict`; the dict is the `return_details=True`
+    # branch, which is not taken here.
+    assert not isinstance(error, dict)
+    return float(error)
+
+
+def assert_calibrates(calibrator, miscalibrated_data, factor=3.0):
+    """Assert a calibrator materially reduces calibration error.
+
+    Stated as a ratio to the error it started with rather than an absolute
+    bar, so it carries no picked constant tied to this fixture's noise level.
+    Measured headroom is large: the raw score sits at 0.1499 and the worst
+    calibrator at 0.0287, a factor of 5, against the factor of 3 required here.
+
+    Args:
+        calibrator: A fitted-or-unfitted calibrator exposing fit/transform.
+        miscalibrated_data: The ``(score, y, p_true)`` fixture tuple.
+        factor: How many times smaller the calibrated error must be.
+
+    Returns:
+        float: The achieved calibration error, for callers that want to compare
+        further.
+    """
+    score, y, _ = miscalibrated_data
+    before = _calibration_error(score, y)
+    after = _calibration_error(calibrator.fit(score, y).transform(score), y)
+    assert after * factor < before, (
+        f"calibration error {after:.4f} is not {factor}x below the "
+        f"uncalibrated {before:.4f}; a calibrator that did nothing would "
+        f"score {before:.4f}"
+    )
+    return after
+
+
+@pytest.fixture
 def binary_data():
     """Generate binary classification data for testing."""
     np.random.seed(42)
@@ -47,6 +138,48 @@ def binary_data():
     x = np.random.uniform(0, 1, n)
     y = (x + np.random.normal(0, 0.1, n) > 0.5).astype(int)
     return x, y
+
+
+class TestTheAccuracyBarCanBeFailed:
+    """The control for every ``assert_calibrates`` call in this file.
+
+    Six tests here used to assert ``corr(y_true, y_calib) > 0.5`` and nothing
+    else about accuracy. No implementation could fail it: correlation is
+    invariant to increasing affine maps, and miscalibration *is* an increasing
+    map, so a calibrator returning half the true probability scores exactly
+    1.0. Measured on the old fixture, ``DoesNothing`` scored 0.9837 and the raw
+    uncalibrated observations 0.7209 -- both comfortably past the bar.
+
+    An assertion that nothing can fail is not evidence, so the replacement
+    carries a control that does fail.
+    """
+
+    def test_a_calibrator_that_does_nothing_fails_the_bar(self):
+        """Without this, the six replacements would be as vacuous as the six
+        assertions they replaced.
+        """
+        rng = np.random.default_rng(0)
+        n = 2000
+        p_true = rng.uniform(0.02, 0.98, n)
+        data = (p_true**1.8, rng.binomial(1, p_true).astype(float), p_true)
+
+        with pytest.raises(AssertionError, match=r"not 3\.0x below"):
+            assert_calibrates(DoesNothing(), data)
+
+    def test_a_real_calibrator_clears_it(self, miscalibrated_data):
+        """The other half: the bar must not be so high that nothing passes."""
+        assert assert_calibrates(IsotonicCalibrator(), miscalibrated_data) >= 0.0
+
+    def test_correlation_cannot_see_miscalibration(self):
+        """Why the statistic was changed, not just the threshold.
+
+        Rank-preserving distortion is invisible to correlation by construction.
+        Anyone tempted to reinstate a correlation check should read this first.
+        """
+        truth = np.linspace(0.05, 0.95, 200)
+        for distorted in (0.5 * truth, 0.4 + 0.2 * truth):
+            assert np.corrcoef(truth, distorted)[0, 1] == pytest.approx(1.0)
+            assert np.mean(np.abs(distorted - truth)) > 0.1
 
 
 class TestIsotonicCalibrator:
@@ -87,27 +220,29 @@ class TestIsotonicCalibrator:
 class TestNearlyIsotonicCalibrator:
     """Test NearlyIsotonicCalibrator functionality."""
 
-    def test_cvx_method(self, calibration_data):
+    def test_cvx_method(self, calibration_data, miscalibrated_data):
         """Test NearlyIsotonicCalibrator with CVX method."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
         cal = NearlyIsotonicCalibrator(lam=10.0, method="cvx")
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
-        corr = np.corrcoef(y_true, y_calib)[0, 1]
-        assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
+        assert_calibrates(
+            NearlyIsotonicCalibrator(lam=10.0, method="cvx"), miscalibrated_data
+        )
 
-    def test_path_method(self, calibration_data):
+    def test_path_method(self, calibration_data, miscalibrated_data):
         """Test NearlyIsotonicCalibrator with path method."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
         cal = NearlyIsotonicCalibrator(lam=0.1, method="path")
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
-        corr = np.corrcoef(y_true, y_calib)[0, 1]
-        assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
+        assert_calibrates(
+            NearlyIsotonicCalibrator(lam=0.1, method="path"), miscalibrated_data
+        )
 
     def test_invalid_method(self, calibration_data):
         """An unknown solver name must be rejected by fit, not deferred.
@@ -126,9 +261,9 @@ class TestNearlyIsotonicCalibrator:
 class TestSplineCalibrator:
     """Test SplineCalibrator functionality."""
 
-    def test_basic_functionality(self, calibration_data):
+    def test_basic_functionality(self, calibration_data, miscalibrated_data):
         """Test SplineCalibrator basic operations."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
         # The `calibration_data` fixture's targets run outside [0, 1] (up to
         # ~1.52), so they are not probabilities and the Bernoulli likelihood
         # does not apply -- fit on the identity scale instead.
@@ -138,8 +273,7 @@ class TestSplineCalibrator:
 
         assert len(y_calib) == len(x)
         assert np.all((y_calib >= 0) & (y_calib <= 1))
-        corr = np.corrcoef(y_true, y_calib)[0, 1]
-        assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
+        assert_calibrates(SplineCalibrator(), miscalibrated_data)
 
     def test_parameter_variations(self, calibration_data):
         """Test different parameter combinations."""
@@ -163,17 +297,25 @@ class TestSplineCalibrator:
 class TestRelaxedPAVACalibrator:
     """Test RelaxedPAVACalibrator functionality."""
 
-    def test_basic_functionality(self, calibration_data):
+    def test_basic_functionality(self, calibration_data, miscalibrated_data):
         """Test RelaxedPAVACalibrator basic operations."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
         cal = RelaxedPAVACalibrator(epsilon=0.02)
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
         assert np.all((y_calib >= 0) & (y_calib <= 1))
-        corr = np.corrcoef(y_true, y_calib)[0, 1]
-        assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
+        # A lower bar than the other calibrators get, and deliberately so:
+        # epsilon buys granularity by permitting small decreases, and pays for
+        # it in calibration. Measured on this fixture, reduction against the
+        # uncalibrated score falls monotonically with epsilon --
+        # 0.0 exact, 0.005 5.4x, 0.02 2.7x, 0.05 1.6x. The 0.02 asked for here
+        # cannot clear 3x, and pretending otherwise would mean either lowering
+        # the bar for everyone or quietly testing a different epsilon.
+        assert_calibrates(
+            RelaxedPAVACalibrator(epsilon=0.02), miscalibrated_data, factor=2.0
+        )
 
     def test_epsilon_relaxes_monotonicity_monotonically(self, calibration_data):
         """A larger epsilon must permit at least as much total decrease.
@@ -308,9 +450,9 @@ class TestRelaxedPAVACalibrator:
 class TestRegularizedIsotonicCalibrator:
     """Test RegularizedIsotonicCalibrator functionality."""
 
-    def test_basic_functionality(self, calibration_data):
+    def test_basic_functionality(self, calibration_data, miscalibrated_data):
         """Test RegularizedIsotonicCalibrator basic operations."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
         # The `calibration_data` fixture's targets run outside [0, 1] (up to
         # ~1.52), so they are not probabilities and the Bernoulli likelihood
         # does not apply -- fit on the identity scale instead.
@@ -320,8 +462,7 @@ class TestRegularizedIsotonicCalibrator:
 
         assert len(y_calib) == len(x)
         assert np.all((y_calib >= 0) & (y_calib <= 1))
-        corr = np.corrcoef(y_true, y_calib)[0, 1]
-        assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
+        assert_calibrates(RegularizedIsotonicCalibrator(alpha=0.1), miscalibrated_data)
 
     def test_regularization_strength(self, calibration_data):
         """Test different regularization strengths."""
@@ -338,17 +479,19 @@ class TestRegularizedIsotonicCalibrator:
 class TestSmoothedIsotonicCalibrator:
     """Test SmoothedIsotonicCalibrator functionality."""
 
-    def test_basic_functionality(self, calibration_data):
+    def test_basic_functionality(self, calibration_data, miscalibrated_data):
         """Test SmoothedIsotonicCalibrator basic operations."""
-        x, y_observed, y_true = calibration_data
+        x, y_observed, _y_true = calibration_data
         cal = SmoothedIsotonicCalibrator(window_length=7, poly_order=3)
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
         assert np.all((y_calib >= 0) & (y_calib <= 1))
-        corr = np.corrcoef(y_true, y_calib)[0, 1]
-        assert corr > 0.5, f"Expected correlation > 0.5, got {corr}"
+        assert_calibrates(
+            SmoothedIsotonicCalibrator(window_length=7, poly_order=3),
+            miscalibrated_data,
+        )
 
     def test_smoothing_parameters(self, calibration_data):
         """Test different smoothing configurations."""
