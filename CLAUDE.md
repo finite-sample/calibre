@@ -270,15 +270,30 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
   - `tests/test_integration.py`: Full workflow and edge case testing
   - `tests/test_properties.py`: Mathematical property validation
   - `tests/test_metrics.py`: Calibration metrics testing
+  - `tests/test_evaluation.py`: `calibre.evaluation` — CORP, decompositions, bands
+  - `tests/test_selection.py`: Cross-validated model selection
+  - `tests/test_multiclass.py`: Temperature scaling and per-class calibration
+  - `tests/test_report.py`: The text report
   - `tests/test_utils.py`: Utility function testing
   - `tests/test_monotone_spline.py`: Monotonicity guarantees for the spline calibrators
+  - `tests/test_bootstrap_bias.py`: Bias of the bootstrap intervals
   - `tests/test_r_reference.py`: Cross-language checks against committed R fixtures
+  - `tests/test_relplot_reference.py`: Checks against relplot's published numbers
   - `tests/test_readme.py`: Executes every README code block and checks claimed output
+  - `tests/test_benchmarks.py`: The benchmark harness's schema and its guards
+  - `tests/test_plots_deps.py`: The optional-matplotlib contract, in a subprocess
+  - `tests/test_plots_contracts.py`, `tests/test_plots_claims.py`,
+    `tests/test_plots_degenerate.py`: The plotting API's rules, what each picture
+    claims, and what it does on degenerate input
+  - `tests/simulation.py`, `tests/test_monte_carlo.py`,
+    `tests/test_simulation_gates.py`: The Monte Carlo layer — see below
   - `tests/data_generators.py`: Realistic test data generators for various calibration scenarios
 - Uses pytest fixtures for test data generation
 - Coverage reporting via pytest-cov
 - Tests must fail rather than skip. Do not add `except Exception: pytest.skip(...)`.
-- Total tests: 1071, all passing (includes doctests, collected via --doctest-modules)
+- The suite is all-passing; the total is deliberately not written down here,
+  because a hardcoded count is wrong by the next PR and nothing checks it. Run
+  `pytest` for the number. Doctests are included, collected via `--doctest-modules`.
 - **`-n auto` is deliberately not in `addopts`.** Locally it is worth it (~140s on
   eight workers against ~600s serial, identical results), so run `pytest -n auto`
   yourself. It must not be the default: xdist sizes `auto` from `os.cpu_count()`,
@@ -288,6 +303,41 @@ diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
 - A repo-root `conftest.py` sets `MPLBACKEND=Agg` and closes figures after each test.
   It must import nothing but the standard library: setting the backend only works
   before matplotlib is first imported.
+
+### The Monte Carlo layer, and simcheck
+
+`tests/simulation.py` holds data-generating processes whose population values are
+known in closed form, and the assertions that use them. It asks what neither the
+R fixtures nor the property tests reach: under a process whose truth we know, is
+the estimator unbiased, and does a nominal 95% interval cover 95% of the time?
+`tests/test_monte_carlo.py` is the battery; `tests/test_simulation_gates.py`
+tests the assertions themselves.
+
+[simcheck](https://github.com/finite-sample/simcheck) supplies the gates. It is a
+`dev` and `test` dependency-group entry pinned to a git URL — never a published
+extra, since PyPI rejects direct URL references in project metadata. Three rules
+hold there:
+
+- **Never a bare `assert` in a gate.** `python -O` deletes `assert` statements, so
+  a module whose whole product is assertions passes everything under
+  optimisation. Raise `AssertionError` explicitly.
+  `test_the_gates_still_fire_under_optimisation` runs the gates in a `python -O`
+  subprocess and fails if any stays quiet.
+- **Every gate has a test that watches it fail.** A gate that cannot fail is worse
+  than no gate: it converts an unverified suite into one that certifies itself.
+  Degenerate input counts — an empty study, a constant estimator, a hit count
+  outside the study. Each of those has silently passed at some point.
+- **Delegating is not passing through.** Two wrappers deliberately do more than
+  call simcheck, and both have a negative test that fails without it. Do not
+  "simplify" them back. `assert_unbiased` rejects a constant estimator that
+  misses the target, which simcheck reads as a bias t of zero. `assert_coverage`
+  takes a hit count to `simcheck.assert_count_rate`, not `assert_coverage`,
+  because the count gate validates `0 <= hits <= n` — expanding the count into a
+  boolean array turns a negative count into a slice from the end.
+
+`assert_biased_upward` has no simcheck equivalent: every gate there tests a
+property an estimator is supposed to have, and this one certifies a defect. It
+stays local and is a candidate to upstream, as is `assert_unbiased`'s guard.
 
 ## Benchmarks
 
@@ -305,6 +355,20 @@ python -m benchmarks.figures          # -> docs/source/_static/bench/
 
 Everything tunable lives in `benchmarks/config.py`. **Do not change it and the
 committed results in the same commit without saying why in the message.**
+
+Two entries there are pre-registrations, and each is enforced rather than merely
+stated — a rule recorded only in prose is one nothing notices you breaking.
+
+- `PRIMARY_METRICS` fixes the headline metric before the grid runs, so it cannot
+  be chosen after seeing the numbers. `figures.headline_table` reads
+  `PRIMARY_METRICS[0]` for the ranking rather than naming a column itself. Do
+  not inline the name back.
+- `CALIBRATOR_DEFAULTS_ONLY` says every calibre calibrator is built at library
+  defaults, since tuning them against an untuned scikit-learn baseline would
+  decide the comparison by construction.
+  `test_calibre_methods_are_built_at_library_defaults` compares each one against
+  a bare instance of its class, so a hyperparameter appearing in
+  `methods._build` fails rather than quietly flattering the results.
 
 If you change a calibrator's defaults, re-run the grid and re-aggregate — the
 committed results go stale silently otherwise. `docs/source/_static/bench/headline.csv`

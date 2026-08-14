@@ -18,28 +18,6 @@ from calibre.metrics import (
 )
 
 
-@pytest.fixture
-def perfect_calibration_data():
-    """Data where predictions exactly match true probabilities."""
-    np.random.seed(42)
-    n = 100
-    y_pred = np.random.uniform(0, 1, n)
-    y_true = np.random.binomial(1, y_pred, n)
-    return y_true, y_pred
-
-
-@pytest.fixture
-def poorly_calibrated_data():
-    """Data with systematic calibration bias."""
-    np.random.seed(42)
-    n = 100
-    true_probs = np.random.uniform(0, 1, n)
-    # Add systematic bias: overconfident predictions
-    y_pred = np.clip(true_probs + 0.3 * (true_probs - 0.5), 0, 1)
-    y_true = np.random.binomial(1, true_probs, n)
-    return y_true, y_pred
-
-
 class TestMeanCalibrationError:
     """Test mean_calibration_error function."""
 
