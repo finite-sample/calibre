@@ -40,21 +40,10 @@ def core_calibrators():
     }
 
 
-@pytest.fixture
-def extended_calibrators():
-    """Extended set for comprehensive testing."""
-    return {
-        "nearly_isotonic_strict": NearlyIsotonicCalibrator(lam=10.0, method="path"),
-        "nearly_isotonic_relaxed": NearlyIsotonicCalibrator(lam=0.1, method="path"),
-        "regularized_strong": RegularizedIsotonicCalibrator(alpha=1.0),
-        "regularized_weak": RegularizedIsotonicCalibrator(alpha=0.01),
-    }
-
-
 class TestProbabilityBounds:
     """Test that all calibrators produce outputs in [0, 1] range."""
 
-    def _test_bounds_helper(self, calibrators, test_cases, test_name):
+    def _test_bounds_helper(self, calibrators, test_cases):
         """Helper method to test bounds across multiple scenarios.
 
         No try/except: every calibrator here clips to [0, 1], so a raise or an
@@ -83,7 +72,7 @@ class TestProbabilityBounds:
         """Test bounds on realistic data patterns."""
         y_pred, y_true = data_generator.generate_dataset(pattern, n_samples=200)
         test_cases = {pattern: (y_pred, y_true)}
-        self._test_bounds_helper(core_calibrators, test_cases, "realistic_data")
+        self._test_bounds_helper(core_calibrators, test_cases)
 
     def test_bounds_edge_cases(self, core_calibrators):
         """Test bounds on various edge cases."""
@@ -111,7 +100,7 @@ class TestProbabilityBounds:
 
         # Test other cases
         del test_cases["extrapolation"]
-        self._test_bounds_helper(core_calibrators, test_cases, "edge_cases")
+        self._test_bounds_helper(core_calibrators, test_cases)
 
 
 class TestMonotonicity:
@@ -439,16 +428,6 @@ class TestParameterSensitivity:
 
 
 # Utility functions for property testing
-def calculate_monotonicity_violations(x: np.ndarray, y: np.ndarray) -> float:
-    """Calculate the rate of monotonicity violations."""
-    if len(x) < 2:
-        return 0.0
-    sort_idx = np.argsort(x)
-    y_sorted = y[sort_idx]
-    violations = np.sum(np.diff(y_sorted) < 0)
-    return violations / (len(y_sorted) - 1)
-
-
 def calculate_calibration_reliability(
     y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10
 ) -> float:

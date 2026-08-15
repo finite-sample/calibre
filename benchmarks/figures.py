@@ -17,6 +17,8 @@ from pathlib import Path
 
 import numpy as np
 
+from . import config
+
 RESULTS = Path(__file__).resolve().parent / "results"
 FIGURES = Path(__file__).resolve().parents[1] / "docs" / "source" / "_static" / "bench"
 
@@ -237,6 +239,13 @@ def headline_table(
     Generated rather than typed so the table and the results cannot drift apart.
     The docs build reads this file; it never re-runs the benchmark.
 
+    The column the table is ranked by comes from ``config.PRIMARY_METRICS``,
+    which is declared before the grid is run. Reading it here is what makes that
+    declaration binding: with the name written out at this call site instead, the
+    headline could be re-chosen after seeing the numbers and nothing would show
+    it. ``PRIMARY_METRICS[0]`` is the one the ranking uses; the rest are reported
+    but do not order anything.
+
     Args:
         summary: Rows from ``summary.csv``.
         paired: Rows from ``paired.csv``.
@@ -251,8 +260,9 @@ def headline_table(
         for r in paired
         if r["dataset"] == dataset and r["model"] == model
     }
-    baseline = _float(next(r["brier"] for r in rows if r["method"] == "uncalibrated"))
-    rows.sort(key=lambda r: _float(r["brier"]))
+    headline = config.PRIMARY_METRICS[0]
+    baseline = _float(next(r[headline] for r in rows if r["method"] == "uncalibrated"))
+    rows.sort(key=lambda r: _float(r[headline]))
 
     out = RESULTS.parent.parent / "docs" / "source" / "_static" / "bench"
     with (out / "headline.csv").open("w", newline="") as handle:
@@ -262,12 +272,12 @@ def headline_table(
         )
         for row in rows:
             method = row["method"]
-            delta = baseline - _float(row["brier"])
+            delta = baseline - _float(row[headline])
             truth = _float(row["true_error"])
             writer.writerow(
                 [
                     method,
-                    f"{_float(row['brier']):.4f}",
+                    f"{_float(row[headline]):.4f}",
                     "--" if method == "uncalibrated" else f"{delta:+.4f}",
                     f"{_float(row['smece']):.4f}",
                     f"{_float(row['n_distinct']):.0f}",
