@@ -25,13 +25,15 @@ Use :mod:`calibre.evaluation` to understand a fitted model.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Sequence
 from itertools import product
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .utils import check_arrays
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -188,21 +190,25 @@ def select_by_cv(
     had seen only ``(cv-1)/cv`` of the sample.
 
     Args:
-        factory: Called with a candidate's keyword arguments, returning an unfitted calibrator.
+        factory: Called with a candidate's keyword arguments, returning an
+            unfitted calibrator.
         param_grid: Mapping from parameter name to candidate values.
         X: Uncalibrated scores.
         y: Targets.
         sample_weight: Non-negative per-observation weights.
         cv: Number of folds.
         scoring: ``"log_loss"`` (default) or ``"brier"``.
-        max_cv_samples: Subsample above this size before searching. Selection only has to rank candidates, so its cost is bounded; None disables.
+        max_cv_samples: Subsample above this size before searching. Selection
+            only has to rank candidates, so its cost is bounded; None
+            disables.
         random_state: Seed for folds and subsampling.
 
     Returns:
         dict: The winning parameters, ready to splat into ``factory``.
 
     Raises:
-        ValueError: If the grid is empty, ``scoring`` is unknown, or every candidate failed.
+        ValueError: If the grid is empty, ``scoring`` is unknown, or every
+            candidate failed.
 
     Examples:
         >>> import numpy as np
@@ -301,14 +307,16 @@ def cross_val_calibrate(
     :func:`calibre.evaluation.score_decomposition`.
 
     Args:
-        calibrator: An unfitted calibrator. Cloned per fold, so the object passed in is left untouched.
+        calibrator: An unfitted calibrator. Cloned per fold, so the object
+            passed in is left untouched.
         X: Uncalibrated scores.
         y: Targets.
         cv: Number of folds.
         random_state: Seed for the folds.
 
     Returns:
-        ndarray of shape (n_samples,): Out-of-fold calibrated probabilities, in the input's order.
+        ndarray of shape (n_samples,): Out-of-fold calibrated probabilities,
+            in the input's order.
 
     Raises:
         RuntimeError: If the folds did not cover every observation, which would
@@ -381,15 +389,20 @@ def resolve_auto(
         sample_weight: Non-negative per-observation weights used during selection.
 
     Returns:
-        float: The resolved value. Callers store it on a trailing-underscore attribute; writing it back onto the constructor argument would break ``get_params`` round-tripping and therefore ``clone``.
+        float: The resolved value. Callers store it on a trailing-underscore
+            attribute; writing it back onto the constructor argument would
+            break ``get_params`` round-tripping and therefore ``clone``.
 
     Raises:
-        ValueError: If ``value`` is a string other than ``"auto"``, or a number below ``minimum``.
+        ValueError: If ``value`` is a string other than ``"auto"``, or a
+            number below ``minimum``.
 
     Examples:
         >>> import numpy as np
         >>> from calibre.selection import resolve_auto
-        >>> resolve_auto(0.5, "alpha", [0.1, 1.0], lambda **kw: None, np.array([]), np.array([]))
+        >>> resolve_auto(
+        ...     0.5, "alpha", [0.1, 1.0], lambda **kw: None, np.array([]), np.array([])
+        ... )
         0.5
     """
     # "non-negative" reads better than ">= 0.0" and is the wording these

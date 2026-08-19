@@ -378,7 +378,8 @@ def test_sqrt_mcb_converges_to_the_true_l2_error(name):
 
 
 def test_smece_shrinks_toward_zero_on_calibrated_data():
-    """A consistent measure of distance from calibration must vanish at zero distance."""
+    """A consistent measure of distance from calibration must vanish at zero
+    distance."""
     means = []
     design = DESIGNS["calibrated"]
     for n in (500, 8000):

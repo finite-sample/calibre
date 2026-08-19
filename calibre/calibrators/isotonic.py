@@ -28,7 +28,8 @@ class IsotonicCalibrator(BaseCalibrator):
         y_min: Lower bound for the calibrated values.
         y_max: Upper bound for the calibrated values.
         increasing: Whether the calibration function should be increasing.
-        out_of_bounds: How to handle out-of-bounds values in transform. Options: 'nan', 'clip', 'raise'.
+        out_of_bounds: How to handle out-of-bounds values in transform.
+            Options: 'nan', 'clip', 'raise'.
         enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
     Examples:

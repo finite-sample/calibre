@@ -39,7 +39,9 @@ def _log_loss(y: np.ndarray, p: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     Args:
         y: Targets in ``[0, 1]``.
         p: Predicted probabilities.
-        eps: Clipping bound, so a confident-and-wrong prediction contributes a large finite penalty rather than an infinite one that would leave every candidate incomparable.
+        eps: Clipping bound, so a confident-and-wrong prediction contributes a
+            large finite penalty rather than an infinite one that would leave
+            every candidate incomparable.
 
     Returns:
         ndarray: Elementwise loss.
@@ -63,22 +65,46 @@ class SplineCalibrator(BaseCalibrator):
     increasing, so the calibrated probability is too.
 
     Args:
-        n_knots: Number of knots. The basis has ``n_knots + degree - 1`` functions. Used only when ``alpha`` is given; otherwise cross-validation selects it.
+        n_knots: Number of knots. The basis has ``n_knots + degree - 1``
+            functions. Used only when ``alpha`` is given; otherwise
+            cross-validation selects it.
         degree: B-spline degree. 3 gives the usual cubic behaviour.
-        knots: ``"quantile"`` (default) places knots at score quantiles; ``"uniform"`` spaces them evenly. Quantile is normally right for calibration, where scores pile up wherever the base model is confident and uniform knots spend resolution on empty regions.
-        alpha: Roughness penalty on the coefficient increments. ``None`` (default) selects it, along with ``n_knots``, by cross-validation. A number fixes it and skips cross-validation.
-        link: ``"logit"`` (default) fits a penalised Bernoulli likelihood: log-loss is the proper score for binary labels, and predictions land in ``(0, 1)`` with no clipping. ``"identity"`` fits penalised least squares on the probability scale -- a single bounded linear solve.
+        knots: ``"quantile"`` (default) places knots at score quantiles;
+            ``"uniform"`` spaces them evenly. Quantile is normally right for
+            calibration, where scores pile up wherever the base model is
+            confident and uniform knots spend resolution on empty regions.
+        alpha: Roughness penalty on the coefficient increments. ``None``
+            (default) selects it, along with ``n_knots``, by cross-validation.
+            A number fixes it and skips cross-validation.
+        link: ``"logit"`` (default) fits a penalised Bernoulli likelihood:
+            log-loss is the proper score for binary labels, and predictions
+            land in ``(0, 1)`` with no clipping. ``"identity"`` fits penalised
+            least squares on the probability scale -- a single bounded linear
+            solve.
         cv: Number of cross-validation folds. Stratified when ``y`` is binary.
-        max_cv_samples: Cap on the number of observations used for *hyperparameter selection*. The final model is always refit on the full sample; this only bounds the cost of the search, which would otherwise fit the grid once per fold over every row (at n=100k that is ~50s against 0.3s for a single fit). Selecting two scalars from a large random subsample costs essentially nothing statistically. Set to ``None`` to search on all of the data.
-        random_state: Seed for the cross-validation split. Defaults to ``0`` so that ``fit`` is reproducible: cross-validation here only selects a hyperparameter, and a fit that silently returns a different curve on each identical call is a trap. Pass ``None`` to draw the split from the global RNG instead.
-        clip_output: Clip calibrated values into ``[0, 1]``. A no-op for ``link="logit"``.
+        max_cv_samples: Cap on the number of observations used for
+            *hyperparameter selection*. The final model is always refit on the
+            full sample; this only bounds the cost of the search, which would
+            otherwise fit the grid once per fold over every row (at n=100k
+            that is ~50s against 0.3s for a single fit). Selecting two scalars
+            from a large random subsample costs essentially nothing
+            statistically. Set to ``None`` to search on all of the data.
+        random_state: Seed for the cross-validation split. Defaults to ``0``
+            so that ``fit`` is reproducible: cross-validation here only
+            selects a hyperparameter, and a fit that silently returns a
+            different curve on each identical call is a trap. Pass ``None`` to
+            draw the split from the global RNG instead.
+        clip_output: Clip calibrated values into ``[0, 1]``. A no-op for
+            ``link="logit"``.
         enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
     Attributes:
-        basis_: The fitted basis. Its knots come from the same fit that produced ``coef_``.
+        basis_: The fitted basis. Its knots come from the same fit that
+            produced ``coef_``.
         intercept_: Fitted intercept, on the link scale.
         coef_: Fitted non-negative increment coefficients.
-        alpha_: The penalty actually used -- selected by cross-validation, or echoed back from ``alpha``.
+        alpha_: The penalty actually used -- selected by cross-validation, or
+            echoed back from ``alpha``.
         n_knots_: The knot count actually used.
         n_features_in_: Always 1. Present for scikit-learn compatibility.
 

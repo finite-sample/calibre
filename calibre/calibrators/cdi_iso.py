@@ -36,10 +36,13 @@ p_test = cal.transform(scores_test)
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 try:
     # Optional: for sklearn-style get_params/set_params compatibility
@@ -47,8 +50,8 @@ try:
 
     _SK_AVAILABLE = True
 except Exception:
-    BaseEstimator = object  # type: ignore
-    TransformerMixin = object  # type: ignore
+    BaseEstimator = object  # type: ignore[assignment,misc]
+    TransformerMixin = object  # type: ignore[assignment,misc]
     _SK_AVAILABLE = False
 
 
@@ -117,7 +120,7 @@ def _inv_std_normal_cdf(p: float) -> float:
             (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
             / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
         )
-    elif p <= phigh:
+    if p <= phigh:
         q = p - 0.5
         r = q * q
         return float(
@@ -125,12 +128,11 @@ def _inv_std_normal_cdf(p: float) -> float:
             * q
             / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
         )
-    else:
-        q = np.sqrt(-2 * np.log(1 - p))
-        return float(
-            -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
-            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
-        )
+    q = np.sqrt(-2 * np.log(1 - p))
+    return float(
+        -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
+        / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+    )
 
 
 def _z_value(alpha: float) -> float:
@@ -175,8 +177,7 @@ def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
             counts.append(c_new)
 
     # Expand block means to per-index fitted values
-    fitted = np.repeat(np.asarray(means), np.asarray(counts))
-    return fitted
+    return np.repeat(np.asarray(means), np.asarray(counts))
 
 
 # ----------------------------- calibrator ---------------------------------- #
@@ -187,13 +188,23 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
     """Cost- and Data-Informed Isotonic calibrator (CDI-ISO).
 
     Args:
-        thresholds: Operating thresholds in [0,1] that matter economically. If None, uniform attention across the score range is assumed.
-        threshold_weights: Nonnegative weights matching thresholds. If None, equal weights.
-        bandwidth: Half-width h of the triangular kernel around each threshold (in score units, after optional min-max normalization). Defaults to 0.05.
-        alpha: Significance level for the two-proportion normal approximation used to gate minimum-slope enforcement (default 0.05 -> z≈1.96).
-        gamma: Global multiplier in [0,1] for the minimum-slope budget phi_i (default 0.15).
-        window: Number of adjacent unique-score points used on each side to form the left/right evidence blocks (default 25). Automatically clipped at edges.
-        normalize_scores: If True (default), min-max normalize training scores to [0,1] for the economics kernel; the same affine scaling is applied at transform time.
+        thresholds: Operating thresholds in [0,1] that matter economically. If
+            None, uniform attention across the score range is assumed.
+        threshold_weights: Nonnegative weights matching thresholds. If None,
+            equal weights.
+        bandwidth: Half-width h of the triangular kernel around each threshold
+            (in score units, after optional min-max normalization). Defaults
+            to 0.05.
+        alpha: Significance level for the two-proportion normal approximation
+            used to gate minimum-slope enforcement (default 0.05 -> z≈1.96).
+        gamma: Global multiplier in [0,1] for the minimum-slope budget phi_i
+            (default 0.15).
+        window: Number of adjacent unique-score points used on each side to
+            form the left/right evidence blocks (default 25). Automatically
+            clipped at edges.
+        normalize_scores: If True (default), min-max normalize training scores
+            to [0,1] for the economics kernel; the same affine scaling is
+            applied at transform time.
         clip_output: If True (default), clip calibrated outputs to [0,1].
 
     Notes:
@@ -243,7 +254,9 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         """Fit CDI-ISO on (scores, y).
 
         Args:
-            scores: Raw model scores; will be sorted internally. If normalize_scores=True, an affine min-max transform to [0,1] is learned and applied in transform.
+            scores: Raw model scores; will be sorted internally. If
+                normalize_scores=True, an affine min-max transform to [0,1] is
+                learned and applied in transform.
             y: Binary labels {0,1}.
             sample_weight: Nonnegative per-sample weights.
 
@@ -251,7 +264,8 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
             Returns self for method chaining.
 
         Raises:
-            ValueError: If scores and y have different lengths, y contains invalid values, or sample_weight has invalid values.
+            ValueError: If scores and y have different lengths, y contains
+                invalid values, or sample_weight has invalid values.
         """
         s = np.asarray(scores, dtype=float).reshape(-1)
         y = np.asarray(y, dtype=float).reshape(-1)
@@ -354,7 +368,8 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
             raise RuntimeError("Call fit() before transform().")
 
         s = np.asarray(scores, dtype=float).reshape(-1)
-        # Apply the same affine scaling for threshold distances if needed (not required for prediction)
+        # Apply the same affine scaling for threshold distances if needed (not
+        # required for prediction)
         # For prediction, we step on the ORIGINAL train-scale breakpoints.
         # Stepwise rule: right-closed intervals (like sklearn IsotonicRegression)
         idx = np.searchsorted(x_unique, s, side="right") - 1
@@ -368,7 +383,10 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
     # --------------------------- diagnostics -------------------------------- #
 
     def adjacency_bounds_(self) -> np.ndarray | None:
-        """Return the learned local bounds L_i per adjacency (shape: m-1) or None if not fitted."""
+        """Return the learned local bounds L_i per adjacency (shape: m-1).
+
+        Returns None if not fitted.
+        """
         return None if not self._fitted else self._L
 
     def cumulative_shift_(self) -> np.ndarray | None:
@@ -477,10 +495,10 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         return np.asarray(L_list, dtype=float)
 
     def _economics_weight(self, mids: np.ndarray) -> np.ndarray:
-        """Compute w_econ(mid) in [0,1] from thresholds and a triangular kernel of half-width h.
+        """Compute w_econ(mid) in [0,1] from thresholds and a triangular kernel.
 
-        If thresholds is None, return ones (uniform attention). Otherwise, for thresholds T_j
-        with weights a_j, set
+        The kernel has half-width h. If thresholds is None, return ones
+        (uniform attention). Otherwise, for thresholds T_j with weights a_j, set
             w(mid) = sum_j a_j * K(|mid - T_j|; h) / sum_j a_j
         and normalize to have max 1 across mids.
         """

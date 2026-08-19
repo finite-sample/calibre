@@ -100,11 +100,16 @@ def binned_calibration_error(
         y_pred: Predicted values.
         x: Input features for binning. If None, y_pred is used for binning.
         n_bins: Number of bins.
-        strategy: Strategy for binning: - 'uniform': Bins with uniform widths. - 'quantile': Bins with approximately equal counts.
-        return_details: If True, return bin details (bin centers, counts, mean predictions, mean truths).
+        strategy: Strategy for binning:
+
+            - 'uniform': Bins with uniform widths.
+            - 'quantile': Bins with approximately equal counts.
+        return_details: If True, return bin details (bin centers, counts, mean
+            predictions, mean truths).
 
     Returns:
-        bce: Binned calibration error. If return_details is True, returns a dictionary with BCE and bin details.
+        bce: Binned calibration error. If return_details is True, returns a
+            dictionary with BCE and bin details.
 
     Raises:
         ValueError: If arrays have different lengths or unknown binning strategy.
@@ -180,8 +185,7 @@ def binned_calibration_error(
             "bin_pred_means": np.array(bin_pred_means),
             "bin_true_means": np.array(bin_true_means),
         }
-    else:
-        return float(bce)
+    return float(bce)
 
 
 def expected_calibration_error(
@@ -349,7 +353,8 @@ def correlation_metrics(
         >>> y_orig = np.array([0.1, 0.6, 0.9, 0.3, 0.5])
         >>> corr = correlation_metrics(y_true, y_pred, y_orig=y_orig)
         >>> sorted(corr)
-        ['spearman_corr_orig_to_calib', 'spearman_corr_to_y_orig', 'spearman_corr_to_y_true']
+        ['spearman_corr_orig_to_calib', 'spearman_corr_to_y_orig',
+         'spearman_corr_to_y_true']
         >>> round(float(corr["spearman_corr_to_y_true"]), 4)
         0.866
         >>> round(float(corr["spearman_corr_to_y_orig"]), 4)
@@ -418,7 +423,10 @@ def calibration_curve(
         y_true: Ground truth values (0 or 1 for binary classification).
         y_pred: Predicted probabilities.
         n_bins: Number of bins for discretizing predictions.
-        strategy: Strategy for binning: - 'uniform': Bins with uniform widths. - 'quantile': Bins with approximately equal counts.
+        strategy: Strategy for binning:
+
+            - 'uniform': Bins with uniform widths.
+            - 'quantile': Bins with approximately equal counts.
 
     Returns:
         prob_true: The true fraction of positive samples in each bin.
@@ -481,7 +489,8 @@ def tie_preservation_score(
         ValueError: If arrays have different lengths.
 
     Returns:
-        score: Tie preservation score between 0 and 1. Higher values indicate better preservation of meaningful ties.
+        score: Tie preservation score between 0 and 1. Higher values indicate
+            better preservation of meaningful ties.
 
     Examples:
         >>> import numpy as np
@@ -548,7 +557,8 @@ def plateau_quality_score(
         ValueError: If arrays have different lengths.
 
     Returns:
-        score: Quality score between 0 and 1. Higher values indicate better plateau quality.
+        score: Quality score between 0 and 1. Higher values indicate better
+            plateau quality.
 
     Examples:
         >>> import numpy as np
@@ -606,10 +616,14 @@ def calibration_diversity_index(
 
     Args:
         y_calibrated: Calibrated predictions.
-        reference_diversity: Reference diversity to compare against (e.g., diversity of original predictions). If None, returns absolute diversity.
+        reference_diversity: Reference diversity to compare against (e.g.,
+            diversity of original predictions). If None, returns absolute
+            diversity.
 
     Returns:
-        diversity: Diversity index. Higher values indicate more granular predictions. If reference_diversity is provided, returns relative diversity.
+        diversity: Diversity index. Higher values indicate more granular
+            predictions. If reference_diversity is provided, returns relative
+            diversity.
 
     Examples:
         >>> import numpy as np
@@ -661,7 +675,9 @@ def progressive_sampling_diversity(
         >>> import numpy as np
         >>> X = np.linspace(0, 1, 100)
         >>> y = np.random.binomial(1, X, 100)
-        >>> sizes, divs = progressive_sampling_diversity(X, y, sample_sizes=[20, 50, 80])
+        >>> sizes, divs = progressive_sampling_diversity(
+        ...     X, y, sample_sizes=[20, 50, 80]
+        ... )
         >>> len(sizes) == len(divs) == 3
         True
     """
@@ -813,13 +829,16 @@ def plugin_calibration_error(
         y_true: Ground truth values (0 or 1).
         y_pred: Predicted probabilities.
         n_bins: Number of equal-mass bins. Fewer are used when ties prevent it.
-        p: Norm. 1 gives the familiar weighted mean absolute gap; 2 matches :func:`debiased_calibration_error`.
+        p: Norm. 1 gives the familiar weighted mean absolute gap; 2 matches
+            :func:`debiased_calibration_error`.
 
     Returns:
-        float: The uncorrected calibration error. Biased upward, and increasingly so as ``n_bins`` grows.
+        float: The uncorrected calibration error. Biased upward, and
+            increasingly so as ``n_bins`` grows.
 
     Raises:
-        ValueError: If the arrays disagree in length, ``n_bins`` is below 1, or ``p`` is below 1.
+        ValueError: If the arrays disagree in length, ``n_bins`` is below 1,
+            or ``p`` is below 1.
 
     See Also:
         debiased_calibration_error : The same quantity at ``p=2``, bias-corrected.
@@ -887,11 +906,18 @@ def debiased_calibration_error(
     Args:
         y_true: Ground truth values (0 or 1).
         y_pred: Predicted probabilities.
-        n_bins: Number of equal-mass bins. Defaults to 15, following Guo et al. (2017) as used by Roelofs et al.
-        squared: Return the estimate of the **squared** error instead, without the square root or the floor at zero. This is the quantity the correction actually makes unbiased, and it may legitimately come out negative -- see Notes.
+        n_bins: Number of equal-mass bins. Defaults to 15, following Guo et
+            al. (2017) as used by Roelofs et al.
+        squared: Return the estimate of the **squared** error instead, without
+            the square root or the floor at zero. This is the quantity the
+            correction actually makes unbiased, and it may legitimately come
+            out negative -- see Notes.
 
     Returns:
-        float: Debiased calibration error. Floored at zero: the correction can drive the sum negative on well-calibrated data, which is evidence of no detectable miscalibration rather than of negative error. With ``squared=True`` the unfloored sum is returned instead.
+        float: Debiased calibration error. Floored at zero: the correction can
+            drive the sum negative on well-calibrated data, which is evidence
+            of no detectable miscalibration rather than of negative error.
+            With ``squared=True`` the unfloored sum is returned instead.
 
     Raises:
         ValueError: If the arrays disagree in length or ``n_bins`` is below 1.
@@ -1017,10 +1043,16 @@ def sweep_calibration_error(
         y_true: Ground truth values (0 or 1).
         y_pred: Predicted probabilities.
         p: Norm. 1 gives the familiar weighted mean absolute gap.
-        return_n_bins: Also return the bin count the sweep settled on. That number is half of what the estimator has to say -- it is the sweep's answer to "how fine can these data support?" -- and reporting only the error hides it.
+        return_n_bins: Also return the bin count the sweep settled on. That
+            number is half of what the estimator has to say -- it is the
+            sweep's answer to "how fine can these data support?" -- and
+            reporting only the error hides it.
 
     Returns:
-        float or tuple of (float, int): Binned calibration error at the selected bin count, and that bin count when ``return_n_bins`` is True. The count is the number of bins actually occupied, which ties can hold below the number the sweep reached.
+        float or tuple of (float, int): Binned calibration error at the
+            selected bin count, and that bin count when ``return_n_bins`` is
+            True. The count is the number of bins actually occupied, which
+            ties can hold below the number the sweep reached.
 
     Raises:
         ValueError: If the arrays disagree in length or ``p`` is below 1.
@@ -1216,14 +1248,20 @@ def smooth_calibration_error(
     Args:
         y_true: Ground truth values (0 or 1).
         y_pred: Predicted probabilities in ``[0, 1]``.
-        sigma: Kernel bandwidth. When None, the fixed point above is used, which is the recommended behaviour and what makes the estimator hyperparameter-free.
-        return_sigma: Also return the bandwidth used. Worth reporting: it is an interpretable scale, roughly the resolution at which miscalibration is detectable.
+        sigma: Kernel bandwidth. When None, the fixed point above is used,
+            which is the recommended behaviour and what makes the estimator
+            hyperparameter-free.
+        return_sigma: Also return the bandwidth used. Worth reporting: it is
+            an interpretable scale, roughly the resolution at which
+            miscalibration is detectable.
 
     Returns:
-        float or tuple of (float, float): The smooth calibration error, and the bandwidth when ``return_sigma``.
+        float or tuple of (float, float): The smooth calibration error, and
+            the bandwidth when ``return_sigma``.
 
     Raises:
-        ValueError: If the arrays disagree in length, ``y_pred`` falls outside ``[0, 1]``, or ``sigma`` is not positive.
+        ValueError: If the arrays disagree in length, ``y_pred`` falls outside
+            ``[0, 1]``, or ``sigma`` is not positive.
 
     See Also:
         - :func:`debiased_calibration_error` -- bias-corrected, but still needs a

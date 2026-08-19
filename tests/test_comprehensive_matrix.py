@@ -258,7 +258,8 @@ class TestMatrix:
         # Handle NaN correlations gracefully
         if not np.isnan(result["rank_correlation"]):
             assert result["rank_correlation"] >= 0.2, (
-                f"Poor rank correlation for {calibrator_name} on {pattern}: {result['rank_correlation']:.3f}"
+                f"Poor rank correlation for {calibrator_name} on {pattern}: "
+                f"{result['rank_correlation']:.3f}"
             )
         assert result["calibrated_ece"] >= 0, (
             f"Invalid ECE for {calibrator_name} on {pattern}"
@@ -341,9 +342,12 @@ class TestMatrix:
                 result = self._run_single_test(calibrator_name, pattern, 200, 0.1)
 
                 if result["success"]:
-                    # Allow some violations even for "strict" methods due to numerical precision
+                    # Allow some violations even for "strict" methods due to
+                    # numerical precision
                     assert result["monotonicity_violations"] <= 35, (
-                        f"{calibrator_name} violated strict monotonicity on {pattern}: {result['monotonicity_violations']} violations"
+                        f"{calibrator_name} violated strict monotonicity on "
+                        f"{pattern}: "
+                        f"{result['monotonicity_violations']} violations"
                     )
 
     @pytest.mark.slow
@@ -407,7 +411,8 @@ class TestMatrix:
                 # Handle NaN correlations gracefully
                 if not np.isnan(result["rank_correlation"]):
                     assert result["rank_correlation"] >= 0.1, (
-                        f"{calibrator_name} poor correlation on n={n_samples}: {result['rank_correlation']:.3f}"
+                        f"{calibrator_name} poor correlation on "
+                        f"n={n_samples}: {result['rank_correlation']:.3f}"
                     )
 
     @pytest.mark.parametrize("noise_level", [0.05, 0.1, 0.2])
@@ -445,12 +450,14 @@ class TestMatrix:
                 if result["success"]:
                     # Should preserve at least 0.3% of unique values (extremely relaxed)
                     assert result["granularity_ratio"] >= 0.003, (
-                        f"{calibrator_name} collapsed granularity too much on {pattern}: {result['granularity_ratio']:.3f}"
+                        f"{calibrator_name} collapsed granularity too much "
+                        f"on {pattern}: {result['granularity_ratio']:.3f}"
                     )
 
                     # Should not create unrealistic explosion
                     assert result["granularity_ratio"] <= 5.0, (
-                        f"{calibrator_name} created too many unique values on {pattern}: {result['granularity_ratio']:.3f}"
+                        f"{calibrator_name} created too many unique values "
+                        f"on {pattern}: {result['granularity_ratio']:.3f}"
                     )
 
     @pytest.mark.slow
@@ -481,7 +488,8 @@ class TestMatrix:
                     # Handle NaN correlations in extreme scenarios
                     if not np.isnan(result["rank_correlation"]):
                         assert result["rank_correlation"] >= -0.5, (
-                            f"{calibrator_name} very negative correlation on {pattern}: {result['rank_correlation']:.3f}"
+                            f"{calibrator_name} very negative correlation on "
+                            f"{pattern}: {result['rank_correlation']:.3f}"
                         )
 
     @pytest.mark.slow

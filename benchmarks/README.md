@@ -7,7 +7,7 @@ comparison table and a page of star ratings had no script behind them.
 python -m benchmarks.run --quick          # offline, ~1 min, what CI runs
 python -m benchmarks.run --n-jobs 8       # the committed grid
 python -m benchmarks.aggregate            # raw.csv -> summary.csv, paired.csv
-python -m benchmarks.figures              # -> docs/source/_static/bench/*.svg
+python -m benchmarks.figures              # -> docs/_static/bench/*.svg
 ```
 
 `benchmarks/` is not shipped in the wheel.

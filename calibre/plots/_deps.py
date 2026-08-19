@@ -8,7 +8,10 @@ package by the back door. Every plotting function calls
 
 from __future__ import annotations
 
-from types import ModuleType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 _INSTALL_HINT = (
     "calibre.plots needs matplotlib, which calibre does not install by default.\n"

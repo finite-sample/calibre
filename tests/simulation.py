@@ -53,14 +53,17 @@ bijection these closed forms depend on.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from itertools import pairwise
+from typing import TYPE_CHECKING
 
 import numpy as np
 from simcheck import MonteCarloResult
 from simcheck import assert_count_rate as _simcheck_assert_count_rate
 from simcheck import assert_unbiased as _simcheck_assert_unbiased
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "DESIGNS",

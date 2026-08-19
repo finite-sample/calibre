@@ -8,7 +8,6 @@ which is why the loss goes unnoticed. These two plots make it visible.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -17,6 +16,8 @@ from ._deps import require_matplotlib
 from ._style import SEMANTIC, finalize, get_axes
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping, Sequence
+
     from matplotlib.axes import Axes
 
 __all__ = ["plot_resolution_frontier", "plot_resolution_loss"]
@@ -27,7 +28,8 @@ def _distinct_positions(values: np.ndarray, precision: int) -> np.ndarray:
 
     Args:
         values: Calibrated outputs, in ascending order of the input score.
-        precision: Decimal places at which two outputs count as equal. Matches :func:`~calibre.unique_value_counts`.
+        precision: Decimal places at which two outputs count as equal. Matches
+            :func:`~calibre.unique_value_counts`.
 
     Returns:
         ndarray: Indices at which a new distinct output value begins, including 0.
@@ -60,10 +62,14 @@ def plot_resolution_loss(
     this package is built on, drawn rather than asserted, and it needs no legend.
 
     Args:
-        outputs: Mapping from method name to that method's calibrated outputs. Every array must be the same length, being the same observations calibrated different ways.
-        x: The input scores the outputs came from, used for the horizontal axis. When omitted, rank position is used instead.
+        outputs: Mapping from method name to that method's calibrated outputs.
+            Every array must be the same length, being the same observations
+            calibrated different ways.
+        x: The input scores the outputs came from, used for the horizontal
+            axis. When omitted, rank position is used instead.
         ax: Axes to draw on. A new figure is created when omitted.
-        annotate_counts: Whether to print the distinct-value count at the right of each strip.
+        annotate_counts: Whether to print the distinct-value count at the
+            right of each strip.
         precision: Decimal places at which two outputs count as equal.
         sort: Whether to order strips by distinct count, most granular at the top.
 
@@ -71,7 +77,8 @@ def plot_resolution_loss(
         Axes: The axes drawn on.
 
     Raises:
-        ValueError: If ``outputs`` is empty, the arrays disagree in length, or ``x`` does not match them.
+        ValueError: If ``outputs`` is empty, the arrays disagree in length, or
+            ``x`` does not match them.
 
     Examples:
         >>> import matplotlib
@@ -191,7 +198,8 @@ def plot_resolution_frontier(
     Args:
         results: Mapping from method name to ``(n_distinct, score)``.
         ax: Axes to draw on. A new figure is created when omitted.
-        errorbars: Optional mapping from method name to ``(low, high)`` absolute score bounds, for instance a bootstrap interval.
+        errorbars: Optional mapping from method name to ``(low, high)``
+            absolute score bounds, for instance a bootstrap interval.
         score_label: Label for the y-axis.
         highlight: Names to draw in the accent colour.
 

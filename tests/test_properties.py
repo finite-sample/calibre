@@ -431,7 +431,8 @@ class TestParameterSensitivity:
 def calculate_calibration_reliability(
     y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 10
 ) -> float:
-    """Calculate reliability as average absolute difference between bin accuracy and confidence."""
+    """Calculate reliability as average absolute difference between bin
+    accuracy and confidence."""
     bin_boundaries = np.linspace(0, 1, n_bins + 1)
     total_error, valid_bins = 0, 0
 

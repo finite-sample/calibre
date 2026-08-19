@@ -41,14 +41,21 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     underlying B-spline coefficients.
 
     Args:
-        alpha: Roughness penalty. ``0`` gives an unpenalised monotone spline; larger values drive the fit toward the best monotone straight line.
+        alpha: Roughness penalty. ``0`` gives an unpenalised monotone spline;
+            larger values drive the fit toward the best monotone straight
+            line.
         n_knots: Number of knots in the basis.
         degree: B-spline degree.
         knots: ``"quantile"`` or ``"uniform"`` knot placement.
         link: ``"logit"`` or ``"identity"``. See :class:`calibre.SplineCalibrator`.
-        cv: Number of cross-validation folds used when a hyperparameter is left at ``"auto"``. Ignored when every hyperparameter is pinned.
-        scoring: Proper scoring rule the ``"auto"`` search minimises. Deliberately not a calibration error: ECE and its relatives are minimised by a constant forecast, so selecting on one would reward throwing resolution away.
-        random_state: Seed for the cross-validation split, so an ``"auto"`` selection is reproducible.
+        cv: Number of cross-validation folds used when a hyperparameter is
+            left at ``"auto"``. Ignored when every hyperparameter is pinned.
+        scoring: Proper scoring rule the ``"auto"`` search minimises.
+            Deliberately not a calibration error: ECE and its relatives are
+            minimised by a constant forecast, so selecting on one would reward
+            throwing resolution away.
+        random_state: Seed for the cross-validation split, so an ``"auto"``
+            selection is reproducible.
         clip_output: Clip calibrated values into ``[0, 1]``.
         enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
@@ -67,14 +74,16 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         any straight line unpenalised, so the identity map and the empirical base rate
         both survive it.
 
-        **Why a fixed basis rather than one parameter per score.** Putting a parameter at
-        every unique score makes this a smoothing-spline problem whose penalty operator
+        **Why a fixed basis rather than one parameter per score.** Putting a
+        parameter at every unique score makes this a smoothing-spline problem
+        whose penalty operator
         scales like :math:`h^{-2} \sim n^{2}`, so the normal equations scale like
         :math:`n^{4}`. That is ill-conditioned in a way no solver choice repairs -- a
         constrained QP stops converging above a few thousand distinct scores, ADMM
         diverges, and a matrix-free least-squares solve fails to converge while the
         fitted mean collapses away from the base rate. A modest fixed basis with a
-        coefficient penalty -- the P-spline construction of Eilers & Marx (1996), as used
+        coefficient penalty -- the P-spline construction of Eilers & Marx
+        (1996), as used
         by the SCOP-splines of Pya & Wood (2015) -- has none of those regimes: it fits
         100,000 points in milliseconds with monotonicity guaranteed structurally.
 

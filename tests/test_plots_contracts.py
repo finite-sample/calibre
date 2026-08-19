@@ -14,11 +14,11 @@ than whether the picture still says what it claims. What the drawn artists
 
 from __future__ import annotations
 
-import matplotlib
+import matplotlib as mpl
 import numpy as np
 import pytest
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -116,9 +116,9 @@ def test_supplying_an_ax_creates_no_new_figure(diagram):
 
 def test_rcparams_are_untouched(diagram):
     """No calibre plot may mutate global matplotlib state."""
-    before = dict(matplotlib.rcParams)
+    before = dict(mpl.rcParams)
     plot_reliability_diagram(diagram, density="hist")
-    after = dict(matplotlib.rcParams)
+    after = dict(mpl.rcParams)
     assert before == after
 
 
