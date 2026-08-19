@@ -248,7 +248,8 @@ def load(name: str, seed: int) -> Dataset:
 
     Args:
         name: Dataset name.
-        seed: Seed, used only by the synthetic generators. Real datasets are fixed, and the seed varies their train/test split instead.
+        seed: Seed, used only by the synthetic generators. Real datasets are
+            fixed, and the seed varies their train/test split instead.
 
     Returns:
         Dataset: The dataset.

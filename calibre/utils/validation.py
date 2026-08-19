@@ -45,7 +45,8 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         y: The target values/labels.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: Tuple of (validated_X, validated_y). validated_X validated_y
+        tuple[np.ndarray, np.ndarray]: Tuple of (validated_X, validated_y).
+            validated_X validated_y
 
     Raises:
         ValueError: If arrays are empty or have incompatible lengths.
@@ -123,7 +124,8 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
 
     Args:
         calibrator: The calibrator to check.
-        attributes: List of attribute names that should exist if fitted. If None, checks for common fitted attributes.
+        attributes: List of attribute names that should exist if fitted. If
+            None, checks for common fitted attributes.
 
     Raises:
         ValueError: If the calibrator has not been fitted.
@@ -173,7 +175,8 @@ def check_consistent_length(*arrays: np.ndarray) -> None:
         >>> check_consistent_length(X, z)
         Traceback (most recent call last):
             ...
-        ValueError: Inconsistent array lengths: [3, 2]. All arrays must have the same length.
+        ValueError: Inconsistent array lengths: [3, 2]. All arrays must have
+        the same length.
     """
     lengths = [len(X) for X in arrays if X is not None]
 

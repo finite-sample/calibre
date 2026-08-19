@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,6 +15,8 @@ from ._deps import require_matplotlib
 from ._style import SEMANTIC, finalize, get_axes
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Sequence
+
     from matplotlib.axes import Axes
 
 __all__ = ["plot_ece_bin_sensitivity"]
@@ -59,15 +60,20 @@ def plot_ece_bin_sensitivity(
         ax: Axes to draw on. A new figure is created when omitted.
         n_bins: Bin counts to evaluate. Defaults to ``range(2, 51)``.
         norm: The :math:`\ell_p` norm shared by every series.
-        estimators: Which of ``"plugin"``, ``"debiased"`` and ``"sweep"`` to draw. The sweep chooses its own bin count, so it appears as a horizontal line annotated with the count it settled on.
-        reference: A known true calibration error, drawn as a horizontal rule. On data that is calibrated by construction this is 0, and everything above it is bias.
+        estimators: Which of ``"plugin"``, ``"debiased"`` and ``"sweep"`` to
+            draw. The sweep chooses its own bin count, so it appears as a
+            horizontal line annotated with the count it settled on.
+        reference: A known true calibration error, drawn as a horizontal rule.
+            On data that is calibrated by construction this is 0, and
+            everything above it is bias.
         log_x: Whether to put the bin count on a log scale.
 
     Returns:
         Axes: The axes drawn on.
 
     Raises:
-        ValueError: If ``estimators`` names something unknown, ``n_bins`` is empty or holds a value below 1, or the arrays disagree in length.
+        ValueError: If ``estimators`` names something unknown, ``n_bins`` is
+            empty or holds a value below 1, or the arrays disagree in length.
 
     Examples:
         >>> import matplotlib

@@ -74,7 +74,8 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         Args:
             X: The values to be calibrated (e.g., predicted probabilities).
             y: The target values (e.g., true labels).
-            sample_weight: Non-negative per-observation weights. Calibrators that cannot honour weights raise rather than ignore them.
+            sample_weight: Non-negative per-observation weights. Calibrators
+                that cannot honour weights raise rather than ignore them.
 
         Returns:
             BaseCalibrator: Returns self for method chaining.
@@ -163,7 +164,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-        **fit_params: object,
+        # Deliberately unused: accepted so the method matches scikit-learn's
+        # fit_transform signature and works in a Pipeline, as documented below.
+        **fit_params: object,  # noqa: ARG002
     ) -> np.ndarray:
         """Fit the calibrator and then transform the data.
 
@@ -209,7 +212,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             y_calibrated = self.transform(self._fit_data_X)
             self.diagnostics_ = run_plateau_diagnostics(self._fit_data_X, y_calibrated)
         except Exception as e:
-            logger.warning(f"Diagnostic analysis failed: {e}")
+            logger.warning("Diagnostic analysis failed: %s", e)
             self.diagnostics_ = None
 
     def has_diagnostics(self) -> bool:
@@ -236,7 +239,8 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         """Get diagnostic results.
 
         Returns:
-            dict | None: Diagnostic results from plateau analysis, or None if diagnostics were not computed or are not available.
+            dict | None: Diagnostic results from plateau analysis, or None if
+                diagnostics were not computed or are not available.
 
         Examples:
             >>> from calibre import IsotonicCalibrator
@@ -284,8 +288,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         if self.diagnostics_["warnings"]:
             lines.append("\nWarnings:")
-            for warning in self.diagnostics_["warnings"]:
-                lines.append(f"  ⚠ {warning}")
+            lines.extend(f"  ⚠ {warning}" for warning in self.diagnostics_["warnings"])
 
         return "\n".join(lines)
 
@@ -312,7 +315,9 @@ class MonotonicMixin:
 
         Args:
             y: Values to check for monotonicity.
-            strict: If True, check for strictly increasing (no equal consecutive values). If False, check for non-decreasing (allows equal consecutive values).
+            strict: If True, check for strictly increasing (no equal
+                consecutive values). If False, check for non-decreasing
+                (allows equal consecutive values).
 
         Returns:
             True if the array is monotonic according to the specified criteria.
@@ -343,8 +348,7 @@ class MonotonicMixin:
 
         if strict:
             return bool(np.all(diffs > 0))
-        else:
-            return bool(np.all(diffs >= 0))
+        return bool(np.all(diffs >= 0))
 
     @staticmethod
     def enforce_monotonicity(y: np.ndarray, inplace: bool = False) -> np.ndarray:

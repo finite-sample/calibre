@@ -45,11 +45,25 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     ==================  =====================================================
 
     Args:
-        epsilon: Largest decrease permitted between adjacent unique scores, in the units of ``y``. So ``epsilon=0.02`` means "tolerate a drop of up to 2 percentage points".
-        min_slope: Minimum required increase between adjacent unique scores. Mutually exclusive with a non-zero ``epsilon``; this is the direction that eliminates plateaus. ``"auto"`` (the default) uses ``0.01 / n_unique``, but only on the untouched default path -- that is, when ``epsilon`` was also left at ``"auto"`` and the search settled on ``0``. Naming ``epsilon`` yourself, including ``epsilon=0``, leaves the slope at ``0`` and the estimator exactly as documented in the table above.
-        cv: Number of cross-validation folds used when a hyperparameter is left at ``"auto"``. Ignored when every hyperparameter is pinned.
-        scoring: Proper scoring rule the ``"auto"`` search minimises. Deliberately not a calibration error: ECE and its relatives are minimised by a constant forecast, so selecting on one would reward throwing resolution away.
-        random_state: Seed for the cross-validation split, so an ``"auto"`` selection is reproducible.
+        epsilon: Largest decrease permitted between adjacent unique scores, in
+            the units of ``y``. So ``epsilon=0.02`` means "tolerate a drop of
+            up to 2 percentage points".
+        min_slope: Minimum required increase between adjacent unique scores.
+            Mutually exclusive with a non-zero ``epsilon``; this is the
+            direction that eliminates plateaus. ``"auto"`` (the default) uses
+            ``0.01 / n_unique``, but only on the untouched default path --
+            that is, when ``epsilon`` was also left at ``"auto"`` and the
+            search settled on ``0``. Naming ``epsilon`` yourself, including
+            ``epsilon=0``, leaves the slope at ``0`` and the estimator exactly
+            as documented in the table above.
+        cv: Number of cross-validation folds used when a hyperparameter is
+            left at ``"auto"``. Ignored when every hyperparameter is pinned.
+        scoring: Proper scoring rule the ``"auto"`` search minimises.
+            Deliberately not a calibration error: ECE and its relatives are
+            minimised by a constant forecast, so selecting on one would reward
+            throwing resolution away.
+        random_state: Seed for the cross-validation split, so an ``"auto"``
+            selection is reproducible.
         clip_output: Clip calibrated values into ``[0, 1]``.
         enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
@@ -79,7 +93,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         default retains 80-95% of distinct values for a Brier cost in the fifth
         decimal. It is 80-95% rather than all of them because ``clip_output`` flattens
         the two ends of a fit that saturates 0 and 1; the plateaus that survive the
-        default are at the boundaries, not in the interior. It scales as ``1 / n_unique`` because a fixed slope safe at n=1000
+        default are at the boundaries, not in the interior. It scales as
+        ``1 / n_unique`` because a fixed slope safe at n=1000
         would need an output range of 10 at n=1e6, and clipping would flatten it back
         into the plateaus it exists to prevent.
 
@@ -162,7 +177,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
             sample_weight: Non-negative per-observation weights.
 
         Raises:
-            ValueError: If ``epsilon`` or ``min_slope`` is negative, or both are non-zero.
+            ValueError: If ``epsilon`` or ``min_slope`` is negative, or both
+                are non-zero.
         """
         from ..selection import resolve_auto
 

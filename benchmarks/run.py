@@ -69,7 +69,7 @@ def _environment() -> dict[str, Any]:
     Returns:
         dict: Versions, platform and commit.
     """
-    import numpy
+    import numpy as np
     import scipy
     import sklearn
 
@@ -77,7 +77,7 @@ def _environment() -> dict[str, Any]:
 
     return {
         "calibre": calibre.__version__,
-        "numpy": numpy.__version__,
+        "numpy": np.__version__,
         "scipy": scipy.__version__,
         "scikit_learn": sklearn.__version__,
         "python": platform.python_version(),

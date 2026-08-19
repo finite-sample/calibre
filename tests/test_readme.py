@@ -22,7 +22,9 @@ README = Path(__file__).resolve().parent.parent / "README.md"
 # Fenced blocks tagged `python`. Blocks tagged `bash`, `text`, `toml` etc. are
 # skipped, as is any block whose info string carries `skip-test` -- used for
 # snippets that need network access or a user's own model.
-_BLOCK = re.compile(r"^```python(?P<info>[^\n]*)\n(?P<code>.*?)^```", re.M | re.S)
+_BLOCK = re.compile(
+    r"^```python(?P<info>[^\n]*)\n(?P<code>.*?)^```", re.MULTILINE | re.DOTALL
+)
 
 
 def _blocks() -> list[tuple[int, str]]:
@@ -85,7 +87,7 @@ def test_readme_block_runs(line_no, code):
 # line recording a blank line of output the optional trailing `\s?` swallowed the
 # line break and `.*` captured the *next* line instead. That silently corrupted
 # every expectation following a blank one.
-_EXPECTED = re.compile(r"^[ \t]*#[ \t]?>[ \t]?(?P<text>.*)$", re.M)
+_EXPECTED = re.compile(r"^[ \t]*#[ \t]?>[ \t]?(?P<text>.*)$", re.MULTILINE)
 
 
 @pytest.mark.parametrize(

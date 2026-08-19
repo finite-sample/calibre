@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Adopted the py-canon v1.1.0 fleet standard in full: `uv_build` backend with a
+  static PEP 621 version, canon ruff/pyright/pydoclint configuration (E501 now
+  enforced), the reusable docs workflow, and `preen check --strict` in CI.
+- Documentation moved from `docs/source/` to a flat `docs/` Sphinx root; the
+  tutorial notebooks are now executed by myst-nb instead of nbsphinx, removing
+  the pandoc build dependency. README benchmark images are served from the
+  documentation site instead of raw GitHub URLs.
+
 ## [0.10.0] - 2026-08-06
 
 ### Added

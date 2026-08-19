@@ -29,7 +29,9 @@ def _draw_bands(
 
     Args:
         ax: Axes to draw on.
-        bands: A mapping with ``x``, ``lower`` and ``upper``, or a sequence of them. Later bands are drawn with the same colour at lower opacity, so nested levels read as nested.
+        bands: A mapping with ``x``, ``lower`` and ``upper``, or a sequence of
+            them. Later bands are drawn with the same colour at lower opacity,
+            so nested levels read as nested.
 
     Raises:
         ValueError: If a band is missing a key or its arrays disagree in length.
@@ -81,7 +83,9 @@ def _draw_density(
     Args:
         ax: Axes to draw on.
         diagram: Fitted diagram, supplying ``x`` and ``weight``.
-        density: ``"hist"`` for a marginal histogram in a panel below the axes, ``"rug"`` for ticks inside the axes, ``"none"`` to draw nothing.
+        density: ``"hist"`` for a marginal histogram in a panel below the
+            axes, ``"rug"`` for ticks inside the axes, ``"none"`` to draw
+            nothing.
         density_bins: Number of bins for ``"hist"``.
     """
     if density == "none":
@@ -147,10 +151,19 @@ def plot_reliability_diagram(
     Args:
         diagram: A fitted diagram from :func:`~calibre.corp_reliability`.
         ax: Axes to draw on. A new figure is created when omitted.
-        bands: Uncertainty bands from :func:`~calibre.consistency_bands` or :func:`~calibre.confidence_bands`, or a sequence of them to nest several levels. Bands are never computed here: they cost a thousand PAV refits, which must not happen as a side effect of drawing.
-        density: How to show where the observations are: ``"hist"`` (a marginal histogram below the axes), ``"rug"`` (ticks inside the axes) or ``"none"``.
+        bands: Uncertainty bands from :func:`~calibre.consistency_bands` or
+            :func:`~calibre.confidence_bands`, or a sequence of them to nest
+            several levels. Bands are never computed here: they cost a
+            thousand PAV refits, which must not happen as a side effect of
+            drawing.
+        density: How to show where the observations are: ``"hist"`` (a
+            marginal histogram below the axes), ``"rug"`` (ticks inside the
+            axes) or ``"none"``.
         density_bins: Number of bins when ``density="hist"``.
-        style: ``"line"`` to interpolate between the estimated points, matching :meth:`~calibre.evaluation.ReliabilityDiagram.as_function`, or ``"step"`` to show the PAV blocks as the step function they are.
+        style: ``"line"`` to interpolate between the estimated points,
+            matching :meth:`~calibre.evaluation.ReliabilityDiagram.as_function`,
+            or ``"step"`` to show the PAV blocks as the step function they
+            are.
         diagonal: Whether to draw the line of perfect calibration.
         color: Colour of the curve. Defaults to calibre's semantic blue.
         label: Legend label. Omit for no legend entry.
@@ -159,7 +172,8 @@ def plot_reliability_diagram(
         Axes: The axes drawn on -- the very object passed as ``ax``, when one was.
 
     Raises:
-        ValueError: If ``density`` or ``style`` is not one of the documented choices, or a band mapping is malformed.
+        ValueError: If ``density`` or ``style`` is not one of the documented
+            choices, or a band mapping is malformed.
 
     Notes:
         ``density="hist"`` appends a panel below ``ax``, which shrinks ``ax`` itself.

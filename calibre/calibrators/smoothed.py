@@ -43,11 +43,17 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
     between the resulting knots.
 
     Args:
-        window_length: Window length for the Savitzky-Golay filter, in **distinct** scores. Forced odd and capped at the number of distinct scores. If None, uses ``max(5, n_distinct // 10)``.
-        poly_order: Polynomial order for the filter. Values below 1 are raised to 1.
-        adaptive: Size the window per point from local density instead of using one fixed window.
-        min_window: Minimum window length when ``adaptive=True``. Values below 3 are raised to 3.
-        max_window: Maximum window length when ``adaptive=True``. If None, uses ``n_distinct // 5``.
+        window_length: Window length for the Savitzky-Golay filter, in
+            **distinct** scores. Forced odd and capped at the number of
+            distinct scores. If None, uses ``max(5, n_distinct // 10)``.
+        poly_order: Polynomial order for the filter. Values below 1 are raised
+            to 1.
+        adaptive: Size the window per point from local density instead of
+            using one fixed window.
+        min_window: Minimum window length when ``adaptive=True``. Values below
+            3 are raised to 3.
+        max_window: Maximum window length when ``adaptive=True``. If None,
+            uses ``n_distinct // 5``.
         enable_diagnostics: Run plateau diagnostics after fitting.
 
     Attributes:
@@ -129,14 +135,14 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
         self.poly_order_ = self.poly_order
         if self.poly_order_ < 1:
             logger.warning(
-                f"poly_order should be at least 1. Got {self.poly_order}. Using 1."
+                "poly_order should be at least 1. Got %s. Using 1.", self.poly_order
             )
             self.poly_order_ = 1
 
         self.min_window_ = self.min_window
         if self.min_window_ < 3:
             logger.warning(
-                f"min_window should be at least 3. Got {self.min_window}. Using 3."
+                "min_window should be at least 3. Got %s. Using 3.", self.min_window
             )
             self.min_window_ = 3
 
@@ -193,8 +199,10 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
 
         if m < window_length or window_length < 3:
             logger.info(
-                f"Not enough distinct scores for smoothing (need {window_length}, "
-                f"have {m}). Using the isotonic fit."
+                "Not enough distinct scores for smoothing (need %s, have %s). "
+                "Using the isotonic fit.",
+                window_length,
+                m,
             )
             return y_iso
 
@@ -203,7 +211,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
                 savgol_filter(y_iso, window_length, poly_order), dtype=float
             )
         except Exception as e:
-            logger.warning(f"Savitzky-Golay smoothing failed: {e}")
+            logger.warning("Savitzky-Golay smoothing failed: %s", e)
             return y_iso
 
         # A near-constant smoothed curve means the filter has flattened the fit
@@ -305,7 +313,7 @@ class SmoothedIsotonicCalibrator(BaseCalibrator, MonotonicMixin):
                 dtype=float,
             )
         except Exception as e:
-            logger.debug(f"Local smoothing failed for point {i}: {e}")
+            logger.debug("Local smoothing failed for point %s: %s", i, e)
             return float(y_iso[i])
 
         local_idx = i - start_idx

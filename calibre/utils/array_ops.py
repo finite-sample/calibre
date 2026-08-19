@@ -217,7 +217,8 @@ def interpolate_monotonic(
         y_train: Training y values (should be monotonic).
         X_test: Test X values to interpolate at.
         bounds_error: Whether to raise error for out-of-bounds values.
-        fill_value: Value(s) to use for out-of-bounds points. If None, uses (y_train[0], y_train[-1]).
+        fill_value: Value(s) to use for out-of-bounds points. If None, uses
+            (y_train[0], y_train[-1]).
 
     Returns:
         y_test: Interpolated values.

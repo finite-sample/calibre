@@ -76,7 +76,7 @@ To run these notebooks locally:
    git clone https://github.com/finite-sample/calibre.git
    cd calibre
    uv sync --all-extras --dev
-   jupyter notebook docs/source/notebooks/
+   jupyter notebook docs/notebooks/
 
 Or install required dependencies:
 

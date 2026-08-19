@@ -220,7 +220,8 @@ def style_context(**overrides: Any) -> AbstractContextManager[None]:
         **overrides: Additional rcParams, overriding the defaults below.
 
     Returns:
-        contextlib.AbstractContextManager: A context manager, as returned by :func:`matplotlib.rc_context`.
+        contextlib.AbstractContextManager: A context manager, as returned by
+            :func:`matplotlib.rc_context`.
 
     Examples:
         >>> import matplotlib

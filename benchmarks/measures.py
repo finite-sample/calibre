@@ -64,8 +64,12 @@ def evaluate(
     Args:
         y_true: Binary outcomes on the held-out half.
         y_pred: Calibrated probabilities.
-        raw_scores: The uncalibrated model scores for the same rows, so the effect of calibration on ranking can be measured.
-        p_true: True event probabilities when the dataset is synthetic, else None. When present this gives ``true_error``, which is much the strongest evidence available -- error against the truth rather than against a noisy label.
+        raw_scores: The uncalibrated model scores for the same rows, so the
+            effect of calibration on ranking can be measured.
+        p_true: True event probabilities when the dataset is synthetic, else
+            None. When present this gives ``true_error``, which is much the
+            strongest evidence available -- error against the truth rather
+            than against a noisy label.
         n_bins: Bin count for the fixed-bin estimators.
 
     Returns:

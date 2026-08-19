@@ -52,7 +52,8 @@ class CalibrationDataGenerator:
         # Generate true probabilities with smooth distribution
         true_probs = np.random.beta(2, 2, n_samples)
 
-        # Create overconfident predictions using Beta(0.5, 0.5) which concentrates at extremes
+        # Create overconfident predictions using Beta(0.5, 0.5) which
+        # concentrates at extremes
         overconfident_transform = np.random.beta(0.5, 0.5, n_samples)
 
         # Map smooth probabilities to overconfident ones
@@ -96,7 +97,8 @@ class CalibrationDataGenerator:
         # Generate true probabilities
         true_probs = np.random.uniform(0, 1, n_samples)
 
-        # Create underconfident predictions using Beta(3, 3) which concentrates around 0.5
+        # Create underconfident predictions using Beta(3, 3) which
+        # concentrates around 0.5
         underconfident_factor = np.random.beta(3, 3, n_samples)
 
         # Shrink predictions toward 0.5
@@ -472,7 +474,8 @@ class CalibrationDataGenerator:
 
         if pattern not in generators:
             raise ValueError(
-                f"Unknown pattern '{pattern}'. Available patterns: {list(generators.keys())}"
+                f"Unknown pattern '{pattern}'. "
+                f"Available patterns: {list(generators.keys())}"
             )
 
         return generators[pattern](n_samples=n_samples, **kwargs)

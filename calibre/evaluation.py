@@ -31,14 +31,16 @@ paper's R implementation (``reliabilitydiag``) in ``tests/test_r_reference.py``.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from scipy.stats import norm
 
 from ._core import PiecewiseLinear, StepFunction, aggregate_ties, weighted_pava
 from .utils import check_arrays
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "ReliabilityDiagram",
@@ -148,7 +150,10 @@ class ReliabilityDiagram:
         """Return the recalibration map as a callable.
 
         Returns:
-            PiecewiseLinear or StepFunction: Piecewise-linear interpolation of the diagram, matching the paper's display convention. A single distinct forecast value gives a step function, since there is nothing to interpolate between.
+            PiecewiseLinear or StepFunction: Piecewise-linear interpolation of
+                the diagram, matching the paper's display convention. A single
+                distinct forecast value gives a step function, since there is
+                nothing to interpolate between.
         """
         if self.x.size == 1:
             return StepFunction(self.x, self.cep)
@@ -162,7 +167,10 @@ class ReliabilityDiagram:
         keyword. Needs matplotlib: ``pip install 'calibre[plots]'``.
 
         Args:
-            **kwargs: Passed straight through to :func:`~calibre.plots.plot_reliability_diagram` -- ``ax``, ``bands``, ``density``, ``style``, ``diagonal``, ``color`` and ``label``.
+            **kwargs: Passed straight through to
+                :func:`~calibre.plots.plot_reliability_diagram` -- ``ax``,
+                ``bands``, ``density``, ``style``, ``diagonal``, ``color``
+                and ``label``.
 
         Returns:
             matplotlib.axes.Axes: The axes drawn on.
@@ -261,7 +269,8 @@ def score_decomposition(
         sample_weight: Non-negative per-observation weights. Defaults to 1.
 
     Returns:
-        dict: ``mean_score``, ``MCB``, ``DSC``, ``UNC``. ``MCB`` and ``DSC`` are non-negative, guaranteed by the optimality of the PAV solution.
+        dict: ``mean_score``, ``MCB``, ``DSC``, ``UNC``. ``MCB`` and ``DSC``
+            are non-negative, guaranteed by the optimality of the PAV solution.
 
     Raises:
         ValueError: If ``score`` is not a supported proper scoring rule.
@@ -407,7 +416,9 @@ def consistency_bands(
 
     Args:
         x: Forecast probabilities.
-        y: Binary outcomes in ``{0, 1}``. Used for the grid and for validation; the bands themselves are generated under the calibration hypothesis and do not depend on the observed outcomes.
+        y: Binary outcomes in ``{0, 1}``. Used for the grid and for
+            validation; the bands themselves are generated under the
+            calibration hypothesis and do not depend on the observed outcomes.
         level: Nominal coverage, default 0.9.
         n_resamples: Number of resamples, default 1000.
         random_state: Seed. Defaults to 0 so results are reproducible.
@@ -523,7 +534,10 @@ def _bias_correction(draws: np.ndarray, observed: float) -> float:
         observed: The statistic on the observed data.
 
     Returns:
-        float: ``z0 = Phi^-1(fraction of draws below the observed value)``. Zero when the bootstrap distribution is centred on the estimate; strongly negative when the draws sit above it, which is the case this function exists for.
+        float: ``z0 = Phi^-1(fraction of draws below the observed value)``.
+            Zero when the bootstrap distribution is centred on the estimate;
+            strongly negative when the draws sit above it, which is the case
+            this function exists for.
 
     Notes:
         Draws exactly equal to the estimate count as half, the usual tie correction
@@ -555,7 +569,9 @@ def _acceleration(
         y_pred: Predicted probabilities.
 
     Returns:
-        float: Efron's acceleration, from the skewness of the leave-one-out values. Costs ``n`` evaluations of ``metric``, which is why ``"bca"`` is offered rather than defaulted.
+        float: Efron's acceleration, from the skewness of the leave-one-out
+            values. Costs ``n`` evaluations of ``metric``, which is why
+            ``"bca"`` is offered rather than defaulted.
     """
     n = y_true.size
     keep = np.ones(n, dtype=bool)
@@ -639,13 +655,29 @@ def bootstrap_ci(
         random_state: Seed. Defaults to 0 so results are reproducible.
         method: How to build the interval from the draws:
 
-            - ``"bc"`` (default) -- bias-corrected percentile. Shifts the quantiles by how far the draws sit above the estimate. Costs nothing extra and, being a percentile method, can never return a bound outside the range of the statistic. - ``"bca"`` -- adds Efron's acceleration for skewness. Costs ``n`` extra evaluations of ``metric`` for the jackknife, so it is offered rather than defaulted. - ``"basic"`` -- the reverse-percentile interval ``2*theta - quantiles``. Corrects the bias but routinely returns a **negative** lower bound for a non-negative statistic. - ``"percentile"`` -- the raw quantiles. Documented, and wrong here; see below.
+            - ``"bc"`` (default) -- bias-corrected percentile. Shifts the
+              quantiles by how far the draws sit above the estimate. Costs
+              nothing extra and, being a percentile method, can never return
+              a bound outside the range of the statistic.
+            - ``"bca"`` -- adds Efron's acceleration for skewness. Costs ``n``
+              extra evaluations of ``metric`` for the jackknife, so it is
+              offered rather than defaulted.
+            - ``"basic"`` -- the reverse-percentile interval
+              ``2*theta - quantiles``. Corrects the bias but routinely returns
+              a **negative** lower bound for a non-negative statistic.
+            - ``"percentile"`` -- the raw quantiles. Documented, and wrong
+              here; see below.
 
     Returns:
-        dict: ``estimate`` (the metric on the observed data), ``lower``, ``upper``, ``level``, ``n_resamples``, ``method``, ``bias`` (the bootstrap mean minus the estimate, so the distortion is visible rather than hidden), and ``degenerate`` (whether the interval collapsed to a point).
+        dict: ``estimate`` (the metric on the observed data), ``lower``,
+            ``upper``, ``level``, ``n_resamples``, ``method``, ``bias`` (the
+            bootstrap mean minus the estimate, so the distortion is visible
+            rather than hidden), and ``degenerate`` (whether the interval
+            collapsed to a point).
 
     Raises:
-        ValueError: If ``level`` is outside ``(0, 1)``, ``n_resamples`` is below 2, the arrays disagree in length, or ``method`` is unknown.
+        ValueError: If ``level`` is outside ``(0, 1)``, ``n_resamples`` is
+            below 2, the arrays disagree in length, or ``method`` is unknown.
 
     Notes:
         **Why the default is not the percentile interval.**

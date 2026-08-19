@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import warnings
 
-import matplotlib
+import matplotlib as mpl
 import numpy as np
 import pytest
 
-matplotlib.use("Agg")
+mpl.use("Agg")
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure

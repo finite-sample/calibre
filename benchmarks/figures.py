@@ -20,7 +20,7 @@ import numpy as np
 from . import config
 
 RESULTS = Path(__file__).resolve().parent / "results"
-FIGURES = Path(__file__).resolve().parents[1] / "docs" / "source" / "_static" / "bench"
+FIGURES = Path(__file__).resolve().parents[1] / "docs" / "_static" / "bench"
 
 
 def _read(name: str) -> list[dict[str, str]]:
@@ -172,7 +172,10 @@ def resolution_barcode(dataset: str, model: str, seed: int) -> None:
     from . import methods, protocol
 
     dataset_obj = datasets_module.load(dataset, seed)
-    fit_scores, fit_labels, test_scores, _, _ = protocol._scores_for_cell(
+    # The figures module is part of the same harness as protocol.py; reaching
+    # its private cell-splitter keeps the figure on exactly the data the grid
+    # ran on, rather than promoting the helper to public API for one caller.
+    fit_scores, fit_labels, test_scores, _, _ = protocol._scores_for_cell(  # noqa: SLF001
         dataset_obj, model, seed
     )
     wanted = [
@@ -264,7 +267,7 @@ def headline_table(
     baseline = _float(next(r[headline] for r in rows if r["method"] == "uncalibrated"))
     rows.sort(key=lambda r: _float(r[headline]))
 
-    out = RESULTS.parent.parent / "docs" / "source" / "_static" / "bench"
+    out = RESULTS.parent.parent / "docs" / "_static" / "bench"
     with (out / "headline.csv").open("w", newline="") as handle:
         writer = csv.writer(handle)
         writer.writerow(

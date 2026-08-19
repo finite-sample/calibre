@@ -1,7 +1,8 @@
 """Diagnostic analysis tools for calibration.
 
 This module provides diagnostic analysis to help understand calibration behavior,
-particularly detecting plateaus (flat regions) and identifying potential data quality issues.
+particularly detecting plateaus (flat regions) and identifying potential data
+quality issues.
 """
 
 from __future__ import annotations
@@ -42,9 +43,17 @@ def run_plateau_diagnostics(
     Returns:
         diagnostics: Dictionary containing:
 
-            - ``'n_plateaus'``: Number of plateaus detected. - ``'plateaus'``: List of plateau information dicts, each containing:
+            - ``'n_plateaus'``: Number of plateaus detected.
+            - ``'plateaus'``: List of plateau information dicts, each
+              containing:
 
-            - ``'plateau_id'``: Unique identifier (0-indexed). - ``'x_range'``: Tuple of (min, max) input values in the plateau. - ``'value'``: The constant output value of the plateau. - ``'width'``: Number of samples in the plateau. - ``'n_samples'``: Number of samples (same as width). - ``'sample_density'``: ``'adequate'``, ``'sparse'`` or ``'very_sparse'``.
+            - ``'plateau_id'``: Unique identifier (0-indexed).
+            - ``'x_range'``: Tuple of (min, max) input values in the plateau.
+            - ``'value'``: The constant output value of the plateau.
+            - ``'width'``: Number of samples in the plateau.
+            - ``'n_samples'``: Number of samples (same as width).
+            - ``'sample_density'``: ``'adequate'``, ``'sparse'`` or
+              ``'very_sparse'``.
 
             - ``'warnings'``: List of warning messages about problematic plateaus.
 
@@ -90,13 +99,11 @@ def run_plateau_diagnostics(
             )
 
     # Summary
-    diagnostics = {
+    return {
         "n_plateaus": len(plateaus),
         "plateaus": plateaus,
         "warnings": warnings,
     }
-
-    return diagnostics
 
 
 def detect_plateaus(
@@ -106,10 +113,12 @@ def detect_plateaus(
 
     Args:
         y_calibrated: Sorted calibrated probabilities.
-        min_width: Minimum number of consecutive identical values to count as a plateau.
+        min_width: Minimum number of consecutive identical values to count as
+            a plateau.
 
     Returns:
-        plateaus: List of (start_index, end_index, value) tuples for each detected plateau. Indices are inclusive.
+        plateaus: List of (start_index, end_index, value) tuples for each
+            detected plateau. Indices are inclusive.
 
     Examples:
         >>> y_cal = np.array([0.2, 0.2, 0.2, 0.5, 0.8, 0.8])
@@ -160,7 +169,14 @@ def analyze_plateau_simple(
         plateau_id: Unique identifier for this plateau.
 
     Returns:
-        plateau_info: Dictionary with plateau information: - plateau_id - x_range: (min, max) of input values - value: output value - width: number of samples - n_samples: same as width - sample_density: 'adequate', 'sparse', or 'very_sparse'
+        plateau_info: Dictionary with plateau information:
+
+            - plateau_id
+            - x_range: (min, max) of input values
+            - value: output value
+            - width: number of samples
+            - n_samples: same as width
+            - sample_density: 'adequate', 'sparse', or 'very_sparse'
     """
     # Extract plateau region
     X_plateau = X[start_idx : end_idx + 1]
@@ -208,13 +224,14 @@ def diversity_learning_curve(
         X: Input features (predicted probabilities).
         y: True binary labels.
         calibrator: Calibrator to test. If None, uses IsotonicCalibrator.
-        sample_sizes: Sample sizes to test. If None, uses default range covering 10% to 100% of available data.
+        sample_sizes: Sample sizes to test. If None, uses default range
+            covering 10% to 100% of available data.
         n_trials: Number of random trials per sample size for averaging.
         random_state: Random state for reproducibility.
 
     Returns:
         sizes: Sample sizes tested.
-        diversities: Average diversity at each sample size, where diversity is the fraction of unique calibrated values.
+        diversities: Mean fraction of unique calibrated values at each size.
 
     Raises:
         ValueError: If X and y have different lengths.
@@ -303,7 +320,10 @@ def diversity_learning_curve(
                 trial_diversities.append(diversity)
             except Exception as e:
                 logger.warning(
-                    f"Failed to fit calibrator at size {size}, trial {trial}: {e}"
+                    "Failed to fit calibrator at size %s, trial %s: %s",
+                    size,
+                    trial,
+                    e,
                 )
                 continue
 

@@ -46,13 +46,18 @@ class CalibrationReport:
         smece: Smooth calibration error, with no bin count and no bandwidth to choose.
         smece_sigma: The bandwidth smECE selected.
         debiased_ece: Bias-corrected binned error at ``n_bins``.
-        plugin_ece: Uncorrected binned error at ``n_bins``, on the same bins. The gap between this and ``debiased_ece`` is the bias you would have reported.
+        plugin_ece: Uncorrected binned error at ``n_bins``, on the same bins.
+            The gap between this and ``debiased_ece`` is the bias you would
+            have reported.
         sweep_ece: Binned error at the bin count the monotone sweep selected.
         sweep_bins: That bin count.
         n_bins: The bin count used for ``debiased_ece`` and ``plugin_ece``.
-        n_distinct: Distinct forecast values. Isotonic regression collapses this; the point of most of this package is not to.
+        n_distinct: Distinct forecast values. Isotonic regression collapses
+            this; the point of most of this package is not to.
         distinct_ratio: ``n_distinct / n``.
-        intervals: Bootstrap confidence intervals, empty unless ``ci=True`` was passed. Each holds ``lower``, ``upper``, ``bias`` and ``degenerate``.
+        intervals: Bootstrap confidence intervals, empty unless ``ci=True``
+            was passed. Each holds ``lower``, ``upper``, ``bias`` and
+            ``degenerate``.
     """
 
     n: int
@@ -158,12 +163,23 @@ def calibration_report(
     Args:
         y_true: Ground truth values (0 or 1).
         y_pred: Predicted probabilities.
-        n_bins: Bin count for the two fixed-bin estimators. The sweep chooses its own and smECE needs none.
-        ci: Whether to bootstrap confidence intervals for ``brier``, ``smece`` and ``debiased_ece``. Off by default because it costs ``n_resamples`` recomputations of each. ``MCB`` and ``DSC`` are excluded on purpose: the naive bootstrap is inconsistent for functionals of an isotonic fit, and would report an interval that can sit above the estimate. Use :func:`~calibre.consistency_bands` or :func:`~calibre.confidence_bands` for those.
+        n_bins: Bin count for the two fixed-bin estimators. The sweep chooses
+            its own and smECE needs none.
+        ci: Whether to bootstrap confidence intervals for ``brier``, ``smece``
+            and ``debiased_ece``. Off by default because it costs
+            ``n_resamples`` recomputations of each. ``MCB`` and ``DSC`` are
+            excluded on purpose: the naive bootstrap is inconsistent for
+            functionals of an isotonic fit, and would report an interval that
+            can sit above the estimate. Use
+            :func:`~calibre.consistency_bands` or
+            :func:`~calibre.confidence_bands` for those.
         level: Nominal coverage for those intervals.
         n_resamples: Bootstrap resamples.
         random_state: Seed.
-        ci_method: Interval method, passed to :func:`~calibre.bootstrap_ci`. Defaults to ``"bc"``, which is bias-corrected; the plain percentile interval under-covers badly here, for reasons that function documents.
+        ci_method: Interval method, passed to :func:`~calibre.bootstrap_ci`.
+            Defaults to ``"bc"``, which is bias-corrected; the plain
+            percentile interval under-covers badly here, for reasons that
+            function documents.
 
     Returns:
         CalibrationReport: The summary. Print it, or read fields off it.

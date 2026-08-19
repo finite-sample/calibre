@@ -530,7 +530,7 @@ and a subprocess test enforces that.
 method, drawn over the input range. The number of ticks *is* the number of distinct
 values, so the loss is not asserted — it is visible.
 
-![Resolution retained by each calibrator](https://raw.githubusercontent.com/finite-sample/calibre/main/docs/source/_static/bench/resolution_loss.png)
+![Resolution retained by each calibrator](https://finite-sample.github.io/calibre/_static/bench/resolution_loss.png)
 
 scikit-learn's isotonic strip is sparse enough to count by eye. The calibre strips
 are solid ink. Same data, same held-out Brier to the fourth decimal.
@@ -539,7 +539,7 @@ are solid ink. Same data, same held-out Brier to the fourth decimal.
 might be noise. If they were, the methods keeping them would sit higher on the
 score axis:
 
-![Held-out score against distinct values retained](https://raw.githubusercontent.com/finite-sample/calibre/main/docs/source/_static/bench/resolution_frontier.png)
+![Held-out score against distinct values retained](https://finite-sample.github.io/calibre/_static/bench/resolution_frontier.png)
 
 They do not. The frontier is flat: two clusters four decades apart in resolution,
 at the same height.
