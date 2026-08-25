@@ -62,6 +62,24 @@ def test_importing_calibre_plots_does_not_import_matplotlib():
     assert result.returncode == 0, result.stderr
 
 
+def test_plots_is_reachable_after_plain_calibre_import():
+    """The lazy attribute must work before the submodule is in ``sys.modules``."""
+    code = (
+        "import sys\n"
+        "import calibre\n"
+        "assert 'calibre.plots' not in sys.modules\n"
+        "plots = calibre.plots\n"
+        "assert plots is sys.modules['calibre.plots']\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_require_matplotlib_returns_the_modules():
     """The happy path hands back matplotlib and pyplot."""
     mpl, plt = require_matplotlib()

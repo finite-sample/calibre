@@ -741,11 +741,17 @@ class MonotoneSplineBasis:
         self.knots = knots
         self.extrapolation = extrapolation
 
-    def fit(self, x: np.ndarray) -> MonotoneSplineBasis:
+    def fit(
+        self,
+        x: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> MonotoneSplineBasis:
         """Place the knots from ``x``.
 
         Args:
             x: Predictor values.
+            sample_weight: Non-negative observation weights used to place
+                quantile knots.
 
         Returns:
             MonotoneSplineBasis: self, for chaining.
@@ -778,7 +784,7 @@ class MonotoneSplineBasis:
             extrapolation=self.extrapolation,
             include_bias=True,
         )
-        self.transformer_.fit(x)
+        self.transformer_.fit(x, sample_weight=sample_weight)
         self.n_basis_ = self.transformer_.transform(x[:1]).shape[1] - 1
         return self
 

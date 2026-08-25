@@ -74,7 +74,7 @@ isotonic blocks.
 | A drop-in isotonic replacement, no tuning | `CenteredIsotonicCalibrator` | Collapses isotonic's flat steps to points and interpolates. O(n). |
 | A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing using the loss appropriate for its link. |
 | A smooth curve with smoothing you control | `RegularizedIsotonicCalibrator` | Same model, you set `alpha` instead of tuning it. Fast. |
-| Exactly scikit-learn's isotonic behaviour | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
+| Exactly scikit-learn's isotonic behavior | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
 | Guaranteed strictly increasing output | `RelaxedPAVACalibrator` | Forces a minimum step between adjacent scores. Since 0.10.0 its default picks that step for you. |
 | To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. Not the one to reach for if you want resolution — see its docstring. |
 | Accuracy near specific decision thresholds | `CDIIsotonicCalibrator` | Research-grade; needs your operating thresholds. |
@@ -291,8 +291,7 @@ predictions across a bin boundary.
 
 Also available: `maximum_calibration_error`, `binned_calibration_error`,
 `calibration_curve`, `correlation_metrics`, `unique_value_counts`,
-`calibration_diversity_index`, `tie_preservation_score`, `plateau_quality_score`,
-`progressive_sampling_diversity`.
+and `tie_preservation_score`.
 
 ### Get every number at once
 
@@ -577,7 +576,7 @@ consistency or confidence bands), `plot_score_decomposition`, `plot_mcb_dsc_plan
 `plot_classwise_reliability`.
 Every one returns the `Axes` or `Figure`, so you keep full control of titles,
 limits and saving. The palette is Okabe-Ito, which stays legible with any common
-form of colour blindness.
+form of color blindness.
 
 ## Documentation
 

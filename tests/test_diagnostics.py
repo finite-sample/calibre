@@ -8,7 +8,6 @@ import pytest
 from calibre import IsotonicCalibrator
 from calibre.diagnostics import (
     detect_plateaus,
-    diversity_learning_curve,
     run_plateau_diagnostics,
 )
 
@@ -178,50 +177,6 @@ def test_edge_cases():
     assert (
         len(plateaus) == 0
     )  # No plateaus possible with single point using min_width=2
-
-
-def test_diversity_learning_curve_defaults_work_on_small_samples():
-    """Default sample sizes must stay positive and inside the observed data."""
-    sizes, diversities = diversity_learning_curve(
-        np.array([0.2, 0.8]), np.array([0.0, 1.0]), n_trials=1, random_state=0
-    )
-
-    assert sizes == [1, 2]
-    assert len(diversities) == 2
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"sample_sizes": [0]},
-        {"sample_sizes": [3]},
-        {"n_trials": 0},
-    ],
-)
-def test_diversity_learning_curve_rejects_invalid_study_sizes(kwargs):
-    """Invalid studies must not become zero-diversity observations."""
-    with pytest.raises(ValueError, match="must"):
-        diversity_learning_curve(np.array([0.2, 0.8]), np.array([0.0, 1.0]), **kwargs)
-
-
-def test_diversity_learning_curve_propagates_calibrator_failures():
-    """A failed fit is not evidence of zero calibration diversity."""
-
-    class FailingCalibrator:
-        def get_params(self):
-            return {}
-
-        def fit(self, X, y):
-            raise ValueError("deliberate fit failure")
-
-    with pytest.raises(ValueError, match="deliberate fit failure"):
-        diversity_learning_curve(
-            np.array([0.2, 0.8]),
-            np.array([0.0, 1.0]),
-            calibrator=FailingCalibrator(),
-            sample_sizes=[2],
-            n_trials=1,
-        )
 
 
 def test_calibrator_with_different_parameters():

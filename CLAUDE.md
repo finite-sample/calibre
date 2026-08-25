@@ -94,7 +94,7 @@ uv sync --all-groups
 **IMPORTANT**: Always commit `uv.lock` changes when modifying dependencies. The CI/CD pipeline validates that `uv.lock` is consistent with `pyproject.toml`.
 
 **When adding/updating dependencies:**
-1. Run `uv add package-name` or `uv add --group dev package-name` 
+1. Run `uv add package-name` or `uv add --group dev package-name`
 2. This automatically updates both `pyproject.toml` and `uv.lock`
 3. Commit both files together
 4. CI will validate the lock file is up-to-date
@@ -158,7 +158,6 @@ All are pinned against R reference implementations by `tests/test_r_reference.py
 - `detect_plateaus()`: Detect flat regions in calibration curves
 - `analyze_plateau_simple()`: Describe one plateau (`x_range`, `value`, `n_samples`,
   `sample_density`)
-- `diversity_learning_curve()`: How granularity changes with sample size
 
 Note: this module is a stub relative to what earlier CHANGELOGs promised. Bootstrap
 tie stability, conditional AUC among tied pairs, minimum detectable difference, and the
@@ -180,9 +179,6 @@ supported/limited-data/inconclusive classifier do not exist.
 - `correlation_metrics()`: Spearman correlations
 - `unique_value_counts()`: Granularity preservation metrics
 - `tie_preservation_score()`: Measures how well ties are preserved during calibration
-- `plateau_quality_score()`: Overall quality assessment of plateau regions
-- `calibration_diversity_index()`: Measures granularity preservation
-- `progressive_sampling_diversity()`: Analyzes how diversity changes with sample size
 
 **calibre/plots/**: Plotting. matplotlib is an **optional** extra
 (`pip install 'calibre[plots]'`) and must stay one:
@@ -430,9 +426,8 @@ and those guards.
 - **Testing**: Comprehensive test coverage with realistic data generators
 
 ### Diagnostics: what exists
-See the `calibre/diagnostics.py` section above for the authoritative list. Only two
-things are implemented: plateau detection with a sample-count density label, and
-`diversity_learning_curve` / `progressive_sampling_diversity`. Earlier CHANGELOGs
-advertised bootstrap tie stability, conditional AUC among tied pairs, minimum
-detectable difference, and a supported/limited-data/inconclusive classifier; none of
-those were ever written. Do not restate them here or anywhere else.
+See the `calibre/diagnostics.py` section above for the authoritative list. The module
+implements structural plateau detection with a sample-count density label. Earlier
+CHANGELOGs advertised bootstrap tie stability, conditional AUC among tied pairs,
+minimum detectable difference, and a supported/limited-data/inconclusive classifier;
+none of those were ever written. Do not restate them here or anywhere else.

@@ -7,6 +7,7 @@ from machine learning models to improve their reliability.
 from __future__ import annotations
 
 # Get version from pyproject.toml - single source of truth
+import importlib
 import importlib.metadata
 from typing import TYPE_CHECKING
 
@@ -50,15 +51,12 @@ from .metrics import (
     binned_calibration_error,
     brier_score,
     calibration_curve,
-    calibration_diversity_index,
     correlation_metrics,
     debiased_calibration_error,
     expected_calibration_error,
     maximum_calibration_error,
     mean_calibration_error,
-    plateau_quality_score,
     plugin_calibration_error,
-    progressive_sampling_diversity,
     smooth_calibration_error,
     sweep_calibration_error,
     tie_preservation_score,
@@ -103,7 +101,6 @@ __all__ = [
     "bootstrap_ci",
     "brier_score",
     "calibration_curve",
-    "calibration_diversity_index",
     "calibration_report",
     "classwise_decomposition",
     "classwise_ece",
@@ -124,11 +121,9 @@ __all__ = [
     # Modules
     "metrics",
     "miscalibration_profile",
-    "plateau_quality_score",
     # Plotting (optional: needs `pip install 'calibre[plots]'`)
     "plots",
     "plugin_calibration_error",
-    "progressive_sampling_diversity",
     # Diagnostic functions
     "run_plateau_diagnostics",
     "score_decomposition",
@@ -159,9 +154,7 @@ def __getattr__(name: str) -> object:
         AttributeError: If ``name`` is not a lazily-exposed attribute.
     """
     if name == "plots":
-        from . import plots
-
-        return plots
+        return importlib.import_module(f"{__name__}.plots")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 

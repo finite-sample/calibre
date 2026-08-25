@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.10.1] - 2026-08-24
+## [0.11.0] - 2026-08-24
 
 ### Fixed
 
@@ -24,9 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of silently applying NumPy's boundary fill.
 - CDI-ISO now rejects non-finite and all-zero sample weights instead of returning
   zero or NaN calibration curves.
-- Learning-curve defaults no longer generate negative sample sizes for small datasets,
-  and invalid study sizes fail instead of becoming zero-diversity results.
 - Binned metrics now reject zero bins instead of reporting zero calibration error.
+- Accessing `calibre.plots` after a plain `import calibre` now loads the optional
+  plotting namespace instead of recursing until Python raises `RecursionError`.
+- Weighted spline fits now use sample weights when placing quantile knots.
 
 ### Changed
 

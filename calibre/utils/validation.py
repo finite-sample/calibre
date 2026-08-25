@@ -111,6 +111,9 @@ def check_array_1d(X: np.ndarray, name: str = "X") -> np.ndarray:
         >>> print(X_checked.shape)
         (3,)
     """
+    if np.asarray(X).ndim != 1:
+        raise ValueError(f"Array '{name}' must be 1-dimensional")
+
     X = _as_float_1d(X)
 
     if len(X) == 0:

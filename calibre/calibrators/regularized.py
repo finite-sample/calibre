@@ -201,7 +201,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
         basis = monotone_spline_basis(
             n_knots=self.n_knots, degree=self.degree, knots=self.knots
-        ).fit(X)
+        ).fit(X, sample_weight=sample_weight)
         intercept, coef = fit_monotone_spline(
             basis.design(X),
             y,

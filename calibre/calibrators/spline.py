@@ -259,7 +259,7 @@ class SplineCalibrator(BaseCalibrator):
 
         basis = monotone_spline_basis(
             n_knots=n_knots, degree=self.degree, knots=self.knots
-        ).fit(X)
+        ).fit(X, sample_weight=sample_weight)
         intercept, coef = fit_monotone_spline(
             basis.design(X), y, sample_weight=w, alpha=alpha, link=self.link
         )
@@ -333,7 +333,12 @@ class SplineCalibrator(BaseCalibrator):
                     try:
                         basis = monotone_spline_basis(
                             n_knots=n_knots, degree=self.degree, knots=self.knots
-                        ).fit(X[train_idx])
+                        ).fit(
+                            X[train_idx],
+                            sample_weight=(
+                                None if np.all(w[train_idx] == 1.0) else w[train_idx]
+                            ),
+                        )
                         intercept, coef = fit_monotone_spline(
                             basis.design(X[train_idx]),
                             y[train_idx],
