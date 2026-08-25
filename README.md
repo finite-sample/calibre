@@ -75,7 +75,7 @@ isotonic blocks.
 | A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing using the loss appropriate for its link. |
 | A smooth curve with smoothing you control | `RegularizedIsotonicCalibrator` | Same model, you set `alpha` instead of tuning it. Fast. |
 | Exactly scikit-learn's isotonic behavior | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
-| Guaranteed strictly increasing output | `RelaxedPAVACalibrator` | Forces a minimum step between adjacent scores. Since 0.10.0 its default picks that step for you. |
+| Strict increase without output clipping | `RelaxedPAVACalibrator` | Forces a minimum step; clipping can flatten boundary values. |
 | To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. Not the one to reach for if you want resolution — see its docstring. |
 | Accuracy near specific decision thresholds | `CDIIsotonicCalibrator` | Research-grade; needs your operating thresholds. |
 

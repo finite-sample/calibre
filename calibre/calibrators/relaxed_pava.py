@@ -41,7 +41,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     ==================  =====================================================
     ``epsilon = 0``     standard isotonic regression
     ``epsilon > 0``     epsilon-monotone: decreases up to ``epsilon`` allowed
-    ``min_slope > 0``   strictly increasing, so no plateau can form at all
+    ``min_slope > 0``   strictly increasing before optional output clipping
     ==================  =====================================================
 
     Args:
@@ -50,7 +50,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
             up to 2 percentage points".
         min_slope: Minimum required increase between adjacent unique scores.
             Mutually exclusive with a non-zero ``epsilon``; this is the
-            direction that eliminates plateaus. ``"auto"`` (the default) uses
+            direction that separates adjacent fitted values before optional
+            output clipping. ``"auto"`` (the default) uses
             ``0.01 / n_unique``, but only on the untouched default path --
             that is, when ``epsilon`` was also left at ``"auto"`` and the
             search settled on ``0``. Naming ``epsilon`` yourself, including
@@ -85,7 +86,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         Relaxing monotonicity is not free: a decrease in the calibration map reverses
         the ranking of every score pair it spans, which costs discrimination. To
         preserve granularity, ``min_slope`` is usually the better direction, since it
-        removes plateaus while keeping the map strictly increasing.
+        separates adjacent fitted values while keeping the map monotone.
 
         That is why the default is a slope rather than nothing. PAVA's plateaus are
         an artefact of pooling adjacent violators, not a finding about the data, and
@@ -117,15 +118,15 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         >>> bool(np.all(np.diff(default) > 0))
         True
 
-        A minimum slope leaves no plateau anywhere:
+        For this example, a minimum slope separates every adjacent fitted value:
 
         >>> fitted = RelaxedPAVACalibrator(min_slope=0.05).fit_transform(x, y)
         >>> bool(np.all(np.diff(fitted) > 0))
         True
 
         The bound itself is exact only without clipping. Clipping into ``[0, 1]``
-        can shorten the increments that straddle a boundary, so the guarantee
-        degrades from ">= min_slope" to "> 0" there:
+        can shorten increments to zero at a boundary, so a strict-increase
+        guarantee requires ``clip_output=False``:
 
         >>> exact = RelaxedPAVACalibrator(
         ...     min_slope=0.05, clip_output=False
@@ -137,7 +138,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
     See Also:
         IsotonicCalibrator : The ``epsilon = 0`` special case.
-        CenteredIsotonicCalibrator : Removes plateaus without relaxing monotonicity.
+        CenteredIsotonicCalibrator : Interpolates between pooled blocks without
+            relaxing monotonicity.
         NearlyIsotonicCalibrator : Penalises violations instead of bounding them.
     """
 

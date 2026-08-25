@@ -113,7 +113,8 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
     See Also:
         SplineCalibrator : Same estimator with the penalty chosen by cross-validation.
-        CenteredIsotonicCalibrator : Non-parametric and plateau-free.
+        CenteredIsotonicCalibrator : Non-parametric interpolation between pooled
+            isotonic blocks.
         IsotonicCalibrator : The exact isotonic fit.
     """
 

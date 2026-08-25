@@ -58,8 +58,7 @@ Development Installation
 .. important::
 
    Development dependencies are a :pep:`735` ``[dependency-groups]`` entry, so
-   ``pip install -e ".[dev]"`` does **not** work. Use ``uv sync --all-extras
-   --dev``.
+   ``pip install -e ".[dev]"`` does **not** work. Use ``uv sync --all-groups``.
 
 Tooling is ruff (formatting and linting) plus pytest, pytest-cov and pyright.
 black, isort and flake8 were replaced by ruff in 0.4.1.

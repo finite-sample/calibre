@@ -10,7 +10,7 @@ Which calibrator should I use?
 
 **If you don't want to think about it:**
 :class:`~calibre.CenteredIsotonicCalibrator`. It is non-parametric, has nothing
-to tune, is monotone, and has no plateaus.
+to tune, and preserves score ordering between pooled isotonic blocks.
 
 .. list-table::
    :header-rows: 1
@@ -31,9 +31,9 @@ to tune, is monotone, and has no plateaus.
    * - Exactly scikit-learn's isotonic behaviour
      - :class:`~calibre.IsotonicCalibrator`
      - Thin wrapper, plus optional plateau diagnostics.
-   * - Guaranteed strictly increasing output
+   * - Strict increase without output clipping
      - :class:`~calibre.RelaxedPAVACalibrator`
-     - ``min_slope`` forces a minimum step between adjacent scores.
+     - ``min_slope`` forces a minimum step; clipping can flatten boundary values.
    * - To allow small ranking violations if they fit better
      - :class:`~calibre.NearlyIsotonicCalibrator`
      - ``lam`` trades monotonicity against fit.

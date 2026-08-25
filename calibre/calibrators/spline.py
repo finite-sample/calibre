@@ -154,7 +154,8 @@ class SplineCalibrator(BaseCalibrator):
         True
 
     See Also:
-        CenteredIsotonicCalibrator : Non-parametric, needs no tuning, also plateau-free.
+        CenteredIsotonicCalibrator : Non-parametric and needs no tuning; interpolates
+            between pooled isotonic blocks.
         RegularizedIsotonicCalibrator : Same basis, penalty specified rather than tuned.
     """
 
