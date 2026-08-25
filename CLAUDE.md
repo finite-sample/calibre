@@ -63,7 +63,7 @@ uv run pyright
 ### Dependency Management
 ```bash
 # Install/sync all dependencies including dev dependencies
-uv sync --all-extras --dev
+uv sync --all-groups
 
 # Add a new dependency
 uv add package-name
@@ -84,7 +84,7 @@ uv lock --upgrade
 uv build
 
 # Install in development mode (after uv sync)
-uv sync --all-extras --dev
+uv sync --all-groups
 ```
 
 ## Development Workflow
@@ -100,7 +100,7 @@ uv sync --all-extras --dev
 4. CI will validate the lock file is up-to-date
 
 **When pulling changes with new dependencies:**
-1. Run `uv sync --all-extras --dev` to install new dependencies
+1. Run `uv sync --all-groups` to install new dependencies
 2. This uses the exact versions specified in `uv.lock`
 
 **Periodic dependency updates:**
@@ -132,7 +132,8 @@ The CI pipeline uses `uv sync --locked` to ensure:
 - `NearlyIsotonicCalibrator`: Penalises rather than forbids monotonicity violations.
   Two exact solvers: `method="path"` (default, pure NumPy) and `method="cvx"` (CVXPY).
   Note `lam` is 2x the source paper's lambda.
-- `SplineCalibrator`: Monotone I-spline fit; CV picks `(n_knots, alpha)` on log-loss
+- `SplineCalibrator`: Monotone I-spline fit; CV picks `(n_knots, alpha)` using
+  log loss for the logit link and squared error for the identity link
 - `RelaxedPAVACalibrator`: Bounds each adjacent increment — `epsilon` permits small
   decreases, `min_slope` forbids plateaus. Solved by shift-to-PAVA in O(n).
 - `RegularizedIsotonicCalibrator`: Monotone spline with a second-difference (curvature)
@@ -161,8 +162,7 @@ All are pinned against R reference implementations by `tests/test_r_reference.py
 
 Note: this module is a stub relative to what earlier CHANGELOGs promised. Bootstrap
 tie stability, conditional AUC among tied pairs, minimum detectable difference, and the
-supported/limited-data/inconclusive classifier do not exist. `n_bootstraps` and
-`random_state` on `run_plateau_diagnostics` are accepted and ignored.
+supported/limited-data/inconclusive classifier do not exist.
 
 **calibre/metrics.py**: Evaluation metrics for calibration quality:
 - `mean_calibration_error()`: Bias, |E[p] - E[y]|. Changed in 0.7.0; it used to
@@ -259,7 +259,7 @@ from calibre.diagnostics import run_plateau_diagnostics
 
 # Run diagnostics on any calibration result
 y_calibrated = cal.transform(X)
-diagnostics = run_plateau_diagnostics(X, y, y_calibrated)
+diagnostics = run_plateau_diagnostics(X, y_calibrated)
 ```
 
 ## Testing Structure
@@ -387,7 +387,7 @@ and those guards.
 - Tool configuration for ruff, pyright, pytest, coverage, deptry, pydoclint in pyproject.toml
 - Python 3.12+ required
 - Dev dependencies are a PEP 735 `[dependency-groups]` entry, so `pip install -e ".[dev]"`
-  does NOT work. Use `uv sync --all-extras --dev`.
+  does NOT work. Use `uv sync --all-groups`.
 
 ## Interactive Examples
 - **docs/notebooks/**: Jupyter notebooks with comprehensive examples and benchmarks
@@ -405,7 +405,7 @@ and those guards.
 - **Sphinx documentation**: Comprehensive documentation with API reference, examples, and tutorials
 - **Location**: `docs/` directory (flat Sphinx root, canon layout)
 - **Live site**: https://finite-sample.github.io/calibre/
-- **Build locally**: `uv sync --group docs && uv run sphinx-build -W -b html docs _site`
+- **Build locally**: `make docs`
 - **Auto-deployment**: GitHub Pages deployment via `.github/workflows/docs.yml`
 
 ### Documentation Structure:
@@ -422,7 +422,7 @@ and those guards.
 - Assert provable properties, not thresholds tuned to whatever the code happened to do
 
 ## Code Quality Standards (v0.4.1+)
-- **Line length**: 88 characters (ruff; E501 is ignored, the formatter handles it)
+- **Line length**: 88 characters (ruff; E501 is enforced)
 - **Complexity**: Functions should have complexity ≤10 (measured by McCabe)
 - **Type hints**: Required throughout codebase (Python 3.12+ typing)
 - **Import management**: No unused imports or variables
