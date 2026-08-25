@@ -33,14 +33,27 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
     while still maintaining a generally monotonic trend.
 
     Args:
-        lam: Regularization parameter controlling the strength of monotonicity constraint. Higher values enforce stricter monotonicity.
-        method: Solver for the optimization problem. Both are exact and agree to solver tolerance; ``path`` is the faster and needs no CVXPY.
+        lam: Regularization parameter controlling the strength of monotonicity
+            constraint. Higher values enforce stricter monotonicity.
+        method: Solver for the optimization problem. Both are exact and agree
+            to solver tolerance; ``path`` is the faster and needs no CVXPY.
 
-            - ``'path'``: the exact solution path (O(n log n)). - ``'cvx'``: convex optimization via CVXPY.
-        cv: Number of cross-validation folds used when a hyperparameter is left at ``"auto"``. Ignored when every hyperparameter is pinned.
-        scoring: Proper scoring rule the ``"auto"`` search minimises. Deliberately not a calibration error: ECE and its relatives are minimised by a constant forecast, so selecting on one would reward throwing resolution away.
-        random_state: Seed for the cross-validation split, so an ``"auto"`` selection is reproducible.
-        clip_output: Clip calibrated values into ``[0, 1]``. Appropriate for probability calibration; turn it off to recover the unconstrained optimum of the objective above, which is what the estimator is actually defined as.
+            - ``'path'``: the exact solution path (O(n log n)).
+            - ``'cvx'``: convex optimization via CVXPY.
+        cv: Number of cross-validation folds used when a hyperparameter is
+            left at ``"auto"``. Ignored when every hyperparameter is pinned.
+        scoring: Proper scoring rule the ``"auto"`` search minimises.
+            ``"auto"`` (the default) uses log loss for probability targets and
+            squared error otherwise.
+            Deliberately not a calibration error: ECE and its relatives are
+            minimised by a constant forecast, so selecting on one would reward
+            throwing resolution away.
+        random_state: Seed for the cross-validation split, so an ``"auto"``
+            selection is reproducible.
+        clip_output: Clip calibrated values into ``[0, 1]``. Appropriate for
+            probability calibration; turn it off to recover the unconstrained
+            optimum of the objective above, which is what the estimator is
+            actually defined as.
         enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
 
@@ -48,7 +61,8 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         Nearly-isotonic regression solves the following optimization problem:
 
         .. math::
-            \min_{\beta} \sum_{i=1}^{n} (y_i - \beta_i)^2 + \lambda \sum_{i=1}^{n-1} \max(0, \beta_i - \beta_{i+1})
+            \min_{\beta} \sum_{i=1}^{n} (y_i - \beta_i)^2
+            + \lambda \sum_{i=1}^{n-1} \max(0, \beta_i - \beta_{i+1})
 
         where :math:`\beta` is the calibrated output, :math:`y` are the true labels,
         and :math:`\lambda > 0` controls the strength of the monotonicity penalty.
@@ -125,7 +139,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         lam: float | str = "auto",
         method: str = "path",
         cv: int = 5,
-        scoring: str = "log_loss",
+        scoring: str = "auto",
         random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
@@ -198,7 +212,9 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
             y: Targets.
 
         Returns:
-            float: The penalty to use. Written to ``lam_``; the ``lam`` constructor argument is never modified, so ``get_params`` round trips.
+            float: The penalty to use. Written to ``lam_``; the ``lam``
+                constructor argument is never modified, so ``get_params``
+                round trips.
 
         Raises:
             ValueError: If ``lam`` is negative, or is a string other than ``"auto"``.

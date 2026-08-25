@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.11.0] - 2026-08-24
+
+### Fixed
+
+- Plateau diagnostics now identify flat regions along the input-score axis, accept
+  the same array-like inputs as calibrator fitting, and reject mismatched lengths.
+- Fitted-state checks now use scikit-learn's estimator protocol. They no longer accept
+  an unfitted isotonic model, reject a fitted non-isotonic model, or probe an arbitrary
+  score that can violate a fitted calibrator's out-of-bounds policy.
+- Identity-link spline cross-validation now uses squared error and the fitted model's
+  clipping policy, matching the model it selects and ultimately fits. Calibrator-level
+  automatic scoring uses log loss for probability targets and squared error for
+  unbounded targets, and selection now raises when every candidate fit fails.
+- `interpolate_monotonic(bounds_error=True)` now raises outside the training range
+  instead of silently applying NumPy's boundary fill.
+- CDI-ISO now rejects non-finite and all-zero sample weights instead of returning
+  zero or NaN calibration curves.
+- Binned metrics now reject zero bins instead of reporting zero calibration error.
+- Accessing `calibre.plots` after a plain `import calibre` now loads the optional
+  plotting namespace instead of recursing until Python raises `RecursionError`.
+- Weighted spline fits now use sample weights when placing quantile knots.
+
+### Changed
+
+- Adopted the py-canon v1.1.0 fleet standard in full: `uv_build` backend with a
+  static PEP 621 version, canon ruff/pyright/pydoclint configuration (E501 now
+  enforced), the reusable docs workflow, and `preen check --strict` in CI.
+- Documentation moved from `docs/source/` to a flat `docs/` Sphinx root; the
+  tutorial notebooks are now executed by myst-nb instead of nbsphinx, removing
+  the pandoc build dependency. README benchmark images are served from the
+  documentation site instead of raw GitHub URLs.
+
 ## [0.10.0] - 2026-08-06
 
 ### Added

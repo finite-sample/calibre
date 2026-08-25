@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling", "uv-dynamic-versioning"]
-build-backend = "hatchling.build"
+requires = ["uv_build>=0.12.5,<0.13"]
+build-backend = "uv_build"
 
 [project]
 name = "calibre"
@@ -25,25 +25,34 @@ classifiers = [
 dependencies = [
     "numpy>=1.20.0",
     "scipy>=1.7.0",
-    "scikit-learn>=1.0.0",
+    "scikit-learn>=1.6.0",
     "cvxpy>=1.2.0",
 ]
-dynamic = ["version"]
+version = "0.11.0"
 
 [project.optional-dependencies]
 # Drawing only. calibre.plots imports matplotlib lazily, so the core package
-# installs and runs without it. Keep the lower bound in step with the dev, test
-# and docs groups below: PEP 735 groups cannot reference a project's own extras,
-# so the four bounds have to be bumped together.
+# installs and runs without it. Keep the lower bound in step with the test and
+# docs groups below: PEP 735 groups cannot reference a project's own extras, so
+# the three bounds have to be bumped together.
 plots = ["matplotlib>=3.9"]
 
 [dependency-groups]
-# matplotlib is in dev and test so the plots tests always run. CLAUDE.md requires
-# tests to fail rather than skip, and a test that skips when an optional
-# dependency is absent tests nothing. The absence path is covered by simulating
-# absence (tests/test_plots_deps.py), not by leaving matplotlib uninstalled.
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "pytest-xdist>=3.0", "ruff>=0.7.0", "pre-commit>=3.0", "pydoclint>=0.8.3", "pyright>=1.1.390", "matplotlib>=3.9"]
+dev = [
+    "ruff>=0.14",
+    "pyright>=1.1.390",
+    "pre-commit>=4",
+    "pydoclint>=0.8.3",
+    { include-group = "test" },
+]
+# matplotlib is in test (and therefore dev) so the plots tests always run.
+# CLAUDE.md requires tests to fail rather than skip, and a test that skips when
+# an optional dependency is absent tests nothing. The absence path is covered by
+# simulating absence (tests/test_plots_deps.py), not by leaving it uninstalled.
 test = [
+    # The Monte Carlo gates. A dependency-group entry, never a published
+    # extra: PyPI rejects direct URL references in project metadata.
+    "simcheck @ git+https://github.com/finite-sample/simcheck",
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.0",
@@ -55,9 +64,11 @@ docs = [
     "myst-parser",
     "sphinx-copybutton",
     "py-canon @ git+https://github.com/gojiplus/py-canon@v1",
-    # Required by docs/source/conf.py and not part of the canon docs group.
-    "sphinx-autodoc-typehints>=1.25",
-    "nbsphinx>=0.9.0",
+    # Required by docs/conf.py and not part of the canon docs group: myst-nb
+    # executes the tutorial notebooks at build time (no pandoc needed, unlike
+    # nbsphinx, which the canon docs job cannot support), and ipykernel is the
+    # kernel it runs them in.
+    "myst-nb>=1.1",
     "ipykernel>=6.0",
     # Used by the example notebooks only. Dropped as runtime dependencies in
     # 0.7.0, which left every notebook failing at its import cell until 0.7.1.
@@ -72,15 +83,9 @@ typeCheckingMode = "standard"
 # though it is a hard runtime dependency.
 reportMissingImports = "none"
 
-[tool.hatch.version]
-source = "uv-dynamic-versioning"
-
-[tool.hatch.build.targets.wheel]
-packages = ["calibre"]
-
-[tool.uv-dynamic-versioning]
-vcs = "git"
-style = "pep440"
+[tool.uv.build-backend]
+module-name = "calibre"
+module-root = ""
 [project.urls]
 "Homepage" = "https://github.com/finite-sample/calibre"
 "Bug Tracker" = "https://github.com/finite-sample/calibre/issues"
@@ -95,10 +100,20 @@ target-version = "py312"
 
 [tool.ruff.lint]
 external = ["DOC"]
-select = ["E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT", "RUF"]
+select = [
+    "E", "W", "F", "I", "B", "C4", "UP", "N", "D", "S", "SIM", "T20", "PT", "RUF",
+    "PTH", "RET", "PIE", "FURB", "PERF", "DTZ", "LOG", "G", "TC", "FLY",
+    "RSE", "SLOT", "FA", "A", "EXE", "ICN", "PGH", "PLE", "ARG", "SLF",
+]
+# D203/D213: the google convention the fleet standard picks. W191/D206/D300:
+# ruff's own docs list these as always incompatible with `ruff format`, which
+# the standard also runs.
 ignore = [
     "D203",
     "D213",
+    "W191",
+    "D206",
+    "D300",
     # D107: these are scikit-learn estimators, which document their constructor
     # arguments on the *class* -- that is what `autodoc` renders, and
     # `napoleon_include_init_with_doc` is False, so an `__init__` docstring would
@@ -106,9 +121,6 @@ ignore = [
     # arguments unmodified, as scikit-learn requires for cloning; there is
     # nothing to say about it that the class docstring does not already say.
     "D107",
-    "B008",
-    "C901",
-    "E501",
     # `X` is scikit-learn's name for the feature argument of fit/transform, and the
     # numerical routines use conventional math notation for matrices (M, D, B).
     "N803",
@@ -116,23 +128,21 @@ ignore = [
 ]
 
 [tool.ruff.lint.pydocstyle]
-# The fleet standard (see ../preen). Sphinx renders it through
-# `sphinx.ext.napoleon`, which has `napoleon_google_docstring = True`, so the
-# switch from numpy style cost nothing in the rendered docs.
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-# S102/S307: tests/test_readme.py executes the README's code blocks on purpose.
+# S101/D/ARG/SLF: the canon baseline for tests.
+# S102: tests/test_readme.py executes the README's code blocks on purpose.
 # S603: tests/test_plots_deps.py runs sys.executable on a literal string to check
 # in a clean interpreter that importing calibre does not import matplotlib. There
 # is no untrusted input, and the check cannot be done in-process.
-"tests/**" = ["S101", "S102", "S603", "D", "T201"]
+"tests/**" = ["S101", "D", "ARG", "SLF", "S102", "S603", "T201"]
+"docs/**" = ["D"]
 # Notebooks print by design, and each cell is linted without the preceding cells in
 # scope, so F821 fires on names that are defined earlier in the notebook.
 # SIM102/SIM108: notebook cells favour explicit stepwise branches for readability,
 # since each branch usually carries the comment explaining what it demonstrates.
 "docs/**/*.ipynb" = ["D", "T201", "F821", "E402", "I001", "B905", "SIM102", "SIM108"]
-"docs/**" = ["D"]
 # Reference-generation and investigation scripts. They print by design (T201),
 # use short mathematical names for the quantities they study (N8), and are run by
 # hand rather than imported.
@@ -162,10 +172,11 @@ addopts = [
     # here took the Ubuntu test step from 7m37s to 24m26s and pushed the
     # 20-minute wheel job into a timeout. Pass `-n auto` on the command line when
     # you want it; do not make it the default that CI inherits.
+    # No html/xml reports by default: nothing reads them, in CI or locally
+    # (canon dropped them fleet-wide for the same reason). Ask for one when
+    # you want one: pytest --cov-report=html.
     "--cov=calibre",
     "--cov-report=term-missing",
-    "--cov-report=html",
-    "--cov-report=xml",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -207,18 +218,18 @@ ignore-words-list = "FPR,fpr"
 # Pydoclint configuration
 [tool.pydoclint]
 style = "google"
-# Four DOC502/DOC503 findings remain and are accepted rather than silenced with
-# `skip-checking-raises`. All four are the same false positive: the function
-# documents an exception raised by a helper it delegates to -- `_validate_band_args`
-# for the two band functions, `_reject_sample_weight` and `resolve_auto` for the
-# nearly-isotonic pair -- and pydoclint does not follow calls. Deleting the
-# documentation would make the docs wrong for the caller, who does see those
-# exceptions; inlining the validation would duplicate it across three call sites.
-# Turning the check off wholesale is worse still: it is what found two genuinely
-# undocumented exceptions in `aggregate_ties` and `cross_val_calibrate`.
+# The four baselined DOC502/DOC503 findings are the same false positive: the
+# function documents an exception raised by a helper it delegates to —
+# `_validate_band_args` for the two band functions, `_reject_sample_weight` and
+# `resolve_auto` for the nearly-isotonic pair — and pydoclint does not follow
+# calls. Deleting the documentation would make the docs wrong for the caller,
+# who does see those exceptions. Turning DOC502/DOC503 off wholesale is worse:
+# they found two genuinely undocumented exceptions in `aggregate_ties` and
+# `cross_val_calibrate`. Regenerate with:
+#   uvx --from pydoclint==0.9.1 pydoclint --generate-baseline 1 calibre
+baseline = "pydoclint-baseline.txt"
 arg-type-hints-in-docstring = false
 check-return-types = false
 check-class-attributes = false
 allow-init-docstring = true
 exclude = '\.venv|tests|docs'
-

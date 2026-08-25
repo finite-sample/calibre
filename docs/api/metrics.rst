@@ -104,25 +104,10 @@ Unique Value Counts
 
 .. autofunction:: calibre.unique_value_counts
 
-Calibration Diversity Index
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: calibre.calibration_diversity_index
-
 Tie Preservation Score
 ~~~~~~~~~~~~~~~~~~~~~~
 
 .. autofunction:: calibre.tie_preservation_score
-
-Plateau Quality Score
-~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: calibre.plateau_quality_score
-
-Progressive Sampling Diversity
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autofunction:: calibre.progressive_sampling_diversity
 
 Usage Examples
 --------------

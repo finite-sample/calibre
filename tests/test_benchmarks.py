@@ -31,6 +31,46 @@ def test_every_method_name_has_a_family():
         assert name in methods.METHODS
 
 
+def test_the_primary_metrics_are_columns_the_harness_records():
+    """`headline_table` ranks by `PRIMARY_METRICS[0]`, so it has to exist.
+
+    Declaring the headline metric before the grid runs is what stops it being
+    chosen after the numbers are in, and `figures.headline_table` reads the
+    declaration rather than naming a column itself. That leaves one way to break
+    it: rename a measure and leave the declaration behind, at which point the
+    table would raise a `KeyError` on every row during a docs build.
+
+    This does not execute `headline_table` — that writes `headline.csv` into
+    `docs/`, and a test must not edit the repository.
+    """
+    missing = [m for m in config.PRIMARY_METRICS if m not in measures.COLUMNS]
+    assert not missing, f"declared as primary but never measured: {missing}"
+
+
+def test_calibre_methods_are_built_at_library_defaults():
+    """`CALIBRATOR_DEFAULTS_ONLY` is the rule; this is what keeps it.
+
+    Tuning calibre's calibrators against an untuned scikit-learn baseline would
+    decide the comparison by construction rather than by measurement. Until now
+    the flag only recorded the intention in prose — nothing would have noticed a
+    hyperparameter appearing in `methods._build`, and the benchmark would have
+    gone on reporting a number the README presents as a fair fight.
+
+    Comparing each built calibrator against a bare instance of its own class is
+    the check: identical today because `_build` passes no arguments, and that is
+    exactly the property at risk.
+    """
+    if not config.CALIBRATOR_DEFAULTS_ONLY:
+        pytest.skip("CALIBRATOR_DEFAULTS_ONLY is off; tuning is permitted")
+    for name in methods.METHODS:
+        if not name.startswith("calibre_"):
+            continue
+        built = methods._build(name)
+        assert built.get_params() == type(built)().get_params(), (
+            f"{name} is not constructed at library defaults"
+        )
+
+
 def test_a_cell_produces_one_row_per_method_with_every_column():
     """The schema `aggregate.py` depends on."""
     names = ["uncalibrated", "sklearn_isotonic", "calibre_isotonic", "calibre_centered"]

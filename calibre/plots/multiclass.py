@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import textwrap
-from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -12,6 +11,8 @@ from ._deps import require_matplotlib
 from ._style import SEMANTIC, finalize, get_axes
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping, Sequence
+
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
@@ -41,7 +42,8 @@ def plot_miscalibration_profile(
     would waste the diagnostic.
 
     Args:
-        profile: A :func:`~calibre.miscalibration_profile` result, with ``mcb``, ``spread``, ``worst_classes`` and ``reading``.
+        profile: A :func:`~calibre.miscalibration_profile` result, with
+            ``mcb``, ``spread``, ``worst_classes`` and ``reading``.
         ax: Axes to draw on. A new figure is created when omitted.
         class_names: Names for the classes. Defaults to their indices.
         highlight_worst: How many of the worst classes to draw in the accent colour.
@@ -52,7 +54,8 @@ def plot_miscalibration_profile(
         Axes: The axes drawn on.
 
     Raises:
-        ValueError: If ``profile`` is missing a key, or ``class_names`` has the wrong length.
+        ValueError: If ``profile`` is missing a key, or ``class_names`` has
+            the wrong length.
 
     Examples:
         >>> import matplotlib
@@ -141,17 +144,22 @@ def plot_classwise_reliability(
 
     Args:
         diagrams: The list returned by :func:`~calibre.classwise_reliability`.
-        axes: Existing axes to draw into, one per diagram. A new figure is created when omitted.
-        class_names: Titles for the panels. Defaults to ``class 0``, ``class 1``, ...
+        axes: Existing axes to draw into, one per diagram. A new figure is
+            created when omitted.
+        class_names: Titles for the panels. Defaults to ``class 0``,
+            ``class 1``, ...
         n_cols: Panels per row when creating a new figure.
-        density: Passed to :func:`~calibre.plots.plot_reliability_diagram`. Defaults to ``"none"`` because appending a histogram panel to each cell of a grid distorts the layout.
+        density: Passed to :func:`~calibre.plots.plot_reliability_diagram`.
+            Defaults to ``"none"`` because appending a histogram panel to each
+            cell of a grid distorts the layout.
         figsize: Size of the new figure. Defaults to 3 inches per panel.
 
     Returns:
         Figure: The figure holding the panels.
 
     Raises:
-        ValueError: If ``diagrams`` is empty, or ``axes`` or ``class_names`` has the wrong length.
+        ValueError: If ``diagrams`` is empty, or ``axes`` or ``class_names``
+            has the wrong length.
 
     Examples:
         >>> import matplotlib

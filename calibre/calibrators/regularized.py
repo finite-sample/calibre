@@ -41,14 +41,23 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
     underlying B-spline coefficients.
 
     Args:
-        alpha: Roughness penalty. ``0`` gives an unpenalised monotone spline; larger values drive the fit toward the best monotone straight line.
+        alpha: Roughness penalty. ``0`` gives an unpenalised monotone spline;
+            larger values drive the fit toward the best monotone straight
+            line.
         n_knots: Number of knots in the basis.
         degree: B-spline degree.
         knots: ``"quantile"`` or ``"uniform"`` knot placement.
         link: ``"logit"`` or ``"identity"``. See :class:`calibre.SplineCalibrator`.
-        cv: Number of cross-validation folds used when a hyperparameter is left at ``"auto"``. Ignored when every hyperparameter is pinned.
-        scoring: Proper scoring rule the ``"auto"`` search minimises. Deliberately not a calibration error: ECE and its relatives are minimised by a constant forecast, so selecting on one would reward throwing resolution away.
-        random_state: Seed for the cross-validation split, so an ``"auto"`` selection is reproducible.
+        cv: Number of cross-validation folds used when a hyperparameter is
+            left at ``"auto"``. Ignored when every hyperparameter is pinned.
+        scoring: Proper scoring rule the ``"auto"`` search minimises.
+            ``"auto"`` (the default) uses log loss for probability targets and
+            squared error otherwise.
+            Deliberately not a calibration error: ECE and its relatives are
+            minimised by a constant forecast, so selecting on one would reward
+            throwing resolution away.
+        random_state: Seed for the cross-validation split, so an ``"auto"``
+            selection is reproducible.
         clip_output: Clip calibrated values into ``[0, 1]``.
         enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
@@ -67,14 +76,16 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         any straight line unpenalised, so the identity map and the empirical base rate
         both survive it.
 
-        **Why a fixed basis rather than one parameter per score.** Putting a parameter at
-        every unique score makes this a smoothing-spline problem whose penalty operator
+        **Why a fixed basis rather than one parameter per score.** Putting a
+        parameter at every unique score makes this a smoothing-spline problem
+        whose penalty operator
         scales like :math:`h^{-2} \sim n^{2}`, so the normal equations scale like
         :math:`n^{4}`. That is ill-conditioned in a way no solver choice repairs -- a
         constrained QP stops converging above a few thousand distinct scores, ADMM
         diverges, and a matrix-free least-squares solve fails to converge while the
         fitted mean collapses away from the base rate. A modest fixed basis with a
-        coefficient penalty -- the P-spline construction of Eilers & Marx (1996), as used
+        coefficient penalty -- the P-spline construction of Eilers & Marx
+        (1996), as used
         by the SCOP-splines of Pya & Wood (2015) -- has none of those regimes: it fits
         100,000 points in milliseconds with monotonicity guaranteed structurally.
 
@@ -102,7 +113,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
     See Also:
         SplineCalibrator : Same estimator with the penalty chosen by cross-validation.
-        CenteredIsotonicCalibrator : Non-parametric and plateau-free.
+        CenteredIsotonicCalibrator : Non-parametric interpolation, without tuning.
         IsotonicCalibrator : The exact isotonic fit.
     """
 
@@ -118,7 +129,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         knots: str = "quantile",
         link: str = "logit",
         cv: int = 5,
-        scoring: str = "log_loss",
+        scoring: str = "auto",
         random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
@@ -157,9 +168,22 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         X, y = check_arrays(X, y)
         if self.link not in VALID_LINKS:
             raise ValueError(f"link must be one of {VALID_LINKS}, got {self.link!r}")
-        # The Bernoulli likelihood requires y in [0, 1]; least squares on the
-        # identity scale does not, so only the logit link enforces it.
-        if self.link == "logit" and np.any((y < 0) | (y > 1)):
+        weight = (
+            np.ones_like(y)
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).ravel()
+        )
+        if weight.shape != y.shape:
+            raise ValueError("sample_weight must have the same shape as y")
+        if not np.all(np.isfinite(weight)) or np.any(weight < 0.0):
+            raise ValueError("sample_weight must contain finite non-negative values")
+        if np.sum(weight) <= 0.0:
+            raise ValueError("sample_weight must contain at least one positive weight")
+        positive = weight > 0.0
+        X_fit, y_fit, weight_fit = X[positive], y[positive], weight[positive]
+        fit_weight = None if sample_weight is None else weight_fit
+        # The Bernoulli likelihood requires positive-mass targets in [0, 1].
+        if self.link == "logit" and np.any((y_fit < 0) | (y_fit > 1)):
             raise ValueError(
                 'y must lie in [0, 1] for link="logit" (it parameterises a '
                 'Bernoulli likelihood); use link="identity" for unbounded targets'
@@ -180,21 +204,21 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
                 clip_output=self.clip_output,
                 **kw,
             ),
-            X,
-            y,
+            X_fit,
+            y_fit,
             cv=self.cv,
             scoring=self.scoring,
             random_state=self.random_state,
-            sample_weight=sample_weight,
+            sample_weight=fit_weight,
         )
 
         basis = monotone_spline_basis(
             n_knots=self.n_knots, degree=self.degree, knots=self.knots
-        ).fit(X)
+        ).fit(X_fit, sample_weight=fit_weight)
         intercept, coef = fit_monotone_spline(
-            basis.design(X),
-            y,
-            sample_weight=sample_weight,
+            basis.design(X_fit),
+            y_fit,
+            sample_weight=fit_weight,
             alpha=self.alpha_,
             link=self.link,
         )

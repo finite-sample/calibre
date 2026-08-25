@@ -19,7 +19,8 @@ On the 2,000-point held-out set in the example below, isotonic regression turns
 indistinguishable — which matters as soon as you rank, threshold, or bucket the
 output.
 
-calibre gives you calibrators that fix the probabilities *and* keep the ordering.
+calibre gives you calibration methods that retain much more of that ordering while
+correcting the probabilities.
 
 ## Install
 
@@ -65,15 +66,16 @@ the riskier bet.
 ## Which calibrator should I use?
 
 **If you don't want to think about it: `CenteredIsotonicCalibrator`.** It is
-non-parametric, has nothing to tune, is monotone, and has no plateaus.
+non-parametric, has nothing to tune, and preserves score ordering between pooled
+isotonic blocks.
 
 | You want | Use | Notes |
 |---|---|---|
 | A drop-in isotonic replacement, no tuning | `CenteredIsotonicCalibrator` | Collapses isotonic's flat steps to points and interpolates. O(n). |
-| A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing by CV on log-loss. |
+| A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing using the loss appropriate for its link. |
 | A smooth curve with smoothing you control | `RegularizedIsotonicCalibrator` | Same model, you set `alpha` instead of tuning it. Fast. |
-| Exactly scikit-learn's isotonic behaviour | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
-| Guaranteed strictly increasing output | `RelaxedPAVACalibrator` | Forces a minimum step between adjacent scores. Since 0.10.0 its default picks that step for you. |
+| Exactly scikit-learn's isotonic behavior | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
+| Strict increase without output clipping | `RelaxedPAVACalibrator` | Forces a minimum step; clipping can flatten boundary values. |
 | To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. Not the one to reach for if you want resolution — see its docstring. |
 | Accuracy near specific decision thresholds | `CDIIsotonicCalibrator` | Research-grade; needs your operating thresholds. |
 
@@ -167,15 +169,15 @@ print(
 # > 500 calibrated probabilities in [0.000, 1.000]
 ```
 
-### Guarantee no ties at all
+### Preserve more score resolution
 
-Since 0.10.0 `RelaxedPAVACalibrator` does this by default: `min_slope="auto"`
-picks a step of `0.01 / n_unique`, small enough to be invisible in the score and
-large enough to keep the fit strictly increasing. On the benchmark grid that takes
-it from 11 distinct values to 124 on `breast_cancer/logreg` while the Brier score
-moves in the fifth decimal.
+Since 0.10.0 `RelaxedPAVACalibrator` defaults to `min_slope="auto"`. When its
+automatic epsilon search selects strict monotonicity (`epsilon_ == 0`), it uses a
+step of `0.01 / n_unique` to separate adjacent fitted values before output
+clipping. On the benchmark grid that takes it from 11 distinct values to 124 on
+`breast_cancer/logreg` while the Brier score moves in the fifth decimal.
 
-Set `min_slope` yourself when you need a specific guaranteed gap:
+Set `min_slope` yourself and disable clipping when you need a guaranteed gap:
 
 ```python
 import numpy as np
@@ -289,8 +291,7 @@ predictions across a bin boundary.
 
 Also available: `maximum_calibration_error`, `binned_calibration_error`,
 `calibration_curve`, `correlation_metrics`, `unique_value_counts`,
-`calibration_diversity_index`, `tie_preservation_score`, `plateau_quality_score`,
-`progressive_sampling_diversity`.
+and `tie_preservation_score`.
 
 ### Get every number at once
 
@@ -530,7 +531,7 @@ and a subprocess test enforces that.
 method, drawn over the input range. The number of ticks *is* the number of distinct
 values, so the loss is not asserted — it is visible.
 
-![Resolution retained by each calibrator](https://raw.githubusercontent.com/finite-sample/calibre/main/docs/source/_static/bench/resolution_loss.png)
+![Resolution retained by each calibrator](https://finite-sample.github.io/calibre/_static/bench/resolution_loss.png)
 
 scikit-learn's isotonic strip is sparse enough to count by eye. The calibre strips
 are solid ink. Same data, same held-out Brier to the fourth decimal.
@@ -539,7 +540,7 @@ are solid ink. Same data, same held-out Brier to the fourth decimal.
 might be noise. If they were, the methods keeping them would sit higher on the
 score axis:
 
-![Held-out score against distinct values retained](https://raw.githubusercontent.com/finite-sample/calibre/main/docs/source/_static/bench/resolution_frontier.png)
+![Held-out score against distinct values retained](https://finite-sample.github.io/calibre/_static/bench/resolution_frontier.png)
 
 They do not. The frontier is flat: two clusters four decades apart in resolution,
 at the same height.
@@ -575,7 +576,7 @@ consistency or confidence bands), `plot_score_decomposition`, `plot_mcb_dsc_plan
 `plot_classwise_reliability`.
 Every one returns the `Axes` or `Figure`, so you keep full control of titles,
 limits and saving. The palette is Okabe-Ito, which stays legible with any common
-form of colour blindness.
+form of color blindness.
 
 ## Documentation
 
@@ -589,7 +590,7 @@ form of colour blindness.
 ```bash
 git clone https://github.com/finite-sample/calibre.git
 cd calibre
-uv sync --all-extras --dev
+uv sync --all-groups
 uv run pytest
 ```
 
@@ -624,13 +625,6 @@ MIT — see [LICENSE](LICENSE).
 - Eilers & Marx (1996), "Flexible smoothing with B-splines and penalties",
   *Statistical Science* 11(2), 89–121.
 - [Probability calibration in scikit-learn](https://scikit-learn.org/stable/modules/calibration.html)
-
-## Adjacent Repositories
-
-- [gojiplus/pyppur](https://github.com/gojiplus/pyppur) — pyppur: Python Projection Pursuit Unsupervised (Dimension) Reduction To Min. Reconstruction Loss or DIstance DIstortion
-- [gojiplus/rmcp](https://github.com/gojiplus/rmcp) — R MCP Server
-- [gojiplus/bloomjoin](https://github.com/gojiplus/bloomjoin) — bloomjoin: An R package implementing Bloom filter-based joins for improved performance with large datasets.
-- [gojiplus/incline](https://github.com/gojiplus/incline) — Estimate Trend at a Point in a Noisy Time Series
 
 ## 🔗 Adjacent Repositories
 

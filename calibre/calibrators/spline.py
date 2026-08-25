@@ -39,13 +39,28 @@ def _log_loss(y: np.ndarray, p: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     Args:
         y: Targets in ``[0, 1]``.
         p: Predicted probabilities.
-        eps: Clipping bound, so a confident-and-wrong prediction contributes a large finite penalty rather than an infinite one that would leave every candidate incomparable.
+        eps: Clipping bound, so a confident-and-wrong prediction contributes a
+            large finite penalty rather than an infinite one that would leave
+            every candidate incomparable.
 
     Returns:
         ndarray: Elementwise loss.
     """
     p = np.clip(p, eps, 1.0 - eps)
     return np.asarray(-(y * np.log(p) + (1.0 - y) * np.log1p(-p)), dtype=float)
+
+
+def _squared_error(y: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """Return pointwise squared error for an identity-link fit.
+
+    Args:
+        y: Targets.
+        p: Predictions.
+
+    Returns:
+        ndarray: Elementwise squared error.
+    """
+    return np.asarray((y - p) ** 2, dtype=float)
 
 
 class SplineCalibrator(BaseCalibrator):
@@ -63,22 +78,46 @@ class SplineCalibrator(BaseCalibrator):
     increasing, so the calibrated probability is too.
 
     Args:
-        n_knots: Number of knots. The basis has ``n_knots + degree - 1`` functions. Used only when ``alpha`` is given; otherwise cross-validation selects it.
+        n_knots: Number of knots. The basis has ``n_knots + degree - 1``
+            functions. Used only when ``alpha`` is given; otherwise
+            cross-validation selects it.
         degree: B-spline degree. 3 gives the usual cubic behaviour.
-        knots: ``"quantile"`` (default) places knots at score quantiles; ``"uniform"`` spaces them evenly. Quantile is normally right for calibration, where scores pile up wherever the base model is confident and uniform knots spend resolution on empty regions.
-        alpha: Roughness penalty on the coefficient increments. ``None`` (default) selects it, along with ``n_knots``, by cross-validation. A number fixes it and skips cross-validation.
-        link: ``"logit"`` (default) fits a penalised Bernoulli likelihood: log-loss is the proper score for binary labels, and predictions land in ``(0, 1)`` with no clipping. ``"identity"`` fits penalised least squares on the probability scale -- a single bounded linear solve.
+        knots: ``"quantile"`` (default) places knots at score quantiles;
+            ``"uniform"`` spaces them evenly. Quantile is normally right for
+            calibration, where scores pile up wherever the base model is
+            confident and uniform knots spend resolution on empty regions.
+        alpha: Roughness penalty on the coefficient increments. ``None``
+            (default) selects it, along with ``n_knots``, by cross-validation.
+            A number fixes it and skips cross-validation.
+        link: ``"logit"`` (default) fits a penalised Bernoulli likelihood:
+            log-loss is the proper score for binary labels, and predictions
+            land in ``(0, 1)`` with no clipping. ``"identity"`` fits penalised
+            least squares on the probability scale -- a single bounded linear
+            solve.
         cv: Number of cross-validation folds. Stratified when ``y`` is binary.
-        max_cv_samples: Cap on the number of observations used for *hyperparameter selection*. The final model is always refit on the full sample; this only bounds the cost of the search, which would otherwise fit the grid once per fold over every row (at n=100k that is ~50s against 0.3s for a single fit). Selecting two scalars from a large random subsample costs essentially nothing statistically. Set to ``None`` to search on all of the data.
-        random_state: Seed for the cross-validation split. Defaults to ``0`` so that ``fit`` is reproducible: cross-validation here only selects a hyperparameter, and a fit that silently returns a different curve on each identical call is a trap. Pass ``None`` to draw the split from the global RNG instead.
-        clip_output: Clip calibrated values into ``[0, 1]``. A no-op for ``link="logit"``.
+        max_cv_samples: Cap on the number of observations used for
+            *hyperparameter selection*. The final model is always refit on the
+            full sample; this only bounds the cost of the search, which would
+            otherwise fit the grid once per fold over every row (at n=100k
+            that is ~50s against 0.3s for a single fit). Selecting two scalars
+            from a large random subsample costs essentially nothing
+            statistically. Set to ``None`` to search on all of the data.
+        random_state: Seed for the cross-validation split. Defaults to ``0``
+            so that ``fit`` is reproducible: cross-validation here only
+            selects a hyperparameter, and a fit that silently returns a
+            different curve on each identical call is a trap. Pass ``None`` to
+            draw the split from the global RNG instead.
+        clip_output: Clip calibrated values into ``[0, 1]``. A no-op for
+            ``link="logit"``.
         enable_diagnostics: Whether to enable plateau diagnostics analysis.
 
     Attributes:
-        basis_: The fitted basis. Its knots come from the same fit that produced ``coef_``.
+        basis_: The fitted basis. Its knots come from the same fit that
+            produced ``coef_``.
         intercept_: Fitted intercept, on the link scale.
         coef_: Fitted non-negative increment coefficients.
-        alpha_: The penalty actually used -- selected by cross-validation, or echoed back from ``alpha``.
+        alpha_: The penalty actually used -- selected by cross-validation, or
+            echoed back from ``alpha``.
         n_knots_: The knot count actually used.
         n_features_in_: Always 1. Present for scikit-learn compatibility.
 
@@ -96,8 +135,8 @@ class SplineCalibrator(BaseCalibrator):
         **Cross-validation selects a hyperparameter and then refits on all the data.**
         It is not a search for whichever fold's model scored best on its own validation
         split: that selects on noise and ships a model trained on only ``(cv-1)/cv`` of
-        the sample. Folds are scored by log-loss -- a proper score -- rather than by
-        :math:`R^2`.
+        the sample. Logit-link fits are scored by log-loss; identity-link fits are
+        scored by squared error, the loss they actually minimise.
 
     Examples:
         >>> import numpy as np
@@ -115,7 +154,7 @@ class SplineCalibrator(BaseCalibrator):
         True
 
     See Also:
-        CenteredIsotonicCalibrator : Non-parametric, needs no tuning, also plateau-free.
+        CenteredIsotonicCalibrator : Non-parametric interpolation, without tuning.
         RegularizedIsotonicCalibrator : Same basis, penalty specified rather than tuned.
     """
 
@@ -193,14 +232,6 @@ class SplineCalibrator(BaseCalibrator):
         """
         X, y = check_arrays(X, y)
         self._validate()
-        # The Bernoulli likelihood requires y in [0, 1]; least squares on the
-        # identity scale does not, so only the logit link enforces it.
-        if self.link == "logit" and np.any((y < 0) | (y > 1)):
-            raise ValueError(
-                'y must lie in [0, 1] for link="logit" (it parameterises a '
-                'Bernoulli likelihood); use link="identity" for unbounded targets'
-            )
-
         w = (
             np.ones_like(y)
             if sample_weight is None
@@ -213,16 +244,30 @@ class SplineCalibrator(BaseCalibrator):
         if np.sum(w) <= 0.0:
             raise ValueError("sample_weight must contain at least one positive weight")
 
+        positive = w > 0.0
+        X_fit, y_fit, w_fit = X[positive], y[positive], w[positive]
+        fit_weight = None if sample_weight is None else w_fit
+        # The Bernoulli likelihood requires positive-mass targets in [0, 1].
+        if self.link == "logit" and np.any((y_fit < 0) | (y_fit > 1)):
+            raise ValueError(
+                'y must lie in [0, 1] for link="logit" (it parameterises a '
+                'Bernoulli likelihood); use link="identity" for unbounded targets'
+            )
+
         if self.alpha is None:
-            n_knots, alpha = self._select_hyperparameters(X, y, w)
+            n_knots, alpha = self._select_hyperparameters(X_fit, y_fit, w_fit)
         else:
             n_knots, alpha = self.n_knots, float(self.alpha)
 
         basis = monotone_spline_basis(
             n_knots=n_knots, degree=self.degree, knots=self.knots
-        ).fit(X)
+        ).fit(X_fit, sample_weight=fit_weight)
         intercept, coef = fit_monotone_spline(
-            basis.design(X), y, sample_weight=w, alpha=alpha, link=self.link
+            basis.design(X_fit),
+            y_fit,
+            sample_weight=fit_weight,
+            alpha=alpha,
+            link=self.link,
         )
 
         self.basis_ = basis
@@ -235,7 +280,7 @@ class SplineCalibrator(BaseCalibrator):
     def _select_hyperparameters(
         self, X: np.ndarray, y: np.ndarray, w: np.ndarray
     ) -> tuple[int, float]:
-        """Choose ``(n_knots, alpha)`` by cross-validated log-loss.
+        """Choose ``(n_knots, alpha)`` by cross-validated prediction loss.
 
         Args:
             X: Uncalibrated scores.
@@ -245,8 +290,13 @@ class SplineCalibrator(BaseCalibrator):
         Returns:
             n_knots: Selected knot count.
             alpha: Selected roughness penalty.
+
+        Raises:
+            ValueError: If every candidate fails to fit.
         """
         from sklearn.model_selection import KFold, StratifiedKFold
+
+        loss = _log_loss if self.link == "logit" else _squared_error
 
         # Selection only needs to rank candidates, so bound its cost. The winning
         # configuration is refit on the full sample by the caller.
@@ -289,7 +339,12 @@ class SplineCalibrator(BaseCalibrator):
                     try:
                         basis = monotone_spline_basis(
                             n_knots=n_knots, degree=self.degree, knots=self.knots
-                        ).fit(X[train_idx])
+                        ).fit(
+                            X[train_idx],
+                            sample_weight=(
+                                None if np.all(w[train_idx] == 1.0) else w[train_idx]
+                            ),
+                        )
                         intercept, coef = fit_monotone_spline(
                             basis.design(X[train_idx]),
                             y[train_idx],
@@ -298,7 +353,11 @@ class SplineCalibrator(BaseCalibrator):
                             link=self.link,
                         )
                         pred = self._predict_from(
-                            basis, intercept, coef, X[val_idx], clip=True
+                            basis,
+                            intercept,
+                            coef,
+                            X[val_idx],
+                            clip=self.clip_output,
                         )
                     except (ValueError, np.linalg.LinAlgError) as exc:
                         logger.debug(
@@ -309,7 +368,7 @@ class SplineCalibrator(BaseCalibrator):
                         )
                         failed = True
                         break
-                    total += float(np.sum(w[val_idx] * _log_loss(y[val_idx], pred)))
+                    total += float(np.sum(w[val_idx] * loss(y[val_idx], pred)))
                     weight_total += float(np.sum(w[val_idx]))
 
                 if failed or weight_total <= 0:
@@ -318,6 +377,10 @@ class SplineCalibrator(BaseCalibrator):
                 if score < best_score:
                     best_score, best_knots, best_alpha = score, n_knots, alpha
 
+        if not np.isfinite(best_score):
+            raise ValueError(
+                "every spline candidate failed to fit; provide more data or pin alpha"
+            )
         return best_knots, best_alpha
 
     def _predict_from(
@@ -390,6 +453,8 @@ class SplineCalibrator(BaseCalibrator):
             raise AttributeError(
                 f"{type(self).__name__} has no retained training data."
             )
-        x_unique, _, _ = aggregate_ties(self._fit_data_X, self._fit_data_y)
+        x_unique, _, _ = aggregate_ties(
+            self._fit_data_X, self._fit_data_y, self._fit_data_weight
+        )
         grid = np.linspace(float(x_unique[0]), float(x_unique[-1]), n_points)
         return PiecewiseLinear(grid, self.transform(grid))

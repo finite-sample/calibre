@@ -19,8 +19,6 @@ Diagnostics
 
 .. autofunction:: calibre.diagnostics.analyze_plateau_simple
 
-.. autofunction:: calibre.diagnostics.diversity_learning_curve
-
 Usage
 -----
 

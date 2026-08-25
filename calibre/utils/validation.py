@@ -45,7 +45,8 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         y: The target values/labels.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: Tuple of (validated_X, validated_y). validated_X validated_y
+        tuple[np.ndarray, np.ndarray]: Tuple of (validated_X, validated_y).
+            validated_X validated_y
 
     Raises:
         ValueError: If arrays are empty or have incompatible lengths.
@@ -110,6 +111,9 @@ def check_array_1d(X: np.ndarray, name: str = "X") -> np.ndarray:
         >>> print(X_checked.shape)
         (3,)
     """
+    if np.asarray(X).ndim != 1:
+        raise ValueError(f"Array '{name}' must be 1-dimensional")
+
     X = _as_float_1d(X)
 
     if len(X) == 0:
@@ -123,7 +127,8 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
 
     Args:
         calibrator: The calibrator to check.
-        attributes: List of attribute names that should exist if fitted. If None, checks for common fitted attributes.
+        attributes: List of attribute names that should exist if fitted. If
+            None, checks for common fitted attributes.
 
     Raises:
         ValueError: If the calibrator has not been fitted.
@@ -137,19 +142,27 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
         ...     check_fitted(cal)
         ... except ValueError as e:
         ...     print("Not fitted:", e)
+        Not fitted: IsotonicCalibrator must be fitted...Call fit(X, y) first.
     """
-    if attributes is None:
-        # Common fitted attribute names
-        attributes = ["isotonic_", "X_", "y_", "calibrator_", "spline_", "model_"]
+    from sklearn.exceptions import NotFittedError
+    from sklearn.utils.validation import check_is_fitted
 
-    # Check if any of the expected attributes exist
-    has_fitted_attr = any(hasattr(calibrator, attr) for attr in attributes)
-
-    if not has_fitted_attr:
+    if attributes is not None and any(
+        not hasattr(calibrator, attr) or getattr(calibrator, attr) is None
+        for attr in attributes
+    ):
         raise ValueError(
             f"{calibrator.__class__.__name__} must be fitted before transform. "
-            f"Call fit(X, y) first."
+            "Call fit(X, y) first."
         )
+
+    try:
+        check_is_fitted(calibrator, attributes=attributes)
+    except (NotFittedError, TypeError) as exc:
+        raise ValueError(
+            f"{calibrator.__class__.__name__} must be fitted before transform. "
+            "Call fit(X, y) first."
+        ) from exc
 
 
 def check_consistent_length(*arrays: np.ndarray) -> None:
@@ -173,7 +186,8 @@ def check_consistent_length(*arrays: np.ndarray) -> None:
         >>> check_consistent_length(X, z)
         Traceback (most recent call last):
             ...
-        ValueError: Inconsistent array lengths: [3, 2]. All arrays must have the same length.
+        ValueError: Inconsistent array lengths: [3, 2]. All arrays must have
+        the same length.
     """
     lengths = [len(X) for X in arrays if X is not None]
 

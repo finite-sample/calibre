@@ -53,11 +53,17 @@ bijection these closed forms depend on.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from itertools import pairwise
+from typing import TYPE_CHECKING
 
 import numpy as np
+from simcheck import MonteCarloResult
+from simcheck import assert_count_rate as _simcheck_assert_count_rate
+from simcheck import assert_unbiased as _simcheck_assert_unbiased
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = [
     "DESIGNS",
@@ -66,7 +72,6 @@ __all__ = [
     "assert_coverage",
     "assert_unbiased",
     "mc_se_mean",
-    "mc_se_proportion",
 ]
 
 # Gauss-Hermite is exponentially accurate for these smooth integrands, and
@@ -512,6 +517,67 @@ DESIGNS = _build_designs()
 # --------------------------------------------------------------------------- #
 # Monte Carlo assertions
 # --------------------------------------------------------------------------- #
+#
+# ``assert_unbiased`` and ``assert_coverage`` are translation layers onto
+# :mod:`simcheck`, not implementations. Two reasons, and the second is the one
+# that bites.
+#
+# **They were duplicates.** simcheck exists because this gap turned up in three
+# sibling repositories at once; the bias t statistic and the binomial coverage
+# band are the same arithmetic wherever they are written, and a second copy is a
+# second place for it to drift.
+#
+# **They used a bare ``assert``.** ``python -O`` deletes ``assert`` statements
+# outright, so a module whose entire product is assertions passed everything
+# under optimisation -- the exact failure mode these gates exist to prevent,
+# occurring in the gates themselves. simcheck raises ``AssertionError``
+# explicitly for that reason, and so does ``assert_biased_upward`` below, which
+# has no simcheck counterpart yet and therefore stays here.
+#
+# The functions keep their array-and-count signatures rather than taking a
+# ``MonteCarloResult``, because the call sites in ``test_monte_carlo.py`` compute
+# a list of estimates or a hit count and have no interval endpoints or reported
+# standard errors to offer. ``assert_unbiased`` builds the result object, and
+# that is its translation; ``assert_coverage`` has a count, so it goes to the
+# gate that takes a count.
+#
+# Delegating is not the same as passing through, and where the general contract
+# is looser than this caller's the wrapper says so rather than inheriting it.
+# ``assert_unbiased`` rejects a constant estimator that misses the target, which
+# simcheck reads as a bias t of zero. Both that and the negated comparison in
+# ``assert_biased_upward`` are cases where a gate silently passed input an
+# earlier version had rejected, and each has a negative test in
+# ``tests/test_simulation_gates.py`` that fails without it.
+
+
+def _study(estimates: np.ndarray, target: float) -> MonteCarloResult:
+    """Wrap replication estimates as a simcheck study.
+
+    The estimators in ``test_monte_carlo.py`` report a value per replication and
+    nothing else -- no standard error and no interval -- so those fields are
+    recorded as absent rather than invented. ``assert_unbiased`` reads only the
+    estimates.
+
+    Parameters
+    ----------
+    estimates
+        One estimate per replication.
+    target
+        The population value.
+
+    Returns
+    -------
+    MonteCarloResult
+        The study, with no standard errors, intervals or test decisions.
+    """
+    values = np.asarray(estimates, dtype=float)
+    return MonteCarloResult(
+        estimates=values,
+        standard_errors=np.full(values.shape, np.nan),
+        covered=None,
+        rejected=None,
+        truth=float(target),
+    )
 
 
 def mc_se_mean(values: np.ndarray) -> float:
@@ -533,28 +599,6 @@ def mc_se_mean(values: np.ndarray) -> float:
     return float(np.std(values, ddof=1) / np.sqrt(values.size))
 
 
-def mc_se_proportion(hits: int, n: int) -> float:
-    """Standard error of a Monte Carlo proportion.
-
-    Parameters
-    ----------
-    hits
-        Number of successes.
-    n
-        Number of replications.
-
-    Returns
-    -------
-    float
-        ``sqrt(c (1 - c) / n)``, floored so a proportion of exactly zero or one
-        still admits a usable tolerance.
-    """
-    if n < 2:
-        return float("inf")
-    c = hits / n
-    return float(np.sqrt(max(c * (1.0 - c), 1.0 / n) / n))
-
-
 def assert_unbiased(
     estimates: np.ndarray,
     target: float,
@@ -564,8 +608,19 @@ def assert_unbiased(
 ) -> None:
     """Assert a Monte Carlo mean sits within ``n_se`` standard errors of a target.
 
-    The tolerance is derived from the design rather than chosen, so tightening it
-    is a matter of raising the replication count, not of editing a number.
+    Delegates to :func:`simcheck.assert_unbiased`. The tolerance is derived from
+    the replication count rather than chosen, so tightening it is a matter of
+    running more replications, not of editing a number.
+
+    The one case handled here rather than delegated is an estimator that returned
+    the same number every replication. simcheck's bias t statistic is
+    ``bias / mc_se``, and it reports zero when ``mc_se`` is zero -- a reasonable
+    reading when the estimator is deterministic *and* correct, and the wrong one
+    when it is deterministic and wrong, where a bias no number of replications
+    could ever resolve gets reported as no detectable bias. simcheck's own
+    ``assert_se_calibrated`` already treats "did not vary" as a failure; this
+    does the same, and is a candidate to upstream alongside
+    :func:`assert_biased_upward`.
 
     Parameters
     ----------
@@ -581,17 +636,18 @@ def assert_unbiased(
     Raises
     ------
     AssertionError
-        If the mean is further than ``n_se`` standard errors from ``target``.
+        If the mean is further than ``n_se`` standard errors from ``target``, or
+        if the estimator did not vary across replications and missed the target.
     """
-    estimates = np.asarray(estimates, dtype=float)
-    mean = float(estimates.mean())
-    se = mc_se_mean(estimates)
-    deviation = abs(mean - target) / se if se > 0 else float("inf")
-    assert deviation <= n_se, (
-        f"{label}: mean {mean:.6f} vs target {target:.6f} is {deviation:.1f} "
-        f"Monte Carlo standard errors away "
-        f"(se {se:.6f}, R {estimates.size}, allowed {n_se})"
-    )
+    study = _study(estimates, target)
+    if study.mc_se == 0.0 and study.bias != 0.0:
+        raise AssertionError(
+            f"{label}: the estimator returned {study.estimates[0]:.6f} on every "
+            f"one of {study.reps} replications, {study.bias:+.6f} from target "
+            f"{target:.6f}; a study with no sampling variation cannot resolve "
+            "that bias, so it is not evidence of the absence of one"
+        )
+    _simcheck_assert_unbiased(study, label, sigmas=n_se)
 
 
 def assert_biased_upward(
@@ -604,7 +660,19 @@ def assert_biased_upward(
     """Assert a Monte Carlo mean sits detectably *above* a target.
 
     The complement of :func:`assert_unbiased`, for an estimator whose bias is the
-    reason a corrected estimator exists.
+    reason a corrected estimator exists. simcheck has no equivalent -- its gates
+    all test a property an estimator is supposed to *have* -- so this one stays
+    here, and is a candidate to upstream.
+
+    It raises ``AssertionError`` rather than using an ``assert`` statement, for
+    the reason simcheck does: ``python -O`` removes ``assert`` entirely, which
+    would delete this gate and leave ``test_plugin_error_is_detectably_biased``
+    passing against an estimator that had silently become unbiased.
+
+    The condition is written as a negated ``>=`` rather than the ``<`` it looks
+    equal to, because ``excess`` can be NaN -- an empty study has no mean -- and
+    NaN compares False against both. ``not (excess >= n_se)`` rejects it;
+    ``excess < n_se`` certifies a detectable bias from no data at all.
 
     Parameters
     ----------
@@ -626,11 +694,12 @@ def assert_biased_upward(
     mean = float(estimates.mean())
     se = mc_se_mean(estimates)
     excess = (mean - target) / se if se > 0 else 0.0
-    assert excess >= n_se, (
-        f"{label}: mean {mean:.6f} is only {excess:.1f} Monte Carlo standard "
-        f"errors above target {target:.6f}; expected a detectable upward bias "
-        f"(se {se:.6f}, R {estimates.size}, required {n_se})"
-    )
+    if not (excess >= n_se):  # not `excess < n_se`: NaN must fail, and does not
+        raise AssertionError(
+            f"{label}: mean {mean:.6f} is only {excess:.1f} Monte Carlo standard "
+            f"errors above target {target:.6f}; expected a detectable upward bias "
+            f"(se {se:.6f}, R {estimates.size}, required {n_se})"
+        )
 
 
 def assert_coverage(
@@ -642,6 +711,24 @@ def assert_coverage(
     n_se: float = 3.0,
 ) -> None:
     """Assert empirical coverage matches a nominal level within Monte Carlo error.
+
+    Delegates to :func:`simcheck.assert_count_rate`, whose band takes the
+    standard error under the *null* -- ``sqrt(p(1-p)/n)`` at the nominal ``p``.
+    This function previously used the standard error of the *observed*
+    proportion, which is the Wald form and degenerates when every replication
+    covers or none does; it needed a ``1/n`` floor to stay usable at all. Testing
+    whether coverage equals a stated level is a hypothesis about the null value,
+    so the null's standard error is the right one, and the floor is then
+    unnecessary rather than merely patched over. Where the observation sits near
+    nominal the two agree exactly.
+
+    The count gate rather than :func:`simcheck.assert_coverage`, which wants a
+    study with an interval per replication. simcheck keeps counts and rates on
+    separate entry points on purpose, and the count one is the one that checks
+    ``0 <= hits <= n``. Rebuilding a study here instead would mean inventing an
+    estimate and a truth this caller does not have, and expanding the count into
+    a boolean array -- where a negative count silently becomes a slice from the
+    end, so ``-5`` of ``100`` reads as 95 covered replications, exactly nominal.
 
     Parameters
     ----------
@@ -661,12 +748,8 @@ def assert_coverage(
     AssertionError
         If empirical coverage is further than ``n_se`` standard errors from
         ``nominal``.
+    ValueError
+        If ``hits`` is negative or exceeds ``n``, which is an accounting error in
+        the caller rather than a result about coverage.
     """
-    covered = hits / n
-    se = mc_se_proportion(hits, n)
-    deviation = abs(covered - nominal) / se if se > 0 else float("inf")
-    assert deviation <= n_se, (
-        f"{label}: coverage {covered:.1%} vs nominal {nominal:.1%} is "
-        f"{deviation:.1f} Monte Carlo standard errors away "
-        f"(se {se:.4f}, R {n}, allowed {n_se})"
-    )
+    _simcheck_assert_count_rate(hits, n, nominal, label, sigmas=n_se)

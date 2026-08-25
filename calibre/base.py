@@ -74,23 +74,50 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         Args:
             X: The values to be calibrated (e.g., predicted probabilities).
             y: The target values (e.g., true labels).
-            sample_weight: Non-negative per-observation weights. Calibrators that cannot honour weights raise rather than ignore them.
+            sample_weight: Non-negative per-observation weights. Calibrators
+                that cannot honour weights raise rather than ignore them.
 
         Returns:
             BaseCalibrator: Returns self for method chaining.
         """
-        # Store fit data for potential diagnostics
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._fit_data_weight = sample_weight
-
         # Delegate actual fitting to subclass implementation
+        self._is_fitted = False
         self._fit_impl(X, y, sample_weight)
+
+        # Retain the same one-dimensional numeric representation accepted by the
+        # concrete calibrators. Keeping the caller's raw list here made fitting
+        # succeed and diagnostics fail later when they used NumPy index arrays.
+        self._fit_data_X = np.asarray(X, dtype=float).ravel()
+        self._fit_data_y = np.asarray(y, dtype=float).ravel()
+        self._fit_data_weight = (
+            None
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).ravel()
+        )
+        self._is_fitted = True
 
         # Run diagnostics if enabled
         self._run_diagnostics()
 
         return self
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """Return whether :meth:`fit` completed successfully.
+
+        Returns:
+            bool: True after the template fitter completes, or after a custom
+                subclass following scikit-learn's trailing-underscore convention
+                has fitted itself.
+        """
+        if hasattr(self, "_is_fitted"):
+            return bool(self._is_fitted)
+        return any(
+            name.endswith("_")
+            and not name.startswith("__")
+            and name != "diagnostics_"
+            and value is not None
+            for name, value in vars(self).items()
+        )
 
     def _fit_impl(
         self,
@@ -163,7 +190,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-        **fit_params: object,
+        # Deliberately unused: accepted so the method matches scikit-learn's
+        # fit_transform signature and works in a Pipeline, as documented below.
+        **fit_params: object,  # noqa: ARG002
     ) -> np.ndarray:
         """Fit the calibrator and then transform the data.
 
@@ -206,10 +235,13 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         from .diagnostics import run_plateau_diagnostics
 
         try:
-            y_calibrated = self.transform(self._fit_data_X)
-            self.diagnostics_ = run_plateau_diagnostics(self._fit_data_X, y_calibrated)
+            diagnostic_x = self._fit_data_X
+            if self._fit_data_weight is not None:
+                diagnostic_x = diagnostic_x[self._fit_data_weight > 0.0]
+            y_calibrated = self.transform(diagnostic_x)
+            self.diagnostics_ = run_plateau_diagnostics(diagnostic_x, y_calibrated)
         except Exception as e:
-            logger.warning(f"Diagnostic analysis failed: {e}")
+            logger.warning("Diagnostic analysis failed: %s", e)
             self.diagnostics_ = None
 
     def has_diagnostics(self) -> bool:
@@ -236,7 +268,8 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         """Get diagnostic results.
 
         Returns:
-            dict | None: Diagnostic results from plateau analysis, or None if diagnostics were not computed or are not available.
+            dict | None: Diagnostic results from plateau analysis, or None if
+                diagnostics were not computed or are not available.
 
         Examples:
             >>> from calibre import IsotonicCalibrator
@@ -284,8 +317,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         if self.diagnostics_["warnings"]:
             lines.append("\nWarnings:")
-            for warning in self.diagnostics_["warnings"]:
-                lines.append(f"  ⚠ {warning}")
+            lines.extend(f"  ⚠ {warning}" for warning in self.diagnostics_["warnings"])
 
         return "\n".join(lines)
 
@@ -312,7 +344,9 @@ class MonotonicMixin:
 
         Args:
             y: Values to check for monotonicity.
-            strict: If True, check for strictly increasing (no equal consecutive values). If False, check for non-decreasing (allows equal consecutive values).
+            strict: If True, check for strictly increasing (no equal
+                consecutive values). If False, check for non-decreasing
+                (allows equal consecutive values).
 
         Returns:
             True if the array is monotonic according to the specified criteria.
@@ -343,8 +377,7 @@ class MonotonicMixin:
 
         if strict:
             return bool(np.all(diffs > 0))
-        else:
-            return bool(np.all(diffs >= 0))
+        return bool(np.all(diffs >= 0))
 
     @staticmethod
     def enforce_monotonicity(y: np.ndarray, inplace: bool = False) -> np.ndarray:
@@ -384,6 +417,11 @@ class MonotonicMixin:
 
 # Module constants for validation and default values
 DEFAULT_MIN_WINDOW = 5
+# Shortest window a Savitzky-Golay filter can use here. The filter needs
+# window_length > polyorder and an odd length, so a cubic fit (DEFAULT_POLY_ORDER)
+# bottoms out at 5. Named because it appeared as a bare 5 in two places in
+# smoothed.py, where changing one and not the other would silently half-apply.
+MIN_SAVGOL_WINDOW = 5
 DEFAULT_POLY_ORDER = 3
 DEFAULT_N_BOOTSTRAPS = 100
 DEFAULT_N_SPLITS = 5
@@ -397,6 +435,7 @@ __all__ = [
     "DEFAULT_N_BOOTSTRAPS",
     "DEFAULT_N_SPLITS",
     "DEFAULT_POLY_ORDER",
+    "MIN_SAVGOL_WINDOW",
     "MIN_VARIANCE_THRESHOLD",
     "WINDOW_DIVISOR",
     "BaseCalibrator",

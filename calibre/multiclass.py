@@ -63,7 +63,8 @@ def _check_probability_matrix(
         ndarray: Validated probabilities as float.
 
     Raises:
-        ValueError: If ``P`` is not 2-D, has the wrong width, contains non-finite or negative values, or has rows that do not sum to one.
+        ValueError: If ``P`` is not 2-D, has the wrong width, contains
+            non-finite or negative values, or has rows that do not sum to one.
     """
     P = np.asarray(P, dtype=float)
     if P.ndim != 2:
@@ -97,7 +98,9 @@ def _check_matrix(P: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
         y: Validated labels as int.
 
     Raises:
-        ValueError: If ``P`` is not 2-D, the lengths disagree, labels are non-integer or outside the class range, or ``P`` is not a valid probability matrix.
+        ValueError: If ``P`` is not 2-D, the lengths disagree, labels are
+            non-integer or outside the class range, or ``P`` is not a valid
+            probability matrix.
     """
     P = _check_probability_matrix(P)
     y_raw = np.asarray(y)
@@ -143,7 +146,8 @@ def classwise_decomposition(
         score: Proper scoring rule: ``"brier"`` (default) or ``"log"``.
 
     Returns:
-        list of dict: One decomposition per class, in class order. Each has ``mean_score``, ``MCB``, ``DSC``, ``UNC``.
+        list of dict: One decomposition per class, in class order. Each has
+            ``mean_score``, ``MCB``, ``DSC``, ``UNC``.
 
     Notes:
         This is *class-wise* calibration, the standard relaxation of the multiclass
@@ -192,7 +196,10 @@ def miscalibration_profile(P: np.ndarray, y: np.ndarray) -> dict:
         y: Integer class labels.
 
     Returns:
-        dict: ``mcb`` (per-class miscalibration), ``spread`` (coefficient of variation of ``mcb``), ``worst_classes`` (indices ordered by descending ``mcb``), and ``reading`` (a plain-language interpretation).
+        dict: ``mcb`` (per-class miscalibration), ``spread`` (coefficient of
+            variation of ``mcb``), ``worst_classes`` (indices ordered by
+            descending ``mcb``), and ``reading`` (a plain-language
+            interpretation).
 
     Notes:
         Calibrated on synthetic data where the true regime is known, ``spread`` is
@@ -269,7 +276,9 @@ def classwise_ece(
         P: Predicted probabilities, shape ``(n_samples, n_classes)``.
         y: Integer class labels.
         n_bins: Bins per class, used by the ``"debiased"`` estimator.
-        estimator: ``"debiased"`` (default) subtracts the per-bin Bernoulli variance; ``"sweep"`` chooses the bin count by monotonicity instead.
+        estimator: ``"debiased"`` (default) subtracts the per-bin Bernoulli
+            variance; ``"sweep"`` chooses the bin count by monotonicity
+            instead.
 
     Returns:
         float: Mean per-class calibration error.
@@ -359,7 +368,8 @@ def classwise_reliability(P: np.ndarray, y: np.ndarray) -> list[ReliabilityDiagr
         y: Integer class labels.
 
     Returns:
-        list of ReliabilityDiagram: One diagram per class, in class order. No bin count to choose.
+        list of ReliabilityDiagram: One diagram per class, in class order. No
+            bin count to choose.
 
     Examples:
         >>> import numpy as np
@@ -394,10 +404,12 @@ class TemperatureScaler:
     :func:`miscalibration_profile` first.
 
     Args:
-        max_log_temperature: The search runs over ``log(T)`` in ``[-b, b]``. Widen only if the fitted temperature lands on a bound.
+        max_log_temperature: The search runs over ``log(T)`` in ``[-b, b]``.
+            Widen only if the fitted temperature lands on a bound.
 
     Attributes:
-        temperature_: Fitted temperature. Above 1 softens the predictions, below 1 sharpens.
+        temperature_: Fitted temperature. Above 1 softens the predictions,
+            below 1 sharpens.
         n_features_in_: Number of classes seen during fit.
 
     Notes:
@@ -476,7 +488,8 @@ class TemperatureScaler:
             TemperatureScaler: self.
 
         Raises:
-            ValueError: If ``max_log_temperature`` is not positive, or the inputs are malformed.
+            ValueError: If ``max_log_temperature`` is not positive, or the
+                inputs are malformed.
         """
         from scipy.optimize import minimize_scalar
 
@@ -505,7 +518,8 @@ class TemperatureScaler:
             P: Predicted probabilities.
 
         Returns:
-            ndarray: Calibrated probabilities, rows summing to 1. Every row's argmax is unchanged.
+            ndarray: Calibrated probabilities, rows summing to 1. Every row's
+                argmax is unchanged.
 
         Raises:
             AttributeError: If called before :meth:`fit`.

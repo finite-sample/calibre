@@ -23,7 +23,7 @@ FIXTURE_DIR = Path(__file__).parent / "fixtures" / "r"
 
 
 def _load(name: str) -> dict:
-    with open(FIXTURE_DIR / name) as fh:
+    with (FIXTURE_DIR / name).open() as fh:
         return json.load(fh)
 
 

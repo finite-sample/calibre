@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -11,6 +10,8 @@ from ._deps import require_matplotlib
 from ._style import SEMANTIC, finalize, get_axes
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from collections.abc import Mapping, Sequence
+
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
@@ -25,7 +26,8 @@ def _as_mapping_of_decompositions(
     """Accept either one decomposition or a named collection of them.
 
     Args:
-        decompositions: A single :func:`~calibre.score_decomposition` result, or a mapping from forecaster name to such a result.
+        decompositions: A single :func:`~calibre.score_decomposition` result,
+            or a mapping from forecaster name to such a result.
 
     Returns:
         dict: Always a name-to-decomposition mapping.
@@ -82,16 +84,20 @@ def plot_score_decomposition(
         lengths remain honest.
 
     Args:
-        decompositions: One :func:`~calibre.score_decomposition` result, or a mapping from forecaster name to result to draw one row each.
-        axes: Three existing axes to draw into. A new figure is created when omitted.
+        decompositions: One :func:`~calibre.score_decomposition` result, or a
+            mapping from forecaster name to result to draw one row each.
+        axes: Three existing axes to draw into. A new figure is created when
+            omitted.
         score_label: Name of the score, used for the third panel's label.
-        figsize: Size of the new figure. Scales with the number of forecasters by default.
+        figsize: Size of the new figure. Scales with the number of forecasters
+            by default.
 
     Returns:
         Figure: The figure holding the three panels.
 
     Raises:
-        ValueError: If a decomposition is missing a component, or ``axes`` is not length 3.
+        ValueError: If a decomposition is missing a component, or ``axes`` is
+            not length 3.
 
     Examples:
         >>> import matplotlib
@@ -196,7 +202,8 @@ def plot_mcb_dsc_plane(
     forecaster component by component.
 
     Args:
-        decompositions: Mapping from forecaster name to a :func:`~calibre.score_decomposition` result.
+        decompositions: Mapping from forecaster name to a
+            :func:`~calibre.score_decomposition` result.
         ax: Axes to draw on. A new figure is created when omitted.
         contours: Whether to draw lines of equal score.
         n_contours: How many such lines.
@@ -206,7 +213,8 @@ def plot_mcb_dsc_plane(
         Axes: The axes drawn on.
 
     Raises:
-        ValueError: If ``decompositions`` is empty or a decomposition is missing a component.
+        ValueError: If ``decompositions`` is empty or a decomposition is
+            missing a component.
 
     Examples:
         >>> import matplotlib

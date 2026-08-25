@@ -258,7 +258,8 @@ class TestMatrix:
         # Handle NaN correlations gracefully
         if not np.isnan(result["rank_correlation"]):
             assert result["rank_correlation"] >= 0.2, (
-                f"Poor rank correlation for {calibrator_name} on {pattern}: {result['rank_correlation']:.3f}"
+                f"Poor rank correlation for {calibrator_name} on {pattern}: "
+                f"{result['rank_correlation']:.3f}"
             )
         assert result["calibrated_ece"] >= 0, (
             f"Invalid ECE for {calibrator_name} on {pattern}"
@@ -341,9 +342,12 @@ class TestMatrix:
                 result = self._run_single_test(calibrator_name, pattern, 200, 0.1)
 
                 if result["success"]:
-                    # Allow some violations even for "strict" methods due to numerical precision
+                    # Allow some violations even for "strict" methods due to
+                    # numerical precision
                     assert result["monotonicity_violations"] <= 35, (
-                        f"{calibrator_name} violated strict monotonicity on {pattern}: {result['monotonicity_violations']} violations"
+                        f"{calibrator_name} violated strict monotonicity on "
+                        f"{pattern}: "
+                        f"{result['monotonicity_violations']} violations"
                     )
 
     @pytest.mark.slow
@@ -407,7 +411,8 @@ class TestMatrix:
                 # Handle NaN correlations gracefully
                 if not np.isnan(result["rank_correlation"]):
                     assert result["rank_correlation"] >= 0.1, (
-                        f"{calibrator_name} poor correlation on n={n_samples}: {result['rank_correlation']:.3f}"
+                        f"{calibrator_name} poor correlation on "
+                        f"n={n_samples}: {result['rank_correlation']:.3f}"
                     )
 
     @pytest.mark.parametrize("noise_level", [0.05, 0.1, 0.2])
@@ -445,12 +450,14 @@ class TestMatrix:
                 if result["success"]:
                     # Should preserve at least 0.3% of unique values (extremely relaxed)
                     assert result["granularity_ratio"] >= 0.003, (
-                        f"{calibrator_name} collapsed granularity too much on {pattern}: {result['granularity_ratio']:.3f}"
+                        f"{calibrator_name} collapsed granularity too much "
+                        f"on {pattern}: {result['granularity_ratio']:.3f}"
                     )
 
                     # Should not create unrealistic explosion
                     assert result["granularity_ratio"] <= 5.0, (
-                        f"{calibrator_name} created too many unique values on {pattern}: {result['granularity_ratio']:.3f}"
+                        f"{calibrator_name} created too many unique values "
+                        f"on {pattern}: {result['granularity_ratio']:.3f}"
                     )
 
     @pytest.mark.slow
@@ -481,7 +488,8 @@ class TestMatrix:
                     # Handle NaN correlations in extreme scenarios
                     if not np.isnan(result["rank_correlation"]):
                         assert result["rank_correlation"] >= -0.5, (
-                            f"{calibrator_name} very negative correlation on {pattern}: {result['rank_correlation']:.3f}"
+                            f"{calibrator_name} very negative correlation on "
+                            f"{pattern}: {result['rank_correlation']:.3f}"
                         )
 
     @pytest.mark.slow
@@ -641,68 +649,3 @@ class TestMatrixAnalysis:
             calibrator_scores.items(), key=lambda x: x[1], reverse=True
         ):
             print(f"  {cal}: {score:.4f}")
-
-
-# Utility functions for test matrix
-def run_test_matrix_subset(
-    calibrator_names: list[str] | None = None,
-    patterns: list[str] | None = None,
-    n_samples: int = 300,
-    noise_level: float = 0.1,
-) -> dict[str, Any]:
-    """Run a subset of the test matrix for quick analysis."""
-    if calibrator_names is None:
-        calibrator_names = ["nir_strict_path", "ispline_medium", "rir_medium"]
-
-    if patterns is None:
-        patterns = ["overconfident_nn", "underconfident_rf", "sigmoid_distorted"]
-
-    test_matrix = TestMatrix()
-    test_matrix.setup_class()
-
-    results = []
-    for cal_name in calibrator_names:
-        for pattern in patterns:
-            result = test_matrix._run_single_test(
-                cal_name, pattern, n_samples, noise_level
-            )
-            results.append(result)
-
-    return results
-
-
-def analyze_test_results(results: list[dict[str, Any]]) -> dict[str, Any]:
-    """Analyze test results and generate summary statistics."""
-    successful = [r for r in results if r.get("success", False)]
-    failed = [r for r in results if not r.get("success", False)]
-
-    if not successful:
-        return {"success_rate": 0, "summary": "All tests failed"}
-
-    # Calculate summary statistics
-    ece_improvements = [r["ece_improvement"] for r in successful]
-    brier_improvements = [r["brier_improvement"] for r in successful]
-    granularity_ratios = [r["granularity_ratio"] for r in successful]
-
-    return {
-        "success_rate": len(successful) / len(results),
-        "total_tests": len(results),
-        "successful_tests": len(successful),
-        "failed_tests": len(failed),
-        "ece_improvement": {
-            "mean": np.mean(ece_improvements),
-            "median": np.median(ece_improvements),
-            "std": np.std(ece_improvements),
-            "positive_rate": np.mean([x > 0 for x in ece_improvements]),
-        },
-        "brier_improvement": {
-            "mean": np.mean(brier_improvements),
-            "median": np.median(brier_improvements),
-            "positive_rate": np.mean([x > 0 for x in brier_improvements]),
-        },
-        "granularity_preservation": {
-            "mean": np.mean(granularity_ratios),
-            "median": np.median(granularity_ratios),
-            "above_half_rate": np.mean([x > 0.5 for x in granularity_ratios]),
-        },
-    }

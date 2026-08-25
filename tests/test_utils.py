@@ -5,7 +5,13 @@ Comprehensive tests for utils module.
 import numpy as np
 import pytest
 
-from calibre.utils import check_arrays, sort_by_x
+from calibre import (
+    BaseCalibrator,
+    CDIIsotonicCalibrator,
+    CenteredIsotonicCalibrator,
+    IsotonicCalibrator,
+)
+from calibre.utils import check_arrays, check_fitted, interpolate_monotonic, sort_by_x
 
 
 class TestCheckArrays:
@@ -76,7 +82,8 @@ class TestCheckArrays:
         assert y_valid[0] == 1
 
     def test_nan_values(self):
-        """Test with NaN values (should be allowed with ensure_all_finite='allow-nan')."""
+        """Test with NaN values (should be allowed with
+        ensure_all_finite='allow-nan')."""
         X = [0.1, np.nan, 0.5]
         y = [0, 1, 1]
 
@@ -209,3 +216,71 @@ class TestValidationEdgeCases:
         assert isinstance(sort_idx, np.ndarray)
         assert isinstance(X_sorted, np.ndarray)
         assert isinstance(y_sorted, np.ndarray)
+
+
+@pytest.mark.parametrize(
+    "calibrator",
+    [
+        IsotonicCalibrator(),
+        CenteredIsotonicCalibrator(),
+        CDIIsotonicCalibrator(),
+    ],
+)
+def test_check_fitted_distinguishes_unfitted_and_fitted_calibrators(calibrator):
+    """The public fitted-state check must work across exported calibrators."""
+    with pytest.raises(ValueError, match="must be fitted"):
+        check_fitted(calibrator)
+
+    calibrator.fit(np.array([0.1, 0.9]), np.array([0.0, 1.0]))
+    check_fitted(calibrator)
+
+
+def test_check_fitted_requires_every_named_attribute():
+    """An existing constructor placeholder is not evidence of a completed fit."""
+    calibrator = IsotonicCalibrator()
+    with pytest.raises(ValueError, match="must be fitted"):
+        check_fitted(calibrator, attributes=["isotonic_"])
+
+    calibrator.fit(np.array([0.1, 0.9]), np.array([0.0, 1.0]))
+    check_fitted(calibrator, attributes=["isotonic_"])
+
+
+def test_check_fitted_accepts_a_documented_custom_subclass():
+    """The standard trailing-underscore convention remains valid for subclasses."""
+
+    class MeanCalibrator(BaseCalibrator):
+        def fit(self, X, y):
+            self.mean_ = float(np.mean(y))
+            return self
+
+        def transform(self, X):
+            return np.full_like(np.asarray(X, dtype=float), self.mean_)
+
+    calibrator = MeanCalibrator()
+    with pytest.raises(ValueError, match="must be fitted"):
+        check_fitted(calibrator)
+
+    calibrator.fit(np.array([0.1, 0.9]), np.array([0.0, 1.0]))
+    check_fitted(calibrator)
+
+
+def test_interpolate_monotonic_honours_bounds_error():
+    """Out-of-range evaluation must raise when the caller requests it."""
+    with pytest.raises(ValueError, match="outside the interpolation range"):
+        interpolate_monotonic(
+            np.array([0.0, 1.0]),
+            np.array([0.0, 1.0]),
+            np.array([-0.1, 0.5]),
+            bounds_error=True,
+        )
+
+
+def test_interpolate_monotonic_uses_requested_boundary_fill():
+    """The non-raising path still fills each side independently."""
+    result = interpolate_monotonic(
+        np.array([0.0, 1.0]),
+        np.array([0.0, 1.0]),
+        np.array([-0.1, 0.5, 1.1]),
+        fill_value=(-2.0, 3.0),
+    )
+    np.testing.assert_allclose(result, [-2.0, 0.5, 3.0])

@@ -18,26 +18,19 @@ from calibre.metrics import (
 )
 
 
-@pytest.fixture
-def perfect_calibration_data():
-    """Data where predictions exactly match true probabilities."""
-    np.random.seed(42)
-    n = 100
-    y_pred = np.random.uniform(0, 1, n)
-    y_true = np.random.binomial(1, y_pred, n)
-    return y_true, y_pred
-
-
-@pytest.fixture
-def poorly_calibrated_data():
-    """Data with systematic calibration bias."""
-    np.random.seed(42)
-    n = 100
-    true_probs = np.random.uniform(0, 1, n)
-    # Add systematic bias: overconfident predictions
-    y_pred = np.clip(true_probs + 0.3 * (true_probs - 0.5), 0, 1)
-    y_true = np.random.binomial(1, true_probs, n)
-    return y_true, y_pred
+@pytest.mark.parametrize(
+    "metric",
+    [
+        binned_calibration_error,
+        expected_calibration_error,
+        maximum_calibration_error,
+        calibration_curve,
+    ],
+)
+def test_binned_metrics_reject_zero_bins(metric):
+    """Zero bins cannot be reported as zero calibration error."""
+    with pytest.raises(ValueError, match="n_bins must be at least 1"):
+        metric(np.array([0.0, 1.0]), np.array([0.2, 0.8]), n_bins=0)
 
 
 class TestMeanCalibrationError:

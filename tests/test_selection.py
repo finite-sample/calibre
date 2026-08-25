@@ -282,6 +282,51 @@ def test_select_by_cv_rejects_malformed_sample_weights(sample_weight, match):
         )
 
 
+def test_zero_weight_target_does_not_change_auto_scoring_or_selection():
+    """A row carrying no mass cannot change the scoring domain or winner."""
+
+    class Constant:
+        def __init__(self, probability):
+            self.probability = probability
+
+        def fit(self, X, y, sample_weight=None):
+            return self
+
+        def transform(self, X):
+            return np.full(len(X), self.probability)
+
+    x = np.arange(9, dtype=float)
+    y = np.array([0.0] * 6 + [1.0] * 2 + [2.0])
+    weights = np.r_[np.ones(8), 0.0]
+    grid = {"probability": [0.01, 0.5]}
+
+    baseline = select_by_cv(
+        Constant, grid, x[:8], y[:8], cv=2, scoring="auto", max_cv_samples=None
+    )
+    weighted = select_by_cv(
+        Constant,
+        grid,
+        x,
+        y,
+        sample_weight=weights,
+        cv=2,
+        scoring="auto",
+        max_cv_samples=None,
+    )
+    explicit_log = select_by_cv(
+        Constant,
+        grid,
+        x,
+        y,
+        sample_weight=weights,
+        cv=2,
+        scoring="log_loss",
+        max_cv_samples=None,
+    )
+
+    assert baseline == weighted == explicit_log == {"probability": 0.5}
+
+
 def test_select_by_cv_rejects_calibration_error_as_a_criterion():
     """ECE is biased, so it is not offered as a selection criterion."""
     x, y = _data(10, n=200)
@@ -303,9 +348,9 @@ def test_select_by_cv_rejects_an_empty_grid():
         select_by_cv(lambda **kw: NearlyIsotonicCalibrator(**kw), {}, x, y, cv=3)
 
 
-@pytest.mark.parametrize("scoring", ["log_loss", "brier"])
+@pytest.mark.parametrize("scoring", ["log_loss", "brier", "auto"])
 def test_both_proper_scoring_rules_work(scoring):
-    """Either proper rule may be used to select."""
+    """Either proper rule or domain-aware selection may be used."""
     x, y = _data(12, n=300)
     best = select_by_cv(
         lambda **kw: NearlyIsotonicCalibrator(**kw),
@@ -316,6 +361,46 @@ def test_both_proper_scoring_rules_work(scoring):
         scoring=scoring,
     )
     assert "lam" in best
+
+
+def test_log_loss_rejects_targets_outside_its_domain():
+    """Bernoulli log loss is not a scoring rule for unbounded targets."""
+    x = np.linspace(0.0, 1.0, 30)
+    y = np.linspace(-1.0, 2.0, 30)
+
+    with pytest.raises(ValueError, match=r"log_loss.*targets in \[0, 1\]"):
+        select_by_cv(
+            lambda **kw: RegularizedIsotonicCalibrator(
+                link="identity", clip_output=False, **kw
+            ),
+            {"alpha": [0.0, 1.0]},
+            x,
+            y,
+            cv=3,
+            scoring="log_loss",
+        )
+
+    assert "alpha" in select_by_cv(
+        lambda **kw: RegularizedIsotonicCalibrator(
+            link="identity", clip_output=False, **kw
+        ),
+        {"alpha": [0.0, 1.0]},
+        x,
+        y,
+        cv=3,
+        scoring="brier",
+    )
+
+    assert "alpha" in select_by_cv(
+        lambda **kw: RegularizedIsotonicCalibrator(
+            link="identity", clip_output=False, **kw
+        ),
+        {"alpha": [0.0, 1.0]},
+        x,
+        y,
+        cv=3,
+        scoring="auto",
+    )
 
 
 # --------------------------------------------------------------------------- #

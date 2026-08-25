@@ -273,6 +273,56 @@ def test_cross_validation_selects_alpha():
     assert fixed.alpha_ == 3.0
 
 
+def test_identity_link_cv_matches_unclipped_squared_error():
+    """Identity-link selection must score the model it ultimately returns.
+
+    The old path clipped validation predictions into ``[0, 1]`` and fed them to
+    Bernoulli log loss even when the requested identity-link fit and its targets
+    were unbounded. This independently fits every public fixed candidate and
+    compares the selected pair against out-of-fold squared error.
+    """
+    from sklearn.model_selection import KFold
+
+    from calibre import SplineCalibrator
+
+    rng = np.random.default_rng(0)
+    x = np.sort(rng.uniform(0.0, 1.0, 80))
+    y = 2.0 + 4.0 * x + rng.normal(0.0, 2.0, x.size)
+    folds = list(KFold(n_splits=3, shuffle=True, random_state=0).split(x))
+
+    scores = {}
+    for n_knots in (5, 10, 20):
+        for alpha in (0.0, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0):
+            squared_error = 0.0
+            for train, validation in folds:
+                fixed = SplineCalibrator(
+                    n_knots=n_knots,
+                    alpha=alpha,
+                    link="identity",
+                    clip_output=False,
+                ).fit(x[train], y[train])
+                residual = fixed.transform(x[validation]) - y[validation]
+                squared_error += float(np.sum(residual**2))
+            scores[(n_knots, alpha)] = squared_error
+
+    expected = min(scores, key=scores.get)
+    selected = SplineCalibrator(
+        link="identity", clip_output=False, cv=3, random_state=0
+    ).fit(x, y)
+
+    assert (selected.n_knots_, selected.alpha_) == expected
+
+
+def test_cross_validation_does_not_return_an_arbitrary_failed_candidate():
+    """If every fold fit fails, selection has no defensible answer."""
+    from calibre import SplineCalibrator
+
+    with pytest.raises(ValueError, match="every spline candidate failed"):
+        SplineCalibrator(link="identity", clip_output=False).fit(
+            np.array([0.1, 0.9]), np.array([-1.0, 2.0])
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Optimality, against an independent solver
 # --------------------------------------------------------------------------- #
@@ -593,6 +643,125 @@ def test_spline_calibrator_rejects_malformed_sample_weights(sample_weight, match
     x, y = _dataset(16, n=200)
     with pytest.raises(ValueError, match=match):
         SplineCalibrator(alpha=None, cv=4).fit(x, y, sample_weight=sample_weight)
+
+
+@pytest.mark.parametrize(
+    "cls_name",
+    [
+        "SplineCalibrator",
+        "RegularizedIsotonicCalibrator",
+    ],
+)
+def test_weighted_knot_placement_ignores_zero_mass_and_stays_monotone(cls_name):
+    """Zero-weight rows and concentrated mass must not degenerate the I-spline."""
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    kwargs = {"alpha": 0.1, "n_knots": 10, "link": "identity", "clip_output": False}
+    positive_x = np.linspace(0.0, 0.2, 5)
+    positive_y = 1.0 + positive_x
+    zero_x = np.linspace(0.21, 1.0, 15)
+    zero_y = np.linspace(10.0, -10.0, zero_x.size)
+    grid = np.linspace(-0.1, 1.0, 200)
+
+    baseline = cls(**kwargs).fit(positive_x, positive_y).transform(grid)
+    weighted = (
+        cls(**kwargs)
+        .fit(
+            np.r_[positive_x, zero_x],
+            np.r_[positive_y, zero_y],
+            sample_weight=np.r_[np.ones(positive_x.size), np.zeros(zero_x.size)],
+        )
+        .transform(grid)
+    )
+    np.testing.assert_allclose(weighted, baseline, atol=1e-10)
+    assert np.all(np.diff(weighted) >= -1e-12)
+
+    concentrated = (
+        cls(**kwargs)
+        .fit(
+            np.linspace(0.0, 1.0, 20),
+            np.linspace(1.0, 2.0, 20),
+            sample_weight=np.r_[1000.0, np.ones(19)],
+        )
+        .transform(grid)
+    )
+    assert np.all(np.diff(concentrated) >= -1e-12)
+
+
+def test_weighted_spline_basis_ignores_zero_mass_and_stays_monotone():
+    """The shared basis must remain valid when weighted quantiles collapse."""
+    from calibre._core import monotone_spline_basis
+
+    positive_x = np.linspace(0.0, 0.2, 5)
+    zero_x = np.linspace(0.21, 1.0, 15)
+    full_x = np.r_[positive_x, zero_x]
+    weights = np.r_[np.ones(positive_x.size), np.zeros(zero_x.size)]
+    grid = np.linspace(-0.1, 1.0, 200)
+
+    baseline = monotone_spline_basis(n_knots=10).fit(positive_x)
+    weighted = monotone_spline_basis(n_knots=10).fit(full_x, sample_weight=weights)
+
+    np.testing.assert_allclose(weighted.design(grid), baseline.design(grid), atol=1e-12)
+    assert np.all(np.diff(weighted.design(grid), axis=0) >= -1e-12)
+
+
+def test_constant_weight_scale_does_not_move_spline_knots():
+    """Equal observation weights cannot change quantile knot placement."""
+    from calibre._core import monotone_spline_basis
+
+    x = np.array([0.0025, 0.1225, 0.4225, 0.9025])
+    y = np.array([0.0, 0.2, 0.6, 1.0])
+    grid = np.linspace(0.0, 1.0, 101)
+
+    unit_basis = monotone_spline_basis(n_knots=3).fit(x, sample_weight=np.ones(x.size))
+    scaled_basis = monotone_spline_basis(n_knots=3).fit(
+        x, sample_weight=np.full(x.size, 2.0)
+    )
+    np.testing.assert_allclose(scaled_basis.design(grid), unit_basis.design(grid))
+
+    for cls_name in ("SplineCalibrator", "RegularizedIsotonicCalibrator"):
+        import calibre
+
+        cls = getattr(calibre, cls_name)
+        kwargs = {
+            "alpha": 0.0,
+            "n_knots": 3,
+            "link": "identity",
+            "clip_output": False,
+        }
+        unit = cls(**kwargs).fit(x, y, sample_weight=np.ones(x.size)).transform(grid)
+        scaled = (
+            cls(**kwargs).fit(x, y, sample_weight=np.full(x.size, 2.0)).transform(grid)
+        )
+        np.testing.assert_allclose(scaled, unit, atol=1e-8)
+
+
+@pytest.mark.parametrize(
+    "cls_name", ["SplineCalibrator", "RegularizedIsotonicCalibrator"]
+)
+def test_zero_weight_out_of_domain_target_is_ignored(cls_name):
+    """A target carrying no mass cannot invalidate a Bernoulli fit."""
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    kwargs = {"alpha": 0.1, "n_knots": 5, "link": "logit"}
+    x = np.linspace(0.1, 0.9, 8)
+    y = np.array([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+    grid = np.linspace(0.0, 1.0, 100)
+
+    baseline = cls(**kwargs).fit(x, y).transform(grid)
+    weighted = (
+        cls(**kwargs)
+        .fit(
+            np.r_[x, 0.5],
+            np.r_[y, 2.0],
+            sample_weight=np.r_[np.ones(x.size), 0.0],
+        )
+        .transform(grid)
+    )
+
+    np.testing.assert_allclose(weighted, baseline, atol=1e-10)
 
 
 # --------------------------------------------------------------------------- #

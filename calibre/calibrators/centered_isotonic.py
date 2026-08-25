@@ -43,11 +43,14 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
     what would otherwise be a plateau, at no cost in monotonicity.
 
     Args:
-        clip_output: Clip calibrated values into ``[0, 1]``. Appropriate for probability calibration; turn it off to use the estimator on an unbounded target.
+        clip_output: Clip calibrated values into ``[0, 1]``. Appropriate for
+            probability calibration; turn it off to use the estimator on an
+            unbounded target.
         enable_diagnostics: Run plateau diagnostics after fitting.
 
     Attributes:
-        calibration_curve_: The fitted calibration map. ``.x`` holds the block centroids and ``.y`` their pooled values.
+        calibration_curve_: The fitted calibration map. ``.x`` holds the block
+            centroids and ``.y`` their pooled values.
         n_features_in_: Always 1. Present for scikit-learn compatibility.
 
     Notes:

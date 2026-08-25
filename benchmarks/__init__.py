@@ -5,7 +5,7 @@ Run with::
     python -m benchmarks.run --quick     # offline, fast, what CI runs
     python -m benchmarks.run             # the committed grid
     python -m benchmarks.aggregate       # raw.csv -> summary.csv, paired.csv
-    python -m benchmarks.figures         # summary.csv -> docs/source/_static/bench/
+    python -m benchmarks.figures         # summary.csv -> docs/_static/bench/
 
 This package is not shipped in the wheel: ``[tool.hatch.build.targets.wheel]``
 lists ``calibre`` only.

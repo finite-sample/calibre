@@ -61,7 +61,7 @@ def aggregate_ties(
 
     Returns:
         x_unique: Sorted unique values of ``x``.
-        y_mean: Weighted mean of ``y`` within each tie group. Groups with zero total weight are reported as 0.
+        y_mean: Weighted mean of ``y`` within each positive-mass tie group.
         weight: Total weight of each tie group.
 
     Raises:
@@ -94,10 +94,12 @@ def aggregate_ties(
 
     weight = np.bincount(inverse, weights=w, minlength=n_groups)
     weighted_y = np.bincount(inverse, weights=y * w, minlength=n_groups)
-    y_mean = np.divide(
-        weighted_y, weight, out=np.zeros_like(weighted_y), where=weight > 0.0
+    positive = weight > 0.0
+    return (
+        x_unique[positive],
+        weighted_y[positive] / weight[positive],
+        weight[positive],
     )
-    return x_unique, y_mean, weight
 
 
 # --------------------------------------------------------------------------- #
@@ -122,7 +124,8 @@ def weighted_pava(y: np.ndarray, sample_weight: np.ndarray | None = None) -> np.
         sample_weight: Non-negative weights. Defaults to 1.
 
     Returns:
-        ndarray of shape (n_samples,): Fitted values, non-decreasing, one per input element.
+        ndarray of shape (n_samples,): Fitted values, non-decreasing, one per
+            input element.
 
     Raises:
         ValueError: If ``y`` is empty, shapes disagree, or any weight is negative.
@@ -191,7 +194,8 @@ def monotone_projection(
         sample_weight: Non-negative weights. Defaults to 1.
 
     Returns:
-        ndarray of shape (n_samples,): The closest non-decreasing sequence in weighted L2.
+        ndarray of shape (n_samples,): The closest non-decreasing sequence in
+            weighted L2.
     """
     return weighted_pava(y, sample_weight)
 
@@ -253,7 +257,8 @@ def shift_to_pava(
         L: Lower bound on each of the ``n - 1`` increments. A scalar is broadcast.
 
     Returns:
-        ndarray of shape (n_samples,): Fitted values satisfying the increment constraints.
+        ndarray of shape (n_samples,): Fitted values satisfying the increment
+            constraints.
 
     Raises:
         ValueError: If ``L`` has the wrong length.
@@ -310,7 +315,10 @@ def nearly_isotonic_path(
         y: Target values in constraint order.
         lam: Penalty on monotonicity violations. See Notes on scaling.
         sample_weight: Non-negative weights. Defaults to 1.
-        return_path: Also return the merge events as ``(lambda, n_blocks)`` pairs. The block count is an unbiased estimate of the fit's degrees of freedom, which is what makes ``lam`` selectable rather than guessed.
+        return_path: Also return the merge events as ``(lambda, n_blocks)``
+            pairs. The block count is an unbiased estimate of the fit's degrees
+            of freedom, which is what makes ``lam`` selectable rather than
+            guessed.
 
     Returns:
         beta: The exact minimiser at ``lam``.
@@ -489,7 +497,8 @@ def collapse_blocks(
         x: Strictly increasing predictor grid.
         fitted: Non-decreasing fitted values on that grid.
         sample_weight: Non-negative weights. Defaults to 1.
-        anchor_terminal: Anchor the first and last blocks at their inner edge instead of their centroid. Matches ``cir::cirPAVA``.
+        anchor_terminal: Anchor the first and last blocks at their inner edge
+            instead of their centroid. Matches ``cir::cirPAVA``.
 
     Returns:
         x_collapsed: Representative predictor value for each flat block.
@@ -558,7 +567,8 @@ class PiecewiseLinear:
         y: Function value at each knot.
 
     Raises:
-        ValueError: If the arrays are empty, disagree in length, or ``x`` is not strictly increasing.
+        ValueError: If the arrays are empty, disagree in length, or ``x`` is
+            not strictly increasing.
 
     Examples:
         >>> import numpy as np
@@ -608,7 +618,8 @@ class StepFunction:
         y: Value taken on ``[x[i], x[i+1])``.
 
     Raises:
-        ValueError: If the arrays are empty, disagree in length, or ``x`` is not strictly increasing.
+        ValueError: If the arrays are empty, disagree in length, or ``x`` is
+            not strictly increasing.
 
     Examples:
         >>> import numpy as np
@@ -682,10 +693,15 @@ class MonotoneSplineBasis:
     by R's ``scam``, and the penalised B-splines of Eilers & Marx (1996).
 
     Args:
-        n_knots: Number of knots. The basis has ``n_knots + degree - 1`` columns before the constant one is dropped.
+        n_knots: Number of knots. The basis has ``n_knots + degree - 1``
+            columns before the constant one is dropped.
         degree: Polynomial degree of the B-splines.
-        knots: ``"quantile"`` places knots at data quantiles, ``"uniform"`` at equal spacing. Quantile is usually right for calibration, where scores cluster wherever the base model is confident.
-        extrapolation: Passed through to ``SplineTransformer``. ``"constant"`` holds the basis flat outside the knot range, so the fitted curve plateaus rather than diverging.
+        knots: ``"quantile"`` places knots at data quantiles, ``"uniform"`` at
+            equal spacing. Quantile is usually right for calibration, where
+            scores cluster wherever the base model is confident.
+        extrapolation: Passed through to ``SplineTransformer``. ``"constant"``
+            holds the basis flat outside the knot range, so the fitted curve
+            plateaus rather than diverging.
 
     Attributes:
         transformer_: The fitted B-spline transformer.
@@ -726,11 +742,17 @@ class MonotoneSplineBasis:
         self.knots = knots
         self.extrapolation = extrapolation
 
-    def fit(self, x: np.ndarray) -> MonotoneSplineBasis:
+    def fit(
+        self,
+        x: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> MonotoneSplineBasis:
         """Place the knots from ``x``.
 
         Args:
             x: Predictor values.
+            sample_weight: Non-negative observation weights used to place
+                quantile knots.
 
         Returns:
             MonotoneSplineBasis: self, for chaining.
@@ -748,11 +770,41 @@ class MonotoneSplineBasis:
             raise ValueError(f"knots must be one of {VALID_KNOTS}, got {self.knots!r}")
 
         x = np.asarray(x, dtype=float).ravel().reshape(-1, 1)
+        weight = None
+        if sample_weight is not None:
+            weight = np.asarray(sample_weight, dtype=float).ravel()
+            if weight.shape[0] != x.shape[0]:
+                raise ValueError(
+                    f"sample_weight has {weight.shape[0]} rows but x has {x.shape[0]}"
+                )
+            if not np.all(np.isfinite(weight)) or np.any(weight < 0.0):
+                raise ValueError(
+                    "sample_weight must contain finite non-negative values"
+                )
+            positive = weight > 0.0
+            if not np.any(positive):
+                raise ValueError(
+                    "sample_weight must contain at least one positive weight"
+                )
+            x = x[positive]
+            weight = weight[positive]
+            if np.all(weight == weight[0]):
+                weight = None
+
         # Quantile knots collapse if the scores are too concentrated; fall back
         # rather than emit a degenerate basis.
         knots = self.knots
         if knots == "quantile":
-            qs = np.quantile(x.ravel(), np.linspace(0, 1, self.n_knots))
+            if weight is None:
+                qs = np.quantile(x.ravel(), np.linspace(0, 1, self.n_knots))
+            else:
+                order = np.argsort(x.ravel(), kind="mergesort")
+                x_sorted = x.ravel()[order]
+                cumulative = np.cumsum(weight[order])
+                ranks = np.linspace(0.0, cumulative[-1], self.n_knots)
+                ranks[0] = np.nextafter(0.0, 1.0)
+                indices = np.searchsorted(cumulative, ranks, side="left")
+                qs = x_sorted[np.clip(indices, 0, x_sorted.size - 1)]
             if np.unique(qs).size < self.n_knots:
                 knots = "uniform"
 
@@ -763,7 +815,7 @@ class MonotoneSplineBasis:
             extrapolation=self.extrapolation,
             include_bias=True,
         )
-        self.transformer_.fit(x)
+        self.transformer_.fit(x, sample_weight=weight)
         self.n_basis_ = self.transformer_.transform(x[:1]).shape[1] - 1
         return self
 
@@ -774,7 +826,8 @@ class MonotoneSplineBasis:
             x: Points to evaluate the basis at.
 
         Returns:
-            ndarray of shape (n_samples, n_basis_): Every column non-decreasing in ``x``.
+            ndarray of shape (n_samples, n_basis_): Every column
+                non-decreasing in ``x``.
 
         Raises:
             AttributeError: If called before :meth:`fit`.
@@ -803,7 +856,8 @@ def monotone_spline_basis(
         extrapolation: ``SplineTransformer`` extrapolation mode.
 
     Returns:
-        MonotoneSplineBasis: An unfitted basis. Always a new object, so callers cannot accidentally share mutable state across folds.
+        MonotoneSplineBasis: An unfitted basis. Always a new object, so callers
+            cannot accidentally share mutable state across folds.
     """
     return MonotoneSplineBasis(
         n_knots=n_knots, degree=degree, knots=knots, extrapolation=extrapolation
@@ -823,7 +877,8 @@ def _difference_matrix(p: int) -> Any:
         p: Number of increments.
 
     Returns:
-        sparse matrix of shape (p - 1, p): The difference operator, or an empty operator when ``p < 2``.
+        sparse matrix of shape (p - 1, p): The difference operator, or an empty
+            operator when ``p < 2``.
     """
     from scipy import sparse
 
@@ -862,7 +917,11 @@ def fit_monotone_spline(
         y: Targets in ``[0, 1]``.
         sample_weight: Non-negative weights. Defaults to 1.
         alpha: Roughness penalty on the increments.
-        link: ``"logit"`` fits a penalised Bernoulli likelihood, so predictions live in ``(0, 1)`` with no clipping and the objective is the proper score for binary labels. ``"identity"`` fits penalised least squares on the probability scale, which is a single bounded linear solve and is therefore easy to check against an external QP solver.
+        link: ``"logit"`` fits a penalised Bernoulli likelihood, so predictions
+            live in ``(0, 1)`` with no clipping and the objective is the proper
+            score for binary labels. ``"identity"`` fits penalised least
+            squares on the probability scale, which is a single bounded linear
+            solve and is therefore easy to check against an external QP solver.
 
     Returns:
         intercept: The unconstrained intercept.

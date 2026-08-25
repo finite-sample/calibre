@@ -23,4 +23,7 @@ jobs:
       python-versions: '["3.12", "3.13", "3.14"]'
       os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
       wheel-import: calibre
-      coverage-floor: 0
+      # Full suite measures 87% (2026-08); the floor sits just under it so a
+      # real coverage regression fails while platform jitter does not.
+      coverage-floor: 85
+      run-preen: true

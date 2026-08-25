@@ -184,7 +184,8 @@ def pair_against_baseline(
         n_resamples: Bootstrap resamples.
 
     Returns:
-        list of dict: One row per dataset/model/method, with the mean difference, its interval and the win count.
+        list of dict: One row per dataset/model/method, with the mean difference,
+        its interval and the win count.
     """
     indexed: dict[tuple[str, str, str, str], dict[str, str]] = {
         (r["dataset"], r["model"], r["seed"], r["method"]): r for r in rows
