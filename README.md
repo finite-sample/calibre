@@ -169,15 +169,14 @@ print(
 # > 500 calibrated probabilities in [0.000, 1.000]
 ```
 
-### Guarantee no ties at all
+### Preserve more score resolution
 
-Since 0.10.0 `RelaxedPAVACalibrator` does this by default: `min_slope="auto"`
-picks a step of `0.01 / n_unique`, small enough to be invisible in the score and
-large enough to keep the fit strictly increasing. On the benchmark grid that takes
-it from 11 distinct values to 124 on `breast_cancer/logreg` while the Brier score
-moves in the fifth decimal.
+Since 0.10.0 `RelaxedPAVACalibrator` defaults to `min_slope="auto"`, a step of
+`0.01 / n_unique` that separates adjacent fitted values before output clipping. On
+the benchmark grid that takes it from 11 distinct values to 124 on
+`breast_cancer/logreg` while the Brier score moves in the fifth decimal.
 
-Set `min_slope` yourself when you need a specific guaranteed gap:
+Set `min_slope` yourself and disable clipping when you need a guaranteed gap:
 
 ```python
 import numpy as np
