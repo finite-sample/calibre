@@ -138,8 +138,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
     See Also:
         IsotonicCalibrator : The ``epsilon = 0`` special case.
-        CenteredIsotonicCalibrator : Interpolates between pooled blocks without
-            relaxing monotonicity.
+        CenteredIsotonicCalibrator : Monotone interpolation between pooled blocks.
         NearlyIsotonicCalibrator : Penalises violations instead of bounding them.
     """
 
