@@ -171,9 +171,10 @@ print(
 
 ### Preserve more score resolution
 
-Since 0.10.0 `RelaxedPAVACalibrator` defaults to `min_slope="auto"`, a step of
-`0.01 / n_unique` that separates adjacent fitted values before output clipping. On
-the benchmark grid that takes it from 11 distinct values to 124 on
+Since 0.10.0 `RelaxedPAVACalibrator` defaults to `min_slope="auto"`. When its
+automatic epsilon search selects strict monotonicity (`epsilon_ == 0`), it uses a
+step of `0.01 / n_unique` to separate adjacent fitted values before output
+clipping. On the benchmark grid that takes it from 11 distinct values to 124 on
 `breast_cancer/logreg` while the Brier score moves in the fifth decimal.
 
 Set `min_slope` yourself and disable clipping when you need a guaranteed gap:
