@@ -223,6 +223,10 @@ def interpolate_monotonic(
     Returns:
         y_test: Interpolated values.
 
+    Raises:
+        ValueError: If ``bounds_error`` is true and an evaluation point lies
+            outside the training range.
+
     Examples:
         >>> import numpy as np
         >>> from calibre.utils.array_ops import interpolate_monotonic
@@ -240,6 +244,12 @@ def interpolate_monotonic(
 
     if fill_value is None:
         fill_value = (float(y_train[0]), float(y_train[-1]))
+
+    if bounds_error and (np.any(X_test < X_train[0]) or np.any(X_test > X_train[-1])):
+        raise ValueError(
+            "X_test contains values outside the interpolation range "
+            f"[{X_train[0]}, {X_train[-1]}]"
+        )
 
     # Use numpy interp (fast and efficient)
     y_test = np.interp(X_test, X_train, y_train)

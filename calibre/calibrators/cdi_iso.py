@@ -282,8 +282,12 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
             w = np.asarray(sample_weight, dtype=float).reshape(-1)
             if w.shape[0] != y.shape[0]:
                 raise ValueError("sample_weight must match length of y")
-            if np.any(w < 0):
-                raise ValueError("sample_weight must be nonnegative")
+            if not np.all(np.isfinite(w)) or np.any(w < 0):
+                raise ValueError("sample_weight must contain finite nonnegative values")
+            if np.sum(w) <= 0.0:
+                raise ValueError(
+                    "sample_weight must contain at least one positive weight"
+                )
 
         # Sort by scores
         order = np.argsort(s, kind="mergesort")
@@ -347,6 +351,10 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
         self._store_fit(x_unique, x_scaled, z_fit, L, R, w_block)
         return self
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """Return whether :meth:`fit` completed successfully."""
+        return self._fitted
 
     def transform(self, scores: np.ndarray) -> np.ndarray:
         """Map new scores to calibrated probabilities (stepwise-constant).

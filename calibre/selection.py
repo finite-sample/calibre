@@ -197,7 +197,9 @@ def select_by_cv(
         y: Targets.
         sample_weight: Non-negative per-observation weights.
         cv: Number of folds.
-        scoring: ``"log_loss"`` (default) or ``"brier"``.
+        scoring: ``"log_loss"`` (default), ``"brier"``, or ``"auto"``.
+            Automatic scoring uses log loss for targets in ``[0, 1]`` and
+            squared error otherwise.
         max_cv_samples: Subsample above this size before searching. Selection
             only has to rank candidates, so its cost is bounded; None
             disables.
@@ -207,8 +209,8 @@ def select_by_cv(
         dict: The winning parameters, ready to splat into ``factory``.
 
     Raises:
-        ValueError: If the grid is empty, ``scoring`` is unknown, or every
-            candidate failed.
+        ValueError: If the grid is empty, ``scoring`` is unknown, log loss is
+            requested for targets outside ``[0, 1]``, or every candidate failed.
 
     Examples:
         >>> import numpy as np
@@ -227,7 +229,19 @@ def select_by_cv(
         >>> sorted(best)
         ['lam']
     """
-    loss = _resolve_scoring(scoring)
+    X, y = check_arrays(X, y)
+    targets_are_probabilities = bool(np.all((y >= 0.0) & (y <= 1.0)))
+    resolved_scoring = (
+        ("log_loss" if targets_are_probabilities else "brier")
+        if scoring == "auto"
+        else scoring
+    )
+    loss = _resolve_scoring(resolved_scoring)
+    if resolved_scoring == "log_loss" and not targets_are_probabilities:
+        raise ValueError(
+            'scoring="log_loss" requires targets in [0, 1]; use '
+            'scoring="brier" for an unbounded identity-link target'
+        )
     # Checked before expanding: itertools.product() of no iterables yields one
     # empty tuple, so an empty grid would otherwise look like a single candidate
     # carrying the defaults rather than like the mistake it is.

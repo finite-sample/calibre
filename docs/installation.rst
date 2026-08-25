@@ -52,7 +52,7 @@ Development Installation
 
    git clone https://github.com/finite-sample/calibre.git
    cd calibre
-   uv sync --all-extras --dev
+   uv sync --all-groups
    uv run pytest
 
 .. important::
@@ -71,12 +71,12 @@ To build the documentation locally:
 
 .. code-block:: bash
 
-   uv sync --all-extras --dev
+   uv sync --all-groups
    make docs
 
-The docs group pulls sphinx, furo, myst-parser, sphinx-copybutton,
-sphinx-autodoc-typehints and nbsphinx, plus matplotlib and pandas, which the
-example notebooks use.
+The docs group pulls Sphinx, Furo, MyST, myst-nb, sphinx-copybutton, ipykernel,
+and py-canon's documentation tooling. The example notebooks also use matplotlib
+and pandas.
 
 Verifying Installation
 ----------------------

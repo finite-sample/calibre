@@ -50,6 +50,19 @@ def _log_loss(y: np.ndarray, p: np.ndarray, eps: float = 1e-12) -> np.ndarray:
     return np.asarray(-(y * np.log(p) + (1.0 - y) * np.log1p(-p)), dtype=float)
 
 
+def _squared_error(y: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """Return pointwise squared error for an identity-link fit.
+
+    Args:
+        y: Targets.
+        p: Predictions.
+
+    Returns:
+        ndarray: Elementwise squared error.
+    """
+    return np.asarray((y - p) ** 2, dtype=float)
+
+
 class SplineCalibrator(BaseCalibrator):
     r"""Monotone spline calibration with cross-validated smoothing.
 
@@ -122,8 +135,8 @@ class SplineCalibrator(BaseCalibrator):
         **Cross-validation selects a hyperparameter and then refits on all the data.**
         It is not a search for whichever fold's model scored best on its own validation
         split: that selects on noise and ships a model trained on only ``(cv-1)/cv`` of
-        the sample. Folds are scored by log-loss -- a proper score -- rather than by
-        :math:`R^2`.
+        the sample. Logit-link fits are scored by log-loss; identity-link fits are
+        scored by squared error, the loss they actually minimise.
 
     Examples:
         >>> import numpy as np
@@ -261,7 +274,7 @@ class SplineCalibrator(BaseCalibrator):
     def _select_hyperparameters(
         self, X: np.ndarray, y: np.ndarray, w: np.ndarray
     ) -> tuple[int, float]:
-        """Choose ``(n_knots, alpha)`` by cross-validated log-loss.
+        """Choose ``(n_knots, alpha)`` by cross-validated prediction loss.
 
         Args:
             X: Uncalibrated scores.
@@ -271,8 +284,13 @@ class SplineCalibrator(BaseCalibrator):
         Returns:
             n_knots: Selected knot count.
             alpha: Selected roughness penalty.
+
+        Raises:
+            ValueError: If every candidate fails to fit.
         """
         from sklearn.model_selection import KFold, StratifiedKFold
+
+        loss = _log_loss if self.link == "logit" else _squared_error
 
         # Selection only needs to rank candidates, so bound its cost. The winning
         # configuration is refit on the full sample by the caller.
@@ -324,7 +342,11 @@ class SplineCalibrator(BaseCalibrator):
                             link=self.link,
                         )
                         pred = self._predict_from(
-                            basis, intercept, coef, X[val_idx], clip=True
+                            basis,
+                            intercept,
+                            coef,
+                            X[val_idx],
+                            clip=self.clip_output,
                         )
                     except (ValueError, np.linalg.LinAlgError) as exc:
                         logger.debug(
@@ -335,7 +357,7 @@ class SplineCalibrator(BaseCalibrator):
                         )
                         failed = True
                         break
-                    total += float(np.sum(w[val_idx] * _log_loss(y[val_idx], pred)))
+                    total += float(np.sum(w[val_idx] * loss(y[val_idx], pred)))
                     weight_total += float(np.sum(w[val_idx]))
 
                 if failed or weight_total <= 0:
@@ -344,6 +366,10 @@ class SplineCalibrator(BaseCalibrator):
                 if score < best_score:
                     best_score, best_knots, best_alpha = score, n_knots, alpha
 
+        if not np.isfinite(best_score):
+            raise ValueError(
+                "every spline candidate failed to fit; provide more data or pin alpha"
+            )
         return best_knots, best_alpha
 
     def _predict_from(

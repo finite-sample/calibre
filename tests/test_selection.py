@@ -303,9 +303,9 @@ def test_select_by_cv_rejects_an_empty_grid():
         select_by_cv(lambda **kw: NearlyIsotonicCalibrator(**kw), {}, x, y, cv=3)
 
 
-@pytest.mark.parametrize("scoring", ["log_loss", "brier"])
+@pytest.mark.parametrize("scoring", ["log_loss", "brier", "auto"])
 def test_both_proper_scoring_rules_work(scoring):
-    """Either proper rule may be used to select."""
+    """Either proper rule or domain-aware selection may be used."""
     x, y = _data(12, n=300)
     best = select_by_cv(
         lambda **kw: NearlyIsotonicCalibrator(**kw),
@@ -316,6 +316,46 @@ def test_both_proper_scoring_rules_work(scoring):
         scoring=scoring,
     )
     assert "lam" in best
+
+
+def test_log_loss_rejects_targets_outside_its_domain():
+    """Bernoulli log loss is not a scoring rule for unbounded targets."""
+    x = np.linspace(0.0, 1.0, 30)
+    y = np.linspace(-1.0, 2.0, 30)
+
+    with pytest.raises(ValueError, match=r"log_loss.*targets in \[0, 1\]"):
+        select_by_cv(
+            lambda **kw: RegularizedIsotonicCalibrator(
+                link="identity", clip_output=False, **kw
+            ),
+            {"alpha": [0.0, 1.0]},
+            x,
+            y,
+            cv=3,
+            scoring="log_loss",
+        )
+
+    assert "alpha" in select_by_cv(
+        lambda **kw: RegularizedIsotonicCalibrator(
+            link="identity", clip_output=False, **kw
+        ),
+        {"alpha": [0.0, 1.0]},
+        x,
+        y,
+        cv=3,
+        scoring="brier",
+    )
+
+    assert "alpha" in select_by_cv(
+        lambda **kw: RegularizedIsotonicCalibrator(
+            link="identity", clip_output=False, **kw
+        ),
+        {"alpha": [0.0, 1.0]},
+        x,
+        y,
+        cv=3,
+        scoring="auto",
+    )
 
 
 # --------------------------------------------------------------------------- #

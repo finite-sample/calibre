@@ -80,18 +80,34 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         Returns:
             BaseCalibrator: Returns self for method chaining.
         """
-        # Store fit data for potential diagnostics
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._fit_data_weight = sample_weight
-
         # Delegate actual fitting to subclass implementation
+        self._is_fitted = False
         self._fit_impl(X, y, sample_weight)
+
+        # Retain the same one-dimensional numeric representation accepted by the
+        # concrete calibrators. Keeping the caller's raw list here made fitting
+        # succeed and diagnostics fail later when they used NumPy index arrays.
+        self._fit_data_X = np.asarray(X, dtype=float).ravel()
+        self._fit_data_y = np.asarray(y, dtype=float).ravel()
+        self._fit_data_weight = (
+            None
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).ravel()
+        )
+        self._is_fitted = True
 
         # Run diagnostics if enabled
         self._run_diagnostics()
 
         return self
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """Return whether :meth:`fit` completed successfully.
+
+        Returns:
+            bool: True only after the concrete fitter has completed.
+        """
+        return bool(getattr(self, "_is_fitted", False))
 
     def _fit_impl(
         self,

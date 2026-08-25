@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from calibre import (
+    CDIIsotonicCalibrator,
     IsotonicCalibrator,
     NearlyIsotonicCalibrator,
     RegularizedIsotonicCalibrator,
@@ -682,6 +683,23 @@ class TestCalibratorErrorHandling:
         for cal in calibrators:
             with pytest.raises((ValueError, AttributeError)):
                 cal.transform(x)
+
+    @pytest.mark.parametrize(
+        "sample_weight",
+        [
+            np.zeros(3),
+            np.array([1.0, np.nan, 1.0]),
+            np.array([1.0, np.inf, 1.0]),
+        ],
+    )
+    def test_cdi_rejects_weights_that_cannot_define_a_fit(self, sample_weight):
+        """Invalid weights must not silently produce zeros or NaNs."""
+        with pytest.raises(ValueError, match="sample_weight"):
+            CDIIsotonicCalibrator().fit(
+                np.array([0.1, 0.5, 0.9]),
+                np.array([0.0, 1.0, 1.0]),
+                sample_weight=sample_weight,
+            )
 
 
 class TestCalibratorCommonInterface:

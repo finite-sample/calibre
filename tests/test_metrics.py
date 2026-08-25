@@ -14,8 +14,50 @@ from calibre.metrics import (
     expected_calibration_error,
     maximum_calibration_error,
     mean_calibration_error,
+    progressive_sampling_diversity,
     unique_value_counts,
 )
+
+
+@pytest.mark.parametrize(
+    "metric",
+    [
+        binned_calibration_error,
+        expected_calibration_error,
+        maximum_calibration_error,
+        calibration_curve,
+    ],
+)
+def test_binned_metrics_reject_zero_bins(metric):
+    """Zero bins cannot be reported as zero calibration error."""
+    with pytest.raises(ValueError, match="n_bins must be at least 1"):
+        metric(np.array([0.0, 1.0]), np.array([0.2, 0.8]), n_bins=0)
+
+
+def test_progressive_sampling_defaults_work_on_small_samples():
+    """Default sample sizes must stay positive and inside the observed data."""
+    sizes, diversities = progressive_sampling_diversity(
+        np.array([0.2, 0.8]), np.array([0.0, 1.0]), n_trials=1, random_state=0
+    )
+
+    assert sizes == [1, 2]
+    assert len(diversities) == 2
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"sample_sizes": [0]},
+        {"sample_sizes": [3]},
+        {"n_trials": 0},
+    ],
+)
+def test_progressive_sampling_rejects_invalid_study_sizes(kwargs):
+    """Invalid studies must not become meaningless averages."""
+    with pytest.raises(ValueError, match="must"):
+        progressive_sampling_diversity(
+            np.array([0.2, 0.8]), np.array([0.0, 1.0]), **kwargs
+        )
 
 
 class TestMeanCalibrationError:

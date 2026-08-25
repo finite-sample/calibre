@@ -51,6 +51,8 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         cv: Number of cross-validation folds used when a hyperparameter is
             left at ``"auto"``. Ignored when every hyperparameter is pinned.
         scoring: Proper scoring rule the ``"auto"`` search minimises.
+            ``"auto"`` (the default) uses log loss for probability targets and
+            squared error otherwise.
             Deliberately not a calibration error: ECE and its relatives are
             minimised by a constant forecast, so selecting on one would reward
             throwing resolution away.
@@ -127,7 +129,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         knots: str = "quantile",
         link: str = "logit",
         cv: int = 5,
-        scoring: str = "log_loss",
+        scoring: str = "auto",
         random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,

@@ -273,6 +273,56 @@ def test_cross_validation_selects_alpha():
     assert fixed.alpha_ == 3.0
 
 
+def test_identity_link_cv_matches_unclipped_squared_error():
+    """Identity-link selection must score the model it ultimately returns.
+
+    The old path clipped validation predictions into ``[0, 1]`` and fed them to
+    Bernoulli log loss even when the requested identity-link fit and its targets
+    were unbounded. This independently fits every public fixed candidate and
+    compares the selected pair against out-of-fold squared error.
+    """
+    from sklearn.model_selection import KFold
+
+    from calibre import SplineCalibrator
+
+    rng = np.random.default_rng(0)
+    x = np.sort(rng.uniform(0.0, 1.0, 80))
+    y = 2.0 + 4.0 * x + rng.normal(0.0, 2.0, x.size)
+    folds = list(KFold(n_splits=3, shuffle=True, random_state=0).split(x))
+
+    scores = {}
+    for n_knots in (5, 10, 20):
+        for alpha in (0.0, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0):
+            squared_error = 0.0
+            for train, validation in folds:
+                fixed = SplineCalibrator(
+                    n_knots=n_knots,
+                    alpha=alpha,
+                    link="identity",
+                    clip_output=False,
+                ).fit(x[train], y[train])
+                residual = fixed.transform(x[validation]) - y[validation]
+                squared_error += float(np.sum(residual**2))
+            scores[(n_knots, alpha)] = squared_error
+
+    expected = min(scores, key=scores.get)
+    selected = SplineCalibrator(
+        link="identity", clip_output=False, cv=3, random_state=0
+    ).fit(x, y)
+
+    assert (selected.n_knots_, selected.alpha_) == expected
+
+
+def test_cross_validation_does_not_return_an_arbitrary_failed_candidate():
+    """If every fold fit fails, selection has no defensible answer."""
+    from calibre import SplineCalibrator
+
+    with pytest.raises(ValueError, match="every spline candidate failed"):
+        SplineCalibrator(link="identity", clip_output=False).fit(
+            np.array([0.1, 0.9]), np.array([-1.0, 2.0])
+        )
+
+
 # --------------------------------------------------------------------------- #
 # Optimality, against an independent solver
 # --------------------------------------------------------------------------- #

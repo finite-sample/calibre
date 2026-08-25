@@ -19,7 +19,8 @@ On the 2,000-point held-out set in the example below, isotonic regression turns
 indistinguishable — which matters as soon as you rank, threshold, or bucket the
 output.
 
-calibre gives you calibrators that fix the probabilities *and* keep the ordering.
+calibre gives you calibration methods that retain much more of that ordering while
+correcting the probabilities.
 
 ## Install
 
@@ -65,12 +66,13 @@ the riskier bet.
 ## Which calibrator should I use?
 
 **If you don't want to think about it: `CenteredIsotonicCalibrator`.** It is
-non-parametric, has nothing to tune, is monotone, and has no plateaus.
+non-parametric, has nothing to tune, and preserves score ordering between pooled
+isotonic blocks.
 
 | You want | Use | Notes |
 |---|---|---|
 | A drop-in isotonic replacement, no tuning | `CenteredIsotonicCalibrator` | Collapses isotonic's flat steps to points and interpolates. O(n). |
-| A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing by CV on log-loss. |
+| A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing using the loss appropriate for its link. |
 | A smooth curve with smoothing you control | `RegularizedIsotonicCalibrator` | Same model, you set `alpha` instead of tuning it. Fast. |
 | Exactly scikit-learn's isotonic behaviour | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
 | Guaranteed strictly increasing output | `RelaxedPAVACalibrator` | Forces a minimum step between adjacent scores. Since 0.10.0 its default picks that step for you. |
@@ -589,7 +591,7 @@ form of colour blindness.
 ```bash
 git clone https://github.com/finite-sample/calibre.git
 cd calibre
-uv sync --all-extras --dev
+uv sync --all-groups
 uv run pytest
 ```
 
@@ -624,13 +626,6 @@ MIT — see [LICENSE](LICENSE).
 - Eilers & Marx (1996), "Flexible smoothing with B-splines and penalties",
   *Statistical Science* 11(2), 89–121.
 - [Probability calibration in scikit-learn](https://scikit-learn.org/stable/modules/calibration.html)
-
-## Adjacent Repositories
-
-- [gojiplus/pyppur](https://github.com/gojiplus/pyppur) — pyppur: Python Projection Pursuit Unsupervised (Dimension) Reduction To Min. Reconstruction Loss or DIstance DIstortion
-- [gojiplus/rmcp](https://github.com/gojiplus/rmcp) — R MCP Server
-- [gojiplus/bloomjoin](https://github.com/gojiplus/bloomjoin) — bloomjoin: An R package implementing Bloom filter-based joins for improved performance with large datasets.
-- [gojiplus/incline](https://github.com/gojiplus/incline) — Estimate Trend at a Point in a Noisy Time Series
 
 ## 🔗 Adjacent Repositories
 

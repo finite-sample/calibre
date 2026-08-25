@@ -28,7 +28,7 @@ dependencies = [
     "scikit-learn>=1.0.0",
     "cvxpy>=1.2.0",
 ]
-version = "0.10.0"
+version = "0.10.1"
 
 [project.optional-dependencies]
 # Drawing only. calibre.plots imports matplotlib lazily, so the core package
@@ -233,4 +233,3 @@ check-return-types = false
 check-class-attributes = false
 allow-init-docstring = true
 exclude = '\.venv|tests|docs'
-

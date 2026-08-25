@@ -112,7 +112,8 @@ def binned_calibration_error(
             dictionary with BCE and bin details.
 
     Raises:
-        ValueError: If arrays have different lengths or unknown binning strategy.
+        ValueError: If arrays have different lengths, ``n_bins`` is below 1,
+            or the binning strategy is unknown.
 
     Examples:
         >>> import numpy as np
@@ -123,7 +124,8 @@ def binned_calibration_error(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     # Check that arrays have matching lengths
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
@@ -205,7 +207,7 @@ def expected_calibration_error(
         ece: Expected Calibration Error.
 
     Raises:
-        ValueError: If arrays have different lengths.
+        ValueError: If arrays have different lengths or ``n_bins`` is below 1.
 
     Examples:
         >>> import numpy as np
@@ -216,7 +218,8 @@ def expected_calibration_error(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
@@ -260,7 +263,7 @@ def maximum_calibration_error(
         mce: Maximum Calibration Error.
 
     Raises:
-        ValueError: If arrays have different lengths.
+        ValueError: If arrays have different lengths or ``n_bins`` is below 1.
 
     Examples:
         >>> import numpy as np
@@ -271,7 +274,8 @@ def maximum_calibration_error(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
@@ -434,7 +438,8 @@ def calibration_curve(
         counts: The number of samples in each bin.
 
     Raises:
-        ValueError: If arrays have different lengths or unknown binning strategy.
+        ValueError: If arrays have different lengths, ``n_bins`` is below 1,
+            or the binning strategy is unknown.
 
     Examples:
         >>> import numpy as np
@@ -444,7 +449,8 @@ def calibration_curve(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
@@ -665,7 +671,8 @@ def progressive_sampling_diversity(
         random_state: Random state for reproducibility.
 
     Raises:
-        ValueError: If X and y have different lengths.
+        ValueError: If X and y have different lengths, a sample size lies
+            outside the data, or ``n_trials`` is below 1.
 
     Returns:
         sizes: Sample sizes tested.
@@ -690,15 +697,18 @@ def progressive_sampling_diversity(
     n_total = len(X)
 
     if sample_sizes is None:
-        sample_sizes = [
-            max(10, n_total // 10),
-            max(20, n_total // 5),
-            max(30, n_total // 3),
-            max(50, n_total // 2),
-            min(n_total - 10, int(n_total * 0.8)),
-            n_total,
-        ]
-        sample_sizes = [s for s in sample_sizes if s <= n_total]
+        sample_sizes = sorted(
+            {
+                max(1, min(n_total, int(n_total * fraction)))
+                for fraction in (0.1, 0.2, 1 / 3, 0.5, 0.8, 1.0)
+            }
+        )
+    if n_trials < 1:
+        raise ValueError(f"n_trials must be at least 1, got {n_trials}")
+    if any(size < 1 or size > n_total for size in sample_sizes):
+        raise ValueError(
+            f"sample_sizes must lie between 1 and {n_total}, got {sample_sizes}"
+        )
 
     rng = np.random.RandomState(random_state)
     diversities = []
