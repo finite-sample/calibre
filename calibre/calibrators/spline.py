@@ -232,14 +232,6 @@ class SplineCalibrator(BaseCalibrator):
         """
         X, y = check_arrays(X, y)
         self._validate()
-        # The Bernoulli likelihood requires y in [0, 1]; least squares on the
-        # identity scale does not, so only the logit link enforces it.
-        if self.link == "logit" and np.any((y < 0) | (y > 1)):
-            raise ValueError(
-                'y must lie in [0, 1] for link="logit" (it parameterises a '
-                'Bernoulli likelihood); use link="identity" for unbounded targets'
-            )
-
         w = (
             np.ones_like(y)
             if sample_weight is None
@@ -252,16 +244,30 @@ class SplineCalibrator(BaseCalibrator):
         if np.sum(w) <= 0.0:
             raise ValueError("sample_weight must contain at least one positive weight")
 
+        positive = w > 0.0
+        X_fit, y_fit, w_fit = X[positive], y[positive], w[positive]
+        fit_weight = None if sample_weight is None else w_fit
+        # The Bernoulli likelihood requires positive-mass targets in [0, 1].
+        if self.link == "logit" and np.any((y_fit < 0) | (y_fit > 1)):
+            raise ValueError(
+                'y must lie in [0, 1] for link="logit" (it parameterises a '
+                'Bernoulli likelihood); use link="identity" for unbounded targets'
+            )
+
         if self.alpha is None:
-            n_knots, alpha = self._select_hyperparameters(X, y, w)
+            n_knots, alpha = self._select_hyperparameters(X_fit, y_fit, w_fit)
         else:
             n_knots, alpha = self.n_knots, float(self.alpha)
 
         basis = monotone_spline_basis(
             n_knots=n_knots, degree=self.degree, knots=self.knots
-        ).fit(X, sample_weight=sample_weight)
+        ).fit(X_fit, sample_weight=fit_weight)
         intercept, coef = fit_monotone_spline(
-            basis.design(X), y, sample_weight=w, alpha=alpha, link=self.link
+            basis.design(X_fit),
+            y_fit,
+            sample_weight=fit_weight,
+            alpha=alpha,
+            link=self.link,
         )
 
         self.basis_ = basis

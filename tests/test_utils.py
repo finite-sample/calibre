@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from calibre import (
+    BaseCalibrator,
     CDIIsotonicCalibrator,
     CenteredIsotonicCalibrator,
     IsotonicCalibrator,
@@ -242,6 +243,25 @@ def test_check_fitted_requires_every_named_attribute():
 
     calibrator.fit(np.array([0.1, 0.9]), np.array([0.0, 1.0]))
     check_fitted(calibrator, attributes=["isotonic_"])
+
+
+def test_check_fitted_accepts_a_documented_custom_subclass():
+    """The standard trailing-underscore convention remains valid for subclasses."""
+
+    class MeanCalibrator(BaseCalibrator):
+        def fit(self, X, y):
+            self.mean_ = float(np.mean(y))
+            return self
+
+        def transform(self, X):
+            return np.full_like(np.asarray(X, dtype=float), self.mean_)
+
+    calibrator = MeanCalibrator()
+    with pytest.raises(ValueError, match="must be fitted"):
+        check_fitted(calibrator)
+
+    calibrator.fit(np.array([0.1, 0.9]), np.array([0.0, 1.0]))
+    check_fitted(calibrator)
 
 
 def test_interpolate_monotonic_honours_bounds_error():

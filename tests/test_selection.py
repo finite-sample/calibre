@@ -282,6 +282,51 @@ def test_select_by_cv_rejects_malformed_sample_weights(sample_weight, match):
         )
 
 
+def test_zero_weight_target_does_not_change_auto_scoring_or_selection():
+    """A row carrying no mass cannot change the scoring domain or winner."""
+
+    class Constant:
+        def __init__(self, probability):
+            self.probability = probability
+
+        def fit(self, X, y, sample_weight=None):
+            return self
+
+        def transform(self, X):
+            return np.full(len(X), self.probability)
+
+    x = np.arange(9, dtype=float)
+    y = np.array([0.0] * 6 + [1.0] * 2 + [2.0])
+    weights = np.r_[np.ones(8), 0.0]
+    grid = {"probability": [0.01, 0.5]}
+
+    baseline = select_by_cv(
+        Constant, grid, x[:8], y[:8], cv=2, scoring="auto", max_cv_samples=None
+    )
+    weighted = select_by_cv(
+        Constant,
+        grid,
+        x,
+        y,
+        sample_weight=weights,
+        cv=2,
+        scoring="auto",
+        max_cv_samples=None,
+    )
+    explicit_log = select_by_cv(
+        Constant,
+        grid,
+        x,
+        y,
+        sample_weight=weights,
+        cv=2,
+        scoring="log_loss",
+        max_cv_samples=None,
+    )
+
+    assert baseline == weighted == explicit_log == {"probability": 0.5}
+
+
 def test_select_by_cv_rejects_calibration_error_as_a_criterion():
     """ECE is biased, so it is not offered as a selection criterion."""
     x, y = _data(10, n=200)

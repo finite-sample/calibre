@@ -105,9 +105,19 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         """Return whether :meth:`fit` completed successfully.
 
         Returns:
-            bool: True only after the concrete fitter has completed.
+            bool: True after the template fitter completes, or after a custom
+                subclass following scikit-learn's trailing-underscore convention
+                has fitted itself.
         """
-        return bool(getattr(self, "_is_fitted", False))
+        if hasattr(self, "_is_fitted"):
+            return bool(self._is_fitted)
+        return any(
+            name.endswith("_")
+            and not name.startswith("__")
+            and name != "diagnostics_"
+            and value is not None
+            for name, value in vars(self).items()
+        )
 
     def _fit_impl(
         self,

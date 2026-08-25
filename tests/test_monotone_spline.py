@@ -645,6 +645,94 @@ def test_spline_calibrator_rejects_malformed_sample_weights(sample_weight, match
         SplineCalibrator(alpha=None, cv=4).fit(x, y, sample_weight=sample_weight)
 
 
+@pytest.mark.parametrize(
+    "cls_name",
+    [
+        "SplineCalibrator",
+        "RegularizedIsotonicCalibrator",
+    ],
+)
+def test_weighted_knot_placement_ignores_zero_mass_and_stays_monotone(cls_name):
+    """Zero-weight rows and concentrated mass must not degenerate the I-spline."""
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    kwargs = {"alpha": 0.1, "n_knots": 10, "link": "identity", "clip_output": False}
+    positive_x = np.linspace(0.0, 0.2, 5)
+    positive_y = 1.0 + positive_x
+    zero_x = np.linspace(0.21, 1.0, 15)
+    zero_y = np.linspace(10.0, -10.0, zero_x.size)
+    grid = np.linspace(-0.1, 1.0, 200)
+
+    baseline = cls(**kwargs).fit(positive_x, positive_y).transform(grid)
+    weighted = (
+        cls(**kwargs)
+        .fit(
+            np.r_[positive_x, zero_x],
+            np.r_[positive_y, zero_y],
+            sample_weight=np.r_[np.ones(positive_x.size), np.zeros(zero_x.size)],
+        )
+        .transform(grid)
+    )
+    np.testing.assert_allclose(weighted, baseline, atol=1e-10)
+    assert np.all(np.diff(weighted) >= -1e-12)
+
+    concentrated = (
+        cls(**kwargs)
+        .fit(
+            np.linspace(0.0, 1.0, 20),
+            np.linspace(1.0, 2.0, 20),
+            sample_weight=np.r_[1000.0, np.ones(19)],
+        )
+        .transform(grid)
+    )
+    assert np.all(np.diff(concentrated) >= -1e-12)
+
+
+def test_weighted_spline_basis_ignores_zero_mass_and_stays_monotone():
+    """The shared basis must remain valid when weighted quantiles collapse."""
+    from calibre._core import monotone_spline_basis
+
+    positive_x = np.linspace(0.0, 0.2, 5)
+    zero_x = np.linspace(0.21, 1.0, 15)
+    full_x = np.r_[positive_x, zero_x]
+    weights = np.r_[np.ones(positive_x.size), np.zeros(zero_x.size)]
+    grid = np.linspace(-0.1, 1.0, 200)
+
+    baseline = monotone_spline_basis(n_knots=10).fit(positive_x)
+    weighted = monotone_spline_basis(n_knots=10).fit(full_x, sample_weight=weights)
+
+    np.testing.assert_allclose(weighted.design(grid), baseline.design(grid), atol=1e-12)
+    assert np.all(np.diff(weighted.design(grid), axis=0) >= -1e-12)
+
+
+@pytest.mark.parametrize(
+    "cls_name", ["SplineCalibrator", "RegularizedIsotonicCalibrator"]
+)
+def test_zero_weight_out_of_domain_target_is_ignored(cls_name):
+    """A target carrying no mass cannot invalidate a Bernoulli fit."""
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    kwargs = {"alpha": 0.1, "n_knots": 5, "link": "logit"}
+    x = np.linspace(0.1, 0.9, 8)
+    y = np.array([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0])
+    grid = np.linspace(0.0, 1.0, 100)
+
+    baseline = cls(**kwargs).fit(x, y).transform(grid)
+    weighted = (
+        cls(**kwargs)
+        .fit(
+            np.r_[x, 0.5],
+            np.r_[y, 2.0],
+            sample_weight=np.r_[np.ones(x.size), 0.0],
+        )
+        .transform(grid)
+    )
+
+    np.testing.assert_allclose(weighted, baseline, atol=1e-10)
+
+
 # --------------------------------------------------------------------------- #
 # Monotonicity under tied scores
 # --------------------------------------------------------------------------- #

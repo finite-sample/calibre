@@ -230,18 +230,6 @@ def select_by_cv(
         ['lam']
     """
     X, y = check_arrays(X, y)
-    targets_are_probabilities = bool(np.all((y >= 0.0) & (y <= 1.0)))
-    resolved_scoring = (
-        ("log_loss" if targets_are_probabilities else "brier")
-        if scoring == "auto"
-        else scoring
-    )
-    loss = _resolve_scoring(resolved_scoring)
-    if resolved_scoring == "log_loss" and not targets_are_probabilities:
-        raise ValueError(
-            'scoring="log_loss" requires targets in [0, 1]; use '
-            'scoring="brier" for an unbounded identity-link target'
-        )
     # Checked before expanding: itertools.product() of no iterables yields one
     # empty tuple, so an empty grid would otherwise look like a single candidate
     # carrying the defaults rather than like the mistake it is.
@@ -260,6 +248,21 @@ def select_by_cv(
         raise ValueError("sample_weight must contain finite non-negative values")
     if np.sum(w) <= 0.0:
         raise ValueError("sample_weight must contain at least one positive weight")
+
+    positive = w > 0.0
+    X, y, w = X[positive], y[positive], w[positive]
+    targets_are_probabilities = bool(np.all((y >= 0.0) & (y <= 1.0)))
+    resolved_scoring = (
+        ("log_loss" if targets_are_probabilities else "brier")
+        if scoring == "auto"
+        else scoring
+    )
+    loss = _resolve_scoring(resolved_scoring)
+    if resolved_scoring == "log_loss" and not targets_are_probabilities:
+        raise ValueError(
+            'scoring="log_loss" requires targets in [0, 1]; use '
+            'scoring="brier" for an unbounded identity-link target'
+        )
 
     if max_cv_samples is not None and y.size > max_cv_samples:
         rng = np.random.default_rng(random_state)

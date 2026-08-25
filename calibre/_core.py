@@ -769,11 +769,41 @@ class MonotoneSplineBasis:
             raise ValueError(f"knots must be one of {VALID_KNOTS}, got {self.knots!r}")
 
         x = np.asarray(x, dtype=float).ravel().reshape(-1, 1)
+        weight = None
+        if sample_weight is not None:
+            weight = np.asarray(sample_weight, dtype=float).ravel()
+            if weight.shape[0] != x.shape[0]:
+                raise ValueError(
+                    f"sample_weight has {weight.shape[0]} rows but x has {x.shape[0]}"
+                )
+            if not np.all(np.isfinite(weight)) or np.any(weight < 0.0):
+                raise ValueError(
+                    "sample_weight must contain finite non-negative values"
+                )
+            positive = weight > 0.0
+            if not np.any(positive):
+                raise ValueError(
+                    "sample_weight must contain at least one positive weight"
+                )
+            x = x[positive]
+            weight = weight[positive]
+            if np.all(weight == 1.0):
+                weight = None
+
         # Quantile knots collapse if the scores are too concentrated; fall back
         # rather than emit a degenerate basis.
         knots = self.knots
         if knots == "quantile":
-            qs = np.quantile(x.ravel(), np.linspace(0, 1, self.n_knots))
+            if weight is None:
+                qs = np.quantile(x.ravel(), np.linspace(0, 1, self.n_knots))
+            else:
+                order = np.argsort(x.ravel(), kind="mergesort")
+                x_sorted = x.ravel()[order]
+                cumulative = np.cumsum(weight[order])
+                ranks = np.linspace(0.0, cumulative[-1], self.n_knots)
+                ranks[0] = np.nextafter(0.0, 1.0)
+                indices = np.searchsorted(cumulative, ranks, side="left")
+                qs = x_sorted[np.clip(indices, 0, x_sorted.size - 1)]
             if np.unique(qs).size < self.n_knots:
                 knots = "uniform"
 
@@ -784,7 +814,7 @@ class MonotoneSplineBasis:
             extrapolation=self.extrapolation,
             include_bias=True,
         )
-        self.transformer_.fit(x, sample_weight=sample_weight)
+        self.transformer_.fit(x, sample_weight=weight)
         self.n_basis_ = self.transformer_.transform(x[:1]).shape[1] - 1
         return self
 
