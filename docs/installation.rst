@@ -17,7 +17,7 @@ This installs Calibre along with its runtime dependencies:
 
 - numpy >= 1.20.0
 - scipy >= 1.7.0
-- scikit-learn >= 1.0.0
+- scikit-learn >= 1.6.0
 - cvxpy >= 1.2.0
 
 That is the whole list. pandas and matplotlib were runtime dependencies before

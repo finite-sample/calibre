@@ -109,7 +109,8 @@ Relaxed PAVA Calibrator
    :show-inheritance:
 
 Bounds each adjacent increment: ``epsilon`` permits small decreases, while
-``min_slope`` forbids plateaus outright. Solved by shift-to-PAVA in O(n).
+``min_slope`` forbids plateaus when output clipping is disabled. Solved by
+shift-to-PAVA in O(n).
 
 Nearly Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

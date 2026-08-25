@@ -36,7 +36,7 @@ Calibrating
   chosen by cross-validation using the loss appropriate for the link or set by
   you.
 - **Relaxed PAVA**: bounds each adjacent increment. ``epsilon`` permits small
-  decreases; ``min_slope`` forbids plateaus outright. O(n).
+  decreases; ``min_slope`` forbids plateaus when output clipping is disabled. O(n).
 - **Nearly-isotonic regression**: penalises rather than forbids monotonicity
   violations, when a small reordering buys a better fit.
 - **Regularized isotonic regression**: a monotone spline with an explicit

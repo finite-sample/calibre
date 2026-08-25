@@ -462,7 +462,7 @@ def test_continuous_target_calibrators_preserve_an_unbounded_monotone_signal(
         IsotonicCalibrator,
         CenteredIsotonicCalibrator,
         lambda: RegularizedIsotonicCalibrator(alpha=0.01, n_knots=5),
-        lambda: RelaxedPAVACalibrator(epsilon=0.0),
+        RelaxedPAVACalibrator,
         lambda: SplineCalibrator(alpha=0.001, n_knots=5),
         CDIIsotonicCalibrator,
         lambda: CDIIsotonicCalibrator(

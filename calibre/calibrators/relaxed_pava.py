@@ -232,6 +232,10 @@ class RelaxedPAVACalibrator(BaseCalibrator):
                 f"one (got epsilon={self.epsilon}, min_slope={self.min_slope})"
             )
 
+        # Pool tied scores. Beyond removing the interpolation hazard, this is what
+        # makes the bound mean "per distinct score" rather than "per observation".
+        x_unique, y_mean, weight = aggregate_ties(X, y, sample_weight)
+
         # The automatic slope applies on the default path only: neither parameter
         # named, and the search having concluded that strict monotonicity fits
         # best. A caller who names epsilon is driving, and epsilon=0.0 must keep
@@ -239,13 +243,9 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         # rather than tilting a fit that was asked for flat.
         untouched = automatic and self.epsilon == "auto"
         if untouched and self.epsilon_ == 0.0:
-            self.min_slope_ = 0.01 / max(len(np.unique(X)), 1)
+            self.min_slope_ = 0.01 / len(x_unique)
         else:
             self.min_slope_ = explicit_slope
-
-        # Pool tied scores. Beyond removing the interpolation hazard, this is what
-        # makes the bound mean "per distinct score" rather than "per observation".
-        x_unique, y_mean, weight = aggregate_ties(X, y, sample_weight)
 
         # Lower bound on each increment: negative permits decreases, positive
         # forces strict growth.
