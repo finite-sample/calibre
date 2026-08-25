@@ -125,8 +125,8 @@ miscalibration has that shape, use them. calibre is for when you don't.
 resolution is not miscalibration. That is a reason to look at more than one number,
 which is what `calibration_report` below is for.
 
-The cost is fit time: isotonic fits in 1.0 ms, `RelaxedPAVACalibrator` in 89 ms,
-and `SplineCalibrator` in 1.14 s. The latter two cross-validate their own
+The cost is fit time: isotonic fits in 1.0 ms, `RelaxedPAVACalibrator` in 85 ms,
+and `SplineCalibrator` in 1.05 s. The latter two cross-validate their own
 hyperparameters.
 
 `nonmonotone` is in the grid because monotone methods should lose there. They

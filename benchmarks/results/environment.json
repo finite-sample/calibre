@@ -5,6 +5,6 @@
  "scikit_learn": "1.9.0",
  "python": "3.13.2",
  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
- "git_sha": "377947c",
+ "git_sha": "761051a",
  "netcal_available": false
 }
