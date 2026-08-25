@@ -19,23 +19,24 @@ Your classifier's probabilities are usually wrong — a model that says "80%" ma
 be right 60% of the time. Isotonic regression is the standard fix, and it works,
 but it pays for accuracy with resolution: it is a step function, so it collapses
 many distinct scores into a handful of values. On a 2,000-point held-out set,
-isotonic regression turns 2,000 distinct scores into **56**. Everything inside a
+isotonic regression turns 2,000 distinct scores into **82**. Everything inside a
 step becomes indistinguishable — which matters as soon as you rank, threshold,
 or bucket the output.
 
-Calibre gives you calibrators that fix the probabilities *and* keep the
-ordering, together with the measurement tools to check that they did.
+Calibre gives you calibration methods that retain much more of that ordering
+while correcting the probabilities, together with tools to measure both.
 
 Calibrating
 -----------
 
 - **Centered isotonic regression**: collapses PAVA's flat blocks to their
-  centroid and interpolates. Non-parametric, nothing to tune, no plateaus. The
-  recommended default.
+  centroid and interpolates. Non-parametric, nothing to tune, and preserves
+  score ordering between pooled blocks. The recommended default.
 - **Monotone I-splines**: smooth calibration curves, with the smoothing either
-  chosen by cross-validation on log-loss or set by you.
+  chosen by cross-validation using the loss appropriate for the link or set by
+  you.
 - **Relaxed PAVA**: bounds each adjacent increment. ``epsilon`` permits small
-  decreases; ``min_slope`` forbids plateaus outright. O(n).
+  decreases; ``min_slope`` forbids plateaus when output clipping is disabled. O(n).
 - **Nearly-isotonic regression**: penalises rather than forbids monotonicity
   violations, when a small reordering buys a better fit.
 - **Regularized isotonic regression**: a monotone spline with an explicit
@@ -48,11 +49,11 @@ Measuring
   into ``MCB`` (what recalibration would save you), ``DSC`` (what your scores
   buy over the base rate) and ``UNC`` (irreducible difficulty). No bin count to
   choose. Pinned against R's ``reliabilitydiag`` to 1e-16.
-- **Bias-aware calibration error**: binned ECE is biased upward, and the bias
-  grows with the bin count. ``debiased_calibration_error`` and
-  ``sweep_calibration_error`` correct for it.
-- **Multiclass diagnostics**: ``miscalibration_profile`` tells you *which*
-  multiclass method your data needs, which is worth about a factor of six.
+- **Bias-aware calibration error**: binned ECE is biased upward, and its value
+  depends on the bin count. ``debiased_calibration_error`` corrects the
+  within-bin bias; ``sweep_calibration_error`` chooses the bin count.
+- **Multiclass diagnostics**: ``miscalibration_profile`` helps distinguish
+  global from class-specific miscalibration before you choose a method.
 - **Granularity metrics**: how much resolution the calibration cost you — the
   thing no other calibration package reports.
 

@@ -41,7 +41,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     ==================  =====================================================
     ``epsilon = 0``     standard isotonic regression
     ``epsilon > 0``     epsilon-monotone: decreases up to ``epsilon`` allowed
-    ``min_slope > 0``   strictly increasing, so no plateau can form at all
+    ``min_slope > 0``   strictly increasing before optional output clipping
     ==================  =====================================================
 
     Args:
@@ -50,7 +50,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
             up to 2 percentage points".
         min_slope: Minimum required increase between adjacent unique scores.
             Mutually exclusive with a non-zero ``epsilon``; this is the
-            direction that eliminates plateaus. ``"auto"`` (the default) uses
+            direction that separates adjacent fitted values before optional
+            output clipping. ``"auto"`` (the default) uses
             ``0.01 / n_unique``, but only on the untouched default path --
             that is, when ``epsilon`` was also left at ``"auto"`` and the
             search settled on ``0``. Naming ``epsilon`` yourself, including
@@ -59,6 +60,8 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         cv: Number of cross-validation folds used when a hyperparameter is
             left at ``"auto"``. Ignored when every hyperparameter is pinned.
         scoring: Proper scoring rule the ``"auto"`` search minimises.
+            ``"auto"`` (the default) uses log loss for probability targets and
+            squared error otherwise.
             Deliberately not a calibration error: ECE and its relatives are
             minimised by a constant forecast, so selecting on one would reward
             throwing resolution away.
@@ -83,7 +86,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         Relaxing monotonicity is not free: a decrease in the calibration map reverses
         the ranking of every score pair it spans, which costs discrimination. To
         preserve granularity, ``min_slope`` is usually the better direction, since it
-        removes plateaus while keeping the map strictly increasing.
+        separates adjacent fitted values while keeping the map monotone.
 
         That is why the default is a slope rather than nothing. PAVA's plateaus are
         an artefact of pooling adjacent violators, not a finding about the data, and
@@ -115,15 +118,15 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         >>> bool(np.all(np.diff(default) > 0))
         True
 
-        A minimum slope leaves no plateau anywhere:
+        For this example, a minimum slope separates every adjacent fitted value:
 
         >>> fitted = RelaxedPAVACalibrator(min_slope=0.05).fit_transform(x, y)
         >>> bool(np.all(np.diff(fitted) > 0))
         True
 
         The bound itself is exact only without clipping. Clipping into ``[0, 1]``
-        can shorten the increments that straddle a boundary, so the guarantee
-        degrades from ">= min_slope" to "> 0" there:
+        can shorten increments to zero at a boundary, so a strict-increase
+        guarantee requires ``clip_output=False``:
 
         >>> exact = RelaxedPAVACalibrator(
         ...     min_slope=0.05, clip_output=False
@@ -135,7 +138,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
 
     See Also:
         IsotonicCalibrator : The ``epsilon = 0`` special case.
-        CenteredIsotonicCalibrator : Removes plateaus without relaxing monotonicity.
+        CenteredIsotonicCalibrator : Monotone interpolation between pooled blocks.
         NearlyIsotonicCalibrator : Penalises violations instead of bounding them.
     """
 
@@ -148,7 +151,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         epsilon: float | str = "auto",
         min_slope: float | str = "auto",
         cv: int = 5,
-        scoring: str = "log_loss",
+        scoring: str = "auto",
         random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
@@ -229,6 +232,10 @@ class RelaxedPAVACalibrator(BaseCalibrator):
                 f"one (got epsilon={self.epsilon}, min_slope={self.min_slope})"
             )
 
+        # Pool tied scores. Beyond removing the interpolation hazard, this is what
+        # makes the bound mean "per distinct score" rather than "per observation".
+        x_unique, y_mean, weight = aggregate_ties(X, y, sample_weight)
+
         # The automatic slope applies on the default path only: neither parameter
         # named, and the search having concluded that strict monotonicity fits
         # best. A caller who names epsilon is driving, and epsilon=0.0 must keep
@@ -236,13 +243,9 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         # rather than tilting a fit that was asked for flat.
         untouched = automatic and self.epsilon == "auto"
         if untouched and self.epsilon_ == 0.0:
-            self.min_slope_ = 0.01 / max(len(np.unique(X)), 1)
+            self.min_slope_ = 0.01 / len(x_unique)
         else:
             self.min_slope_ = explicit_slope
-
-        # Pool tied scores. Beyond removing the interpolation hazard, this is what
-        # makes the bound mean "per distinct score" rather than "per observation".
-        x_unique, y_mean, weight = aggregate_ties(X, y, sample_weight)
 
         # Lower bound on each increment: negative permits decreases, positive
         # forces strict growth.

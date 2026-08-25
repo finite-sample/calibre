@@ -80,18 +80,44 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         Returns:
             BaseCalibrator: Returns self for method chaining.
         """
-        # Store fit data for potential diagnostics
-        self._fit_data_X = X
-        self._fit_data_y = y
-        self._fit_data_weight = sample_weight
-
         # Delegate actual fitting to subclass implementation
+        self._is_fitted = False
         self._fit_impl(X, y, sample_weight)
+
+        # Retain the same one-dimensional numeric representation accepted by the
+        # concrete calibrators. Keeping the caller's raw list here made fitting
+        # succeed and diagnostics fail later when they used NumPy index arrays.
+        self._fit_data_X = np.asarray(X, dtype=float).ravel()
+        self._fit_data_y = np.asarray(y, dtype=float).ravel()
+        self._fit_data_weight = (
+            None
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).ravel()
+        )
+        self._is_fitted = True
 
         # Run diagnostics if enabled
         self._run_diagnostics()
 
         return self
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """Return whether :meth:`fit` completed successfully.
+
+        Returns:
+            bool: True after the template fitter completes, or after a custom
+                subclass following scikit-learn's trailing-underscore convention
+                has fitted itself.
+        """
+        if hasattr(self, "_is_fitted"):
+            return bool(self._is_fitted)
+        return any(
+            name.endswith("_")
+            and not name.startswith("__")
+            and name != "diagnostics_"
+            and value is not None
+            for name, value in vars(self).items()
+        )
 
     def _fit_impl(
         self,
@@ -209,8 +235,11 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         from .diagnostics import run_plateau_diagnostics
 
         try:
-            y_calibrated = self.transform(self._fit_data_X)
-            self.diagnostics_ = run_plateau_diagnostics(self._fit_data_X, y_calibrated)
+            diagnostic_x = self._fit_data_X
+            if self._fit_data_weight is not None:
+                diagnostic_x = diagnostic_x[self._fit_data_weight > 0.0]
+            y_calibrated = self.transform(diagnostic_x)
+            self.diagnostics_ = run_plateau_diagnostics(diagnostic_x, y_calibrated)
         except Exception as e:
             logger.warning("Diagnostic analysis failed: %s", e)
             self.diagnostics_ = None

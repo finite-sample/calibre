@@ -10,7 +10,7 @@ Which calibrator should I use?
 
 **If you don't want to think about it:**
 :class:`~calibre.CenteredIsotonicCalibrator`. It is non-parametric, has nothing
-to tune, is monotone, and has no plateaus.
+to tune, and preserves score ordering between pooled isotonic blocks.
 
 .. list-table::
    :header-rows: 1
@@ -24,16 +24,16 @@ to tune, is monotone, and has no plateaus.
      - Collapses isotonic's flat steps to points and interpolates. O(n).
    * - A smooth curve, and you can afford cross-validation
      - :class:`~calibre.SplineCalibrator`
-     - Monotone spline; picks its own smoothing by CV on log-loss.
+     - Monotone spline; picks its own smoothing by link-appropriate prediction loss.
    * - A smooth curve with smoothing you control
      - :class:`~calibre.RegularizedIsotonicCalibrator`
      - Same model, you set ``alpha`` instead of tuning it. Fast.
    * - Exactly scikit-learn's isotonic behaviour
      - :class:`~calibre.IsotonicCalibrator`
      - Thin wrapper, plus optional plateau diagnostics.
-   * - Guaranteed strictly increasing output
+   * - Strict increase without output clipping
      - :class:`~calibre.RelaxedPAVACalibrator`
-     - ``min_slope`` forces a minimum step between adjacent scores.
+     - ``min_slope`` forces a minimum step; clipping can flatten boundary values.
    * - To allow small ranking violations if they fit better
      - :class:`~calibre.NearlyIsotonicCalibrator`
      - ``lam`` trades monotonicity against fit.
@@ -109,7 +109,8 @@ Relaxed PAVA Calibrator
    :show-inheritance:
 
 Bounds each adjacent increment: ``epsilon`` permits small decreases, while
-``min_slope`` forbids plateaus outright. Solved by shift-to-PAVA in O(n).
+``min_slope`` forbids plateaus when output clipping is disabled. Solved by
+shift-to-PAVA in O(n).
 
 Nearly Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

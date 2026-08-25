@@ -220,6 +220,17 @@ def test_comparison_refuses_an_unfitted_calibrator():
         plot_calibrator_comparison({"iso": IsotonicCalibrator()}, np.array([0.2, 0.8]))
 
 
+def test_comparison_checks_fit_without_evaluating_an_arbitrary_score():
+    """A fitted strict-bounds calibrator must not be rejected as unfitted."""
+    x = np.array([0.7, 0.8, 0.9])
+    y = np.array([0.0, 1.0, 1.0])
+    calibrator = IsotonicCalibrator(out_of_bounds="raise").fit(x, y)
+
+    ax = plot_calibrator_comparison({"iso": calibrator}, x)
+
+    assert ax.lines
+
+
 def test_comparison_refuses_an_object_that_cannot_transform():
     """Anything without ``.transform`` is not a calibrator."""
     with pytest.raises(ValueError, match=r"has no \.transform"):

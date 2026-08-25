@@ -18,6 +18,21 @@ from calibre.metrics import (
 )
 
 
+@pytest.mark.parametrize(
+    "metric",
+    [
+        binned_calibration_error,
+        expected_calibration_error,
+        maximum_calibration_error,
+        calibration_curve,
+    ],
+)
+def test_binned_metrics_reject_zero_bins(metric):
+    """Zero bins cannot be reported as zero calibration error."""
+    with pytest.raises(ValueError, match="n_bins must be at least 1"):
+        metric(np.array([0.0, 1.0]), np.array([0.2, 0.8]), n_bins=0)
+
+
 class TestMeanCalibrationError:
     """Test mean_calibration_error function."""
 

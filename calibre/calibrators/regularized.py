@@ -51,6 +51,8 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         cv: Number of cross-validation folds used when a hyperparameter is
             left at ``"auto"``. Ignored when every hyperparameter is pinned.
         scoring: Proper scoring rule the ``"auto"`` search minimises.
+            ``"auto"`` (the default) uses log loss for probability targets and
+            squared error otherwise.
             Deliberately not a calibration error: ECE and its relatives are
             minimised by a constant forecast, so selecting on one would reward
             throwing resolution away.
@@ -111,7 +113,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
 
     See Also:
         SplineCalibrator : Same estimator with the penalty chosen by cross-validation.
-        CenteredIsotonicCalibrator : Non-parametric and plateau-free.
+        CenteredIsotonicCalibrator : Non-parametric interpolation, without tuning.
         IsotonicCalibrator : The exact isotonic fit.
     """
 
@@ -127,7 +129,7 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         knots: str = "quantile",
         link: str = "logit",
         cv: int = 5,
-        scoring: str = "log_loss",
+        scoring: str = "auto",
         random_state: int | None = 0,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
@@ -166,9 +168,22 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
         X, y = check_arrays(X, y)
         if self.link not in VALID_LINKS:
             raise ValueError(f"link must be one of {VALID_LINKS}, got {self.link!r}")
-        # The Bernoulli likelihood requires y in [0, 1]; least squares on the
-        # identity scale does not, so only the logit link enforces it.
-        if self.link == "logit" and np.any((y < 0) | (y > 1)):
+        weight = (
+            np.ones_like(y)
+            if sample_weight is None
+            else np.asarray(sample_weight, dtype=float).ravel()
+        )
+        if weight.shape != y.shape:
+            raise ValueError("sample_weight must have the same shape as y")
+        if not np.all(np.isfinite(weight)) or np.any(weight < 0.0):
+            raise ValueError("sample_weight must contain finite non-negative values")
+        if np.sum(weight) <= 0.0:
+            raise ValueError("sample_weight must contain at least one positive weight")
+        positive = weight > 0.0
+        X_fit, y_fit, weight_fit = X[positive], y[positive], weight[positive]
+        fit_weight = None if sample_weight is None else weight_fit
+        # The Bernoulli likelihood requires positive-mass targets in [0, 1].
+        if self.link == "logit" and np.any((y_fit < 0) | (y_fit > 1)):
             raise ValueError(
                 'y must lie in [0, 1] for link="logit" (it parameterises a '
                 'Bernoulli likelihood); use link="identity" for unbounded targets'
@@ -189,21 +204,21 @@ class RegularizedIsotonicCalibrator(BaseCalibrator):
                 clip_output=self.clip_output,
                 **kw,
             ),
-            X,
-            y,
+            X_fit,
+            y_fit,
             cv=self.cv,
             scoring=self.scoring,
             random_state=self.random_state,
-            sample_weight=sample_weight,
+            sample_weight=fit_weight,
         )
 
         basis = monotone_spline_basis(
             n_knots=self.n_knots, degree=self.degree, knots=self.knots
-        ).fit(X)
+        ).fit(X_fit, sample_weight=fit_weight)
         intercept, coef = fit_monotone_spline(
-            basis.design(X),
-            y,
-            sample_weight=sample_weight,
+            basis.design(X_fit),
+            y_fit,
+            sample_weight=fit_weight,
             alpha=self.alpha_,
             link=self.link,
         )

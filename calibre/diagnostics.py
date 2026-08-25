@@ -7,12 +7,7 @@ quality issues.
 
 from __future__ import annotations
 
-import logging
-from typing import Any
-
 import numpy as np
-
-logger = logging.getLogger(__name__)
 
 # Plateau widths, in number of tied samples, at which the reported
 # `sample_density` label changes. Conventional cut points for a human-readable
@@ -57,6 +52,9 @@ def run_plateau_diagnostics(
 
             - ``'warnings'``: List of warning messages about problematic plateaus.
 
+    Raises:
+        ValueError: If ``X`` and ``y_calibrated`` have different lengths.
+
     Examples:
         >>> X = np.array([0.1, 0.2, 0.3, 0.7, 0.8, 0.9])
         >>> y_cal = np.array([0.2, 0.2, 0.2, 0.8, 0.8, 0.8])
@@ -68,8 +66,18 @@ def run_plateau_diagnostics(
         Plateau 1 at [0.100, 0.300] has only 3 samples - may be unreliable
         Plateau 2 at [0.700, 0.900] has only 3 samples - may be unreliable
     """
-    # Sort by calibrated values to find consecutive identical values
-    sorted_indices = np.argsort(y_calibrated)
+    X = np.asarray(X, dtype=float).ravel()
+    y_calibrated = np.asarray(y_calibrated, dtype=float).ravel()
+    if X.size != y_calibrated.size:
+        raise ValueError(
+            "X and y_calibrated must have the same length; "
+            f"got {X.size} and {y_calibrated.size}"
+        )
+
+    # A plateau is a flat region along the score axis. Sorting by the output
+    # instead would bring equal but separated values together and invent a flat
+    # region spanning the different value between them.
+    sorted_indices = np.argsort(X, kind="mergesort")
     y_cal_sorted = y_calibrated[sorted_indices]
     X_sorted = X[sorted_indices]
 
@@ -112,7 +120,7 @@ def detect_plateaus(
     """Detect plateaus (consecutive identical values) in calibrated predictions.
 
     Args:
-        y_calibrated: Sorted calibrated probabilities.
+        y_calibrated: Calibrated probabilities ordered by their input score.
         min_width: Minimum number of consecutive identical values to count as
             a plateau.
 
@@ -204,132 +212,3 @@ def analyze_plateau_simple(
         "n_samples": width,
         "sample_density": sample_density,
     }
-
-
-def diversity_learning_curve(
-    X: np.ndarray,
-    y: np.ndarray,
-    calibrator: Any = None,
-    sample_sizes: list[int] | None = None,
-    n_trials: int = 10,
-    random_state: int | None = None,
-) -> tuple[list[int], list[float]]:
-    """Measure how calibration diversity changes with training sample size.
-
-    This diagnostic tool helps determine whether you have sufficient training
-    data for stable calibration. If diversity continues increasing with sample
-    size, more data would likely improve calibration granularity.
-
-    Args:
-        X: Input features (predicted probabilities).
-        y: True binary labels.
-        calibrator: Calibrator to test. If None, uses IsotonicCalibrator.
-        sample_sizes: Sample sizes to test. If None, uses default range
-            covering 10% to 100% of available data.
-        n_trials: Number of random trials per sample size for averaging.
-        random_state: Random state for reproducibility.
-
-    Returns:
-        sizes: Sample sizes tested.
-        diversities: Mean fraction of unique calibrated values at each size.
-
-    Raises:
-        ValueError: If X and y have different lengths.
-
-    Notes:
-        This function is computationally expensive as it fits the calibrator
-        multiple times (n_trials x len(sample_sizes) fits). Use for diagnostic
-        analysis, not routine evaluation.
-
-        The diversity metric measures granularity: higher diversity means more
-        unique calibrated values, indicating better discrimination. If diversity
-        plateaus, you have sufficient data. If it keeps increasing, more data
-        would help.
-
-    Examples:
-        >>> import numpy as np
-        >>> rng = np.random.default_rng(0)
-        >>> X = rng.uniform(0, 1, 200)
-        >>> y = (X > 0.5).astype(int)
-        >>>
-        >>> sizes, divs = diversity_learning_curve(
-        ...     X, y, sample_sizes=[50, 100, 200], n_trials=2, random_state=0
-        ... )
-        >>> sizes
-        [50, 100, 200]
-        >>> len(divs) == 3 and all(0.0 <= d <= 1.0 for d in divs)
-        True
-
-        Rising diversity suggests more data would buy more granularity; a flat tail
-        suggests the calibrator has the resolution the data can support.
-
-    See Also:
-        unique_value_counts : Count unique values in calibrated predictions
-        run_plateau_diagnostics : Detect and analyze plateaus
-    """
-    from sklearn.utils.validation import check_array
-
-    X = check_array(X, ensure_2d=False)
-    y = check_array(y, ensure_2d=False)
-
-    if len(X) != len(y):
-        raise ValueError("X and y must have the same length")
-
-    n_total = len(X)
-
-    # Default calibrator
-    if calibrator is None:
-        from .calibrators.isotonic import IsotonicCalibrator
-
-        calibrator = IsotonicCalibrator()
-
-    # Default sample sizes
-    if sample_sizes is None:
-        sample_sizes = [
-            max(10, n_total // 10),
-            max(20, n_total // 5),
-            max(30, n_total // 3),
-            max(50, n_total // 2),
-            min(n_total - 10, int(n_total * 0.8)),
-            n_total,
-        ]
-        sample_sizes = [s for s in sample_sizes if s <= n_total]
-
-    rng = np.random.RandomState(random_state)
-    diversities = []
-
-    for size in sample_sizes:
-        trial_diversities = []
-
-        for trial in range(n_trials):
-            # Random subsample
-            indices = rng.choice(n_total, size=size, replace=False)
-            X_sub = X[indices]
-            y_sub = y[indices]
-
-            # Fit calibrator
-            try:
-                # Create fresh instance for each trial
-                cal = calibrator.__class__(**calibrator.get_params())
-                cal.fit(X_sub, y_sub)
-                y_cal = cal.transform(X_sub)
-
-                # Compute diversity
-                n_unique = len(np.unique(y_cal))
-                diversity = n_unique / len(y_cal)
-                trial_diversities.append(diversity)
-            except Exception as e:
-                logger.warning(
-                    "Failed to fit calibrator at size %s, trial %s: %s",
-                    size,
-                    trial,
-                    e,
-                )
-                continue
-
-        if trial_diversities:
-            diversities.append(float(np.mean(trial_diversities)))
-        else:
-            diversities.append(0.0)
-
-    return sample_sizes, diversities

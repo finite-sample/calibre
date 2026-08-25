@@ -17,7 +17,7 @@ This installs Calibre along with its runtime dependencies:
 
 - numpy >= 1.20.0
 - scipy >= 1.7.0
-- scikit-learn >= 1.0.0
+- scikit-learn >= 1.6.0
 - cvxpy >= 1.2.0
 
 That is the whole list. pandas and matplotlib were runtime dependencies before
@@ -52,14 +52,13 @@ Development Installation
 
    git clone https://github.com/finite-sample/calibre.git
    cd calibre
-   uv sync --all-extras --dev
+   uv sync --all-groups
    uv run pytest
 
 .. important::
 
    Development dependencies are a :pep:`735` ``[dependency-groups]`` entry, so
-   ``pip install -e ".[dev]"`` does **not** work. Use ``uv sync --all-extras
-   --dev``.
+   ``pip install -e ".[dev]"`` does **not** work. Use ``uv sync --all-groups``.
 
 Tooling is ruff (formatting and linting) plus pytest, pytest-cov and pyright.
 black, isort and flake8 were replaced by ruff in 0.4.1.
@@ -71,12 +70,12 @@ To build the documentation locally:
 
 .. code-block:: bash
 
-   uv sync --all-extras --dev
+   uv sync --all-groups
    make docs
 
-The docs group pulls sphinx, furo, myst-parser, sphinx-copybutton,
-sphinx-autodoc-typehints and nbsphinx, plus matplotlib and pandas, which the
-example notebooks use.
+The docs group pulls Sphinx, Furo, MyST, myst-nb, sphinx-copybutton, ipykernel,
+and py-canon's documentation tooling. The example notebooks also use matplotlib
+and pandas.
 
 Verifying Installation
 ----------------------

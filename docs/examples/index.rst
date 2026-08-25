@@ -66,23 +66,17 @@ Notebook Overview
    - Why temperature scaling can never change accuracy, and when that is the problem
    - The within-class reordering that no standard metric reveals
 
-Running the Notebooks
-~~~~~~~~~~~~~~~~~~~~~~
+Executing the Notebooks
+~~~~~~~~~~~~~~~~~~~~~~~
 
-To run these notebooks locally:
+The documentation build executes every notebook and fails on any notebook error:
 
 .. code-block:: bash
 
    git clone https://github.com/finite-sample/calibre.git
    cd calibre
-   uv sync --all-extras --dev
-   jupyter notebook docs/notebooks/
-
-Or install required dependencies:
-
-.. code-block:: bash
-
-   pip install matplotlib  # only needed to plot the examples yourself
+   uv sync --all-groups
+   make docs
 
 Additional Documentation Examples
 ----------------------------------

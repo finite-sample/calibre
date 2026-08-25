@@ -9,7 +9,7 @@ Available Calibrators
 IsotonicCalibrator
     Isotonic regression calibration
 CenteredIsotonicCalibrator
-    Centered isotonic regression: plateau-free, granularity preserving
+    Centered isotonic regression with interpolation between pooled blocks
 NearlyIsotonicCalibrator
     Nearly-isotonic regression with soft monotonicity
 SplineCalibrator

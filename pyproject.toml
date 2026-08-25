@@ -25,10 +25,10 @@ classifiers = [
 dependencies = [
     "numpy>=1.20.0",
     "scipy>=1.7.0",
-    "scikit-learn>=1.0.0",
+    "scikit-learn>=1.6.0",
     "cvxpy>=1.2.0",
 ]
-version = "0.10.0"
+version = "0.11.0"
 
 [project.optional-dependencies]
 # Drawing only. calibre.plots imports matplotlib lazily, so the core package
@@ -233,4 +233,3 @@ check-return-types = false
 check-class-attributes = false
 allow-init-docstring = true
 exclude = '\.venv|tests|docs'
-

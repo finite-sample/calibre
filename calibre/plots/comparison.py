@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from ..utils import check_fitted
 from ._deps import require_matplotlib
 from ._style import SEMANTIC, add_diagonal, color_cycle, finalize, get_axes
 
@@ -33,11 +34,8 @@ def _check_fitted(name: str, calibrator: Any) -> None:
     if not hasattr(calibrator, "transform"):
         raise ValueError(f"{name!r} has no .transform(); expected a fitted calibrator")
     try:
-        calibrator.transform(np.array([0.5]))
-    # Broad on purpose: calibrators signal "not fitted" with AttributeError,
-    # NotFittedError or ValueError depending on the family, and all of them mean
-    # the same thing to the caller.
-    except Exception as exc:
+        check_fitted(calibrator)
+    except ValueError as exc:
         raise ValueError(
             f"{name!r} is not fitted: {exc}. Fit every calibrator before plotting "
             "it. This function deliberately never calls .fit() -- fitting a "

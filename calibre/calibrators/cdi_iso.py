@@ -271,10 +271,6 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         y = np.asarray(y, dtype=float).reshape(-1)
         if s.shape[0] != y.shape[0]:
             raise ValueError("scores and y must have the same length")
-        if np.any((y < 0) | (y > 1)):
-            raise ValueError(
-                "y must be in {0,1} (or in [0,1] for probabilistic labels)"
-            )
 
         if sample_weight is None:
             w = np.ones_like(y, dtype=float)
@@ -282,8 +278,21 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
             w = np.asarray(sample_weight, dtype=float).reshape(-1)
             if w.shape[0] != y.shape[0]:
                 raise ValueError("sample_weight must match length of y")
-            if np.any(w < 0):
-                raise ValueError("sample_weight must be nonnegative")
+            if not np.all(np.isfinite(w)) or np.any(w < 0):
+                raise ValueError("sample_weight must contain finite nonnegative values")
+            if np.sum(w) <= 0.0:
+                raise ValueError(
+                    "sample_weight must contain at least one positive weight"
+                )
+
+        positive = w > 0.0
+        s, y, w = s[positive], y[positive], w[positive]
+        if not np.all(np.isfinite(s)) or not np.all(np.isfinite(y)):
+            raise ValueError("scores and y must contain finite values")
+        if np.any((y < 0) | (y > 1)):
+            raise ValueError(
+                "y must be in {0,1} (or in [0,1] for probabilistic labels)"
+            )
 
         # Sort by scores
         order = np.argsort(s, kind="mergesort")
@@ -347,6 +356,10 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
 
         self._store_fit(x_unique, x_scaled, z_fit, L, R, w_block)
         return self
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """Return whether :meth:`fit` completed successfully."""
+        return self._fitted
 
     def transform(self, scores: np.ndarray) -> np.ndarray:
         """Map new scores to calibrated probabilities (stepwise-constant).

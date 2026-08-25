@@ -29,17 +29,17 @@ The most versatile method that allows controlled violations of monotonicity:
 
    import numpy as np
    from calibre import NearlyIsotonicCalibrator
-   
+
    # Example data: model predictions and true binary outcomes
    np.random.seed(42)
    y_pred = np.sort(np.random.uniform(0, 1, 1000))
    y_true = np.random.binomial(1, y_pred, 1000)
-   
+
    # Strict monotonicity (high lambda)
    cal_strict = NearlyIsotonicCalibrator(lam=10.0, method='cvx')
    cal_strict.fit(y_pred, y_true)
    y_calibrated_strict = cal_strict.transform(y_pred)
-   
+
    # More flexible (low lambda) - preserves more granularity
    cal_flexible = NearlyIsotonicCalibrator(lam=0.1, method='cvx')
    cal_flexible.fit(y_pred, y_true)
@@ -53,7 +53,7 @@ For smooth calibration curves using monotonic splines:
 .. code-block:: python
 
    from calibre import SplineCalibrator
-   
+
    # Smooth calibration with cross-validation
    cal_ispline = SplineCalibrator(n_knots=10, degree=3, cv=5)
    cal_ispline.fit(y_pred, y_true)
@@ -67,7 +67,7 @@ Ignores small violations while correcting larger ones:
 .. code-block:: python
 
    from calibre import RelaxedPAVACalibrator
-   
+
    # Permit decreases of up to 0.02
    cal_relaxed = RelaxedPAVACalibrator(epsilon=0.02)
    cal_relaxed.fit(y_pred, y_true)
@@ -81,7 +81,7 @@ Adds L2 regularization for smoother curves:
 .. code-block:: python
 
    from calibre import RegularizedIsotonicCalibrator
-   
+
    # monotone spline with a curvature penalty
    cal_reg = RegularizedIsotonicCalibrator(alpha=0.1)
    cal_reg.fit(y_pred, y_true)
@@ -95,11 +95,11 @@ Reduces the "staircase" effect of standard isotonic regression:
 .. code-block:: python
 
    from calibre import SmoothedIsotonicCalibrator
-   
+
    # Apply Savitzky-Golay smoothing
    cal_smooth = SmoothedIsotonicCalibrator(
-       window_length=7, 
-       poly_order=3, 
+       window_length=7,
+       poly_order=3,
        interp_method='linear'
    )
    cal_smooth.fit(y_pred, y_true)
@@ -113,7 +113,7 @@ Calibre provides metrics to evaluate calibration quality:
 .. code-block:: python
 
    from calibre import mean_calibration_error
-   
+
    # Calculate calibration error
    mce = mean_calibration_error(y_true, y_calibrated_strict)
    print(f"Mean Calibration Error: {mce:.4f}")

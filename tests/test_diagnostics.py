@@ -6,7 +6,10 @@ import numpy as np
 import pytest
 
 from calibre import IsotonicCalibrator
-from calibre.diagnostics import detect_plateaus, run_plateau_diagnostics
+from calibre.diagnostics import (
+    detect_plateaus,
+    run_plateau_diagnostics,
+)
 
 
 @pytest.fixture
@@ -90,6 +93,30 @@ def test_standalone_run_plateau_diagnostics(plateau_data):
 
     # Check structure
     assert isinstance(diagnostics["warnings"], list)
+
+
+def test_plateaus_are_consecutive_along_the_score_axis():
+    """Equal outputs separated by another value are not one flat region."""
+    X = np.array([0.1, 0.2, 0.3])
+    y_calibrated = np.array([0.4, 0.5, 0.4])
+
+    diagnostics = run_plateau_diagnostics(X, y_calibrated)
+
+    assert diagnostics == {"n_plateaus": 0, "plateaus": [], "warnings": []}
+
+
+def test_plateau_diagnostics_reject_mismatched_lengths():
+    """Silently dropping scores would report a curve different from the input."""
+    with pytest.raises(ValueError, match="same length"):
+        run_plateau_diagnostics(np.array([0.1, 0.2, 0.3]), np.array([0.4, 0.4]))
+
+
+def test_built_in_diagnostics_accept_array_like_inputs():
+    """A list accepted by fit must not make the optional diagnostics disappear."""
+    cal = IsotonicCalibrator(enable_diagnostics=True).fit([0.1, 0.2, 0.3], [0, 1, 1])
+
+    assert cal.has_diagnostics()
+    assert cal.get_diagnostics() is not None
 
 
 def test_detect_plateaus():

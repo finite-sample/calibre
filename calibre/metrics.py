@@ -6,7 +6,6 @@ from typing import Literal, overload
 
 import numpy as np
 from scipy.stats import spearmanr
-from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss
 from sklearn.utils import check_array
 
@@ -112,7 +111,8 @@ def binned_calibration_error(
             dictionary with BCE and bin details.
 
     Raises:
-        ValueError: If arrays have different lengths or unknown binning strategy.
+        ValueError: If arrays have different lengths, ``n_bins`` is below 1,
+            or the binning strategy is unknown.
 
     Examples:
         >>> import numpy as np
@@ -123,7 +123,8 @@ def binned_calibration_error(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     # Check that arrays have matching lengths
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
@@ -205,7 +206,7 @@ def expected_calibration_error(
         ece: Expected Calibration Error.
 
     Raises:
-        ValueError: If arrays have different lengths.
+        ValueError: If arrays have different lengths or ``n_bins`` is below 1.
 
     Examples:
         >>> import numpy as np
@@ -216,7 +217,8 @@ def expected_calibration_error(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
@@ -260,7 +262,7 @@ def maximum_calibration_error(
         mce: Maximum Calibration Error.
 
     Raises:
-        ValueError: If arrays have different lengths.
+        ValueError: If arrays have different lengths or ``n_bins`` is below 1.
 
     Examples:
         >>> import numpy as np
@@ -271,7 +273,8 @@ def maximum_calibration_error(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
@@ -434,7 +437,8 @@ def calibration_curve(
         counts: The number of samples in each bin.
 
     Raises:
-        ValueError: If arrays have different lengths or unknown binning strategy.
+        ValueError: If arrays have different lengths, ``n_bins`` is below 1,
+            or the binning strategy is unknown.
 
     Examples:
         >>> import numpy as np
@@ -444,7 +448,8 @@ def calibration_curve(
     """
     y_true = check_array(y_true, ensure_2d=False)
     y_pred = check_array(y_pred, ensure_2d=False)
-
+    if n_bins < 1:
+        raise ValueError(f"n_bins must be at least 1, got {n_bins}")
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length")
 
@@ -541,189 +546,6 @@ def tie_preservation_score(
 
     score = preservation_rate - spurious_penalty
     return max(0.0, min(1.0, score))
-
-
-def plateau_quality_score(
-    X: np.ndarray, y: np.ndarray, y_calibrated: np.ndarray
-) -> float:
-    """Overall quality score for plateaus in calibrated predictions.
-
-    Args:
-        X: Input features.
-        y: True target values.
-        y_calibrated: Calibrated predictions.
-
-    Raises:
-        ValueError: If arrays have different lengths.
-
-    Returns:
-        score: Quality score between 0 and 1. Higher values indicate better
-            plateau quality.
-
-    Examples:
-        >>> import numpy as np
-        >>> X = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-        >>> y = np.array([0, 0, 1, 1, 1])
-        >>> y_cal = np.array([0.1, 0.25, 0.25, 0.4, 0.6])
-        >>> score = plateau_quality_score(X, y, y_cal)
-        >>> bool(0 <= score <= 1)
-        True
-    """
-    from .diagnostics import detect_plateaus
-
-    X = check_array(X, ensure_2d=False)
-    y = check_array(y, ensure_2d=False)
-    y_calibrated = check_array(y_calibrated, ensure_2d=False)
-
-    if not (len(X) == len(y) == len(y_calibrated)):
-        raise ValueError("All arrays must have the same length")
-
-    # Sort by X
-    sort_idx = np.argsort(X)
-    y_sorted = y[sort_idx]
-    y_cal_sorted = y_calibrated[sort_idx]
-
-    # Extract plateaus
-    plateaus = detect_plateaus(y_cal_sorted)
-
-    if not plateaus:
-        return 1.0  # No plateaus is good
-
-    scores = []
-
-    for start_idx, end_idx, _value in plateaus:
-        # Check if plateau represents genuine flatness
-        plateau_y = y_sorted[start_idx : end_idx + 1]
-        plateau_var = np.var(plateau_y)
-
-        # Good plateaus have low variance in true outcomes
-        # and appropriate size (not too small or too large)
-        size = end_idx - start_idx + 1
-        size_penalty = abs(size - len(X) * 0.1) / (
-            len(X) * 0.1
-        )  # Penalize very large plateaus
-
-        plateau_score = np.exp(-plateau_var - size_penalty)
-        scores.append(plateau_score)
-
-    return float(np.mean(scores)) if scores else 1.0
-
-
-def calibration_diversity_index(
-    y_calibrated: np.ndarray, reference_diversity: float | None = None
-) -> float:
-    """Measure granularity preservation in calibrated predictions.
-
-    Args:
-        y_calibrated: Calibrated predictions.
-        reference_diversity: Reference diversity to compare against (e.g.,
-            diversity of original predictions). If None, returns absolute
-            diversity.
-
-    Returns:
-        diversity: Diversity index. Higher values indicate more granular
-            predictions. If reference_diversity is provided, returns relative
-            diversity.
-
-    Examples:
-        >>> import numpy as np
-        >>> y_cal = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
-        >>> diversity = calibration_diversity_index(y_cal)
-        >>> diversity > 0
-        True
-    """
-    y_calibrated = check_array(y_calibrated, ensure_2d=False)
-
-    # Number of unique values normalized by total samples
-    n_unique = len(np.unique(y_calibrated))
-    n_total = len(y_calibrated)
-
-    diversity = n_unique / n_total
-
-    if reference_diversity is not None:
-        if reference_diversity == 0:
-            return np.inf if diversity > 0 else 1.0
-        return diversity / reference_diversity
-
-    return diversity
-
-
-def progressive_sampling_diversity(
-    X: np.ndarray,
-    y: np.ndarray,
-    sample_sizes: list[int] | None = None,
-    n_trials: int = 10,
-    random_state: int | None = None,
-) -> tuple[list[int], list[float]]:
-    """Compute diversity vs sample size curve for progressive sampling analysis.
-
-    Args:
-        X: Input features.
-        y: Target values.
-        sample_sizes: Sample sizes to test. If None, uses default range.
-        n_trials: Number of trials per sample size.
-        random_state: Random state for reproducibility.
-
-    Raises:
-        ValueError: If X and y have different lengths.
-
-    Returns:
-        sizes: Sample sizes tested.
-        diversities: Average diversity at each sample size.
-
-    Examples:
-        >>> import numpy as np
-        >>> X = np.linspace(0, 1, 100)
-        >>> y = np.random.binomial(1, X, 100)
-        >>> sizes, divs = progressive_sampling_diversity(
-        ...     X, y, sample_sizes=[20, 50, 80]
-        ... )
-        >>> len(sizes) == len(divs) == 3
-        True
-    """
-    X = check_array(X, ensure_2d=False)
-    y = check_array(y, ensure_2d=False)
-
-    if len(X) != len(y):
-        raise ValueError("X and y must have the same length")
-
-    n_total = len(X)
-
-    if sample_sizes is None:
-        sample_sizes = [
-            max(10, n_total // 10),
-            max(20, n_total // 5),
-            max(30, n_total // 3),
-            max(50, n_total // 2),
-            min(n_total - 10, int(n_total * 0.8)),
-            n_total,
-        ]
-        sample_sizes = [s for s in sample_sizes if s <= n_total]
-
-    rng = np.random.RandomState(random_state)
-    diversities = []
-
-    for size in sample_sizes:
-        trial_diversities = []
-
-        for _trial in range(n_trials):
-            # Random subsample
-            indices = rng.choice(n_total, size=size, replace=False)
-            X_sub = X[indices]
-            y_sub = y[indices]
-
-            # Fit isotonic regression
-            iso_reg = IsotonicRegression(out_of_bounds="clip")
-            iso_reg.fit(X_sub, y_sub)
-            y_cal = iso_reg.transform(X_sub)
-
-            # Compute diversity
-            diversity = calibration_diversity_index(y_cal)
-            trial_diversities.append(diversity)
-
-        diversities.append(float(np.mean(trial_diversities)))
-
-    return sample_sizes, diversities
 
 
 def _equal_mass_bins(y_pred: np.ndarray, n_bins: int) -> tuple[np.ndarray, int]:
@@ -1356,15 +1178,12 @@ __all__ = [
     "binned_calibration_error",
     "brier_score",
     "calibration_curve",
-    "calibration_diversity_index",
     "correlation_metrics",
     "debiased_calibration_error",
     "expected_calibration_error",
     "maximum_calibration_error",
     "mean_calibration_error",
-    "plateau_quality_score",
     "plugin_calibration_error",
-    "progressive_sampling_diversity",
     "smooth_calibration_error",
     "sweep_calibration_error",
     "tie_preservation_score",
