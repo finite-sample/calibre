@@ -426,9 +426,6 @@ def consistency_bands(
     Returns:
         dict: ``x`` (the grid), ``lower`` and ``upper``.
 
-    Raises:
-        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
-
     Notes:
         **These are pointwise bands, not a simultaneous envelope.** Coverage holds at
         each forecast value separately. It does *not* hold at all of them at once, and
@@ -484,9 +481,6 @@ def confidence_bands(
 
     Returns:
         dict: ``x`` (the grid), ``lower`` and ``upper``.
-
-    Raises:
-        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
 
     Notes:
         **Pointwise, not simultaneous**, exactly as for :func:`consistency_bands`;

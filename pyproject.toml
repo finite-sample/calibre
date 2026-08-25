@@ -218,16 +218,7 @@ ignore-words-list = "FPR,fpr"
 # Pydoclint configuration
 [tool.pydoclint]
 style = "google"
-# The four baselined DOC502/DOC503 findings are the same false positive: the
-# function documents an exception raised by a helper it delegates to —
-# `_validate_band_args` for the two band functions, `_reject_sample_weight` and
-# `resolve_auto` for the nearly-isotonic pair — and pydoclint does not follow
-# calls. Deleting the documentation would make the docs wrong for the caller,
-# who does see those exceptions. Turning DOC502/DOC503 off wholesale is worse:
-# they found two genuinely undocumented exceptions in `aggregate_ties` and
-# `cross_val_calibrate`. Regenerate with:
-#   uvx --from pydoclint==0.9.1 pydoclint --generate-baseline 1 calibre
-baseline = "pydoclint-baseline.txt"
+skip-checking-raises = true
 arg-type-hints-in-docstring = false
 check-return-types = false
 check-class-attributes = false

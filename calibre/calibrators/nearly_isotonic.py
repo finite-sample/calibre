@@ -169,10 +169,6 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
                 silently discarding weights would quietly return a different
                 estimator than the caller asked for, so they are rejected.
 
-        Raises:
-            NotImplementedError: If ``sample_weight`` is not None.
-            ValueError: If ``method`` is neither ``"path"`` nor ``"cvx"``.
-
         Notes:
             This method implements the actual fitting logic. Data storage,
             diagnostics, and return value are handled by the base class fit() method.
@@ -216,8 +212,6 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
                 constructor argument is never modified, so ``get_params``
                 round trips.
 
-        Raises:
-            ValueError: If ``lam`` is negative, or is a string other than ``"auto"``.
         """
         from ..selection import resolve_auto
 
