@@ -24,7 +24,7 @@ to tune, is monotone, and has no plateaus.
      - Collapses isotonic's flat steps to points and interpolates. O(n).
    * - A smooth curve, and you can afford cross-validation
      - :class:`~calibre.SplineCalibrator`
-     - Monotone spline; picks its own smoothing by CV on log-loss.
+     - Monotone spline; picks its own smoothing by link-appropriate prediction loss.
    * - A smooth curve with smoothing you control
      - :class:`~calibre.RegularizedIsotonicCalibrator`
      - Same model, you set ``alpha`` instead of tuning it. Fast.

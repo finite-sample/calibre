@@ -701,6 +701,18 @@ class TestCalibratorErrorHandling:
                 sample_weight=sample_weight,
             )
 
+    @pytest.mark.parametrize(
+        ("scores", "targets"),
+        [
+            (np.array([0.1, np.nan, 0.9]), np.array([0.0, 1.0, 1.0])),
+            (np.array([0.1, 0.5, 0.9]), np.array([0.0, np.inf, 1.0])),
+        ],
+    )
+    def test_cdi_rejects_nonfinite_positive_mass_data(self, scores, targets):
+        """Positive-mass scores and targets must be finite."""
+        with pytest.raises(ValueError, match="finite"):
+            CDIIsotonicCalibrator().fit(scores, targets)
+
 
 class TestCalibratorCommonInterface:
     """Test that all calibrators follow the common interface."""

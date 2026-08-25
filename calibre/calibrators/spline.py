@@ -453,6 +453,8 @@ class SplineCalibrator(BaseCalibrator):
             raise AttributeError(
                 f"{type(self).__name__} has no retained training data."
             )
-        x_unique, _, _ = aggregate_ties(self._fit_data_X, self._fit_data_y)
+        x_unique, _, _ = aggregate_ties(
+            self._fit_data_X, self._fit_data_y, self._fit_data_weight
+        )
         grid = np.linspace(float(x_unique[0]), float(x_unique[-1]), n_points)
         return PiecewiseLinear(grid, self.transform(grid))

@@ -235,8 +235,11 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         from .diagnostics import run_plateau_diagnostics
 
         try:
-            y_calibrated = self.transform(self._fit_data_X)
-            self.diagnostics_ = run_plateau_diagnostics(self._fit_data_X, y_calibrated)
+            diagnostic_x = self._fit_data_X
+            if self._fit_data_weight is not None:
+                diagnostic_x = diagnostic_x[self._fit_data_weight > 0.0]
+            y_calibrated = self.transform(diagnostic_x)
+            self.diagnostics_ = run_plateau_diagnostics(diagnostic_x, y_calibrated)
         except Exception as e:
             logger.warning("Diagnostic analysis failed: %s", e)
             self.diagnostics_ = None

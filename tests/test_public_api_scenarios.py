@@ -465,6 +465,12 @@ def test_continuous_target_calibrators_preserve_an_unbounded_monotone_signal(
         lambda: RelaxedPAVACalibrator(epsilon=0.0),
         lambda: SplineCalibrator(alpha=0.001, n_knots=5),
         CDIIsotonicCalibrator,
+        lambda: CDIIsotonicCalibrator(
+            thresholds=[0.2, 0.5, 0.8],
+            threshold_weights=[1.0, 3.0, 1.0],
+            gamma=0.8,
+            window=3,
+        ),
     ],
 )
 def test_zero_weight_observation_has_no_effect(factory):
@@ -479,12 +485,60 @@ def test_zero_weight_observation_has_no_effect(factory):
         factory()
         .fit(
             np.r_[scores, 0.99],
-            np.r_[outcomes, 1.0],
+            np.r_[outcomes, 2.0],
             sample_weight=np.r_[weights, 0.0],
         )
         .transform(grid)
     )
     np.testing.assert_allclose(augmented, baseline, atol=1e-10)
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        CenteredIsotonicCalibrator,
+        lambda: RelaxedPAVACalibrator(epsilon=0.0, min_slope=0.0),
+    ],
+)
+def test_zero_weight_observation_cannot_create_an_interpolation_knot(factory):
+    """A zero-mass score between fitted points must not bend the fitted map."""
+    scores = np.array([0.2, 0.4, 0.6, 0.8])
+    outcomes = np.array([0.0, 0.0, 0.0, 1.0])
+    weights = np.array([1.0, 2.0, 3.0, 1.0])
+    grid = np.linspace(0.0, 1.0, 101)
+
+    baseline = factory().fit(scores, outcomes, sample_weight=weights).transform(grid)
+    augmented = (
+        factory()
+        .fit(
+            np.r_[scores, 0.7],
+            np.r_[outcomes, 1.0],
+            sample_weight=np.r_[weights, 0.0],
+        )
+        .transform(grid)
+    )
+
+    np.testing.assert_allclose(augmented, baseline, atol=1e-12)
+
+
+def test_zero_weight_observation_does_not_change_diagnostics_or_curve_range():
+    """Derived spline outputs must use the same positive-mass training support."""
+    scores = np.linspace(0.1, 0.9, 20)
+    outcomes = np.r_[np.zeros(10), np.ones(10)]
+    weights = np.ones(scores.size)
+    baseline = SplineCalibrator(alpha=0.01, n_knots=5, enable_diagnostics=True).fit(
+        scores, outcomes, sample_weight=weights
+    )
+    augmented = SplineCalibrator(alpha=0.01, n_knots=5, enable_diagnostics=True).fit(
+        np.r_[scores, 2.0],
+        np.r_[outcomes, 1.0],
+        sample_weight=np.r_[weights, 0.0],
+    )
+
+    np.testing.assert_allclose(
+        augmented.calibration_curve().x, baseline.calibration_curve().x
+    )
+    assert augmented.get_diagnostics() == baseline.get_diagnostics()
 
 
 def test_selection_and_out_of_fold_calibration_choose_the_known_direction(

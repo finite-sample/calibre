@@ -706,6 +706,37 @@ def test_weighted_spline_basis_ignores_zero_mass_and_stays_monotone():
     assert np.all(np.diff(weighted.design(grid), axis=0) >= -1e-12)
 
 
+def test_constant_weight_scale_does_not_move_spline_knots():
+    """Equal observation weights cannot change quantile knot placement."""
+    from calibre._core import monotone_spline_basis
+
+    x = np.array([0.0025, 0.1225, 0.4225, 0.9025])
+    y = np.array([0.0, 0.2, 0.6, 1.0])
+    grid = np.linspace(0.0, 1.0, 101)
+
+    unit_basis = monotone_spline_basis(n_knots=3).fit(x, sample_weight=np.ones(x.size))
+    scaled_basis = monotone_spline_basis(n_knots=3).fit(
+        x, sample_weight=np.full(x.size, 2.0)
+    )
+    np.testing.assert_allclose(scaled_basis.design(grid), unit_basis.design(grid))
+
+    for cls_name in ("SplineCalibrator", "RegularizedIsotonicCalibrator"):
+        import calibre
+
+        cls = getattr(calibre, cls_name)
+        kwargs = {
+            "alpha": 0.0,
+            "n_knots": 3,
+            "link": "identity",
+            "clip_output": False,
+        }
+        unit = cls(**kwargs).fit(x, y, sample_weight=np.ones(x.size)).transform(grid)
+        scaled = (
+            cls(**kwargs).fit(x, y, sample_weight=np.full(x.size, 2.0)).transform(grid)
+        )
+        np.testing.assert_allclose(scaled, unit, atol=1e-8)
+
+
 @pytest.mark.parametrize(
     "cls_name", ["SplineCalibrator", "RegularizedIsotonicCalibrator"]
 )

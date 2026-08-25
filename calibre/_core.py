@@ -61,8 +61,7 @@ def aggregate_ties(
 
     Returns:
         x_unique: Sorted unique values of ``x``.
-        y_mean: Weighted mean of ``y`` within each tie group. Groups with zero
-            total weight are reported as 0.
+        y_mean: Weighted mean of ``y`` within each positive-mass tie group.
         weight: Total weight of each tie group.
 
     Raises:
@@ -95,10 +94,12 @@ def aggregate_ties(
 
     weight = np.bincount(inverse, weights=w, minlength=n_groups)
     weighted_y = np.bincount(inverse, weights=y * w, minlength=n_groups)
-    y_mean = np.divide(
-        weighted_y, weight, out=np.zeros_like(weighted_y), where=weight > 0.0
+    positive = weight > 0.0
+    return (
+        x_unique[positive],
+        weighted_y[positive] / weight[positive],
+        weight[positive],
     )
-    return x_unique, y_mean, weight
 
 
 # --------------------------------------------------------------------------- #
@@ -787,7 +788,7 @@ class MonotoneSplineBasis:
                 )
             x = x[positive]
             weight = weight[positive]
-            if np.all(weight == 1.0):
+            if np.all(weight == weight[0]):
                 weight = None
 
         # Quantile knots collapse if the scores are too concentrated; fall back
