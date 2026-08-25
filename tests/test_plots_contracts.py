@@ -235,7 +235,7 @@ def test_label_becomes_a_legend_entry(diagram):
     assert labels == ["my model"]
 
 
-def test_unlabelled_plot_has_no_legend(diagram):
+def test_unlabeled_plot_has_no_legend(diagram):
     """Internal ``_calibre:`` labels stay out of the legend."""
     ax = plot_reliability_diagram(diagram, density="none")
     _, labels = ax.get_legend_handles_labels()

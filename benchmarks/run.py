@@ -46,19 +46,28 @@ FIELDNAMES = (*KEY_COLUMNS, *measures.COLUMNS)
 
 
 def _git_sha() -> str:
-    """Return the current commit, or ``"unknown"`` outside a checkout.
+    """Return the current commit and mark an uncommitted checkout.
 
     Returns:
         str: Short SHA.
     """
     try:
-        return subprocess.run(
+        root = Path(__file__).resolve().parents[1]
+        sha = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
             capture_output=True,
             text=True,
             check=True,
-            cwd=Path(__file__).resolve().parents[1],
+            cwd=root,
         ).stdout.strip()
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=root,
+        ).stdout
+        return f"{sha}-dirty" if dirty else sha
     except (subprocess.CalledProcessError, FileNotFoundError):
         return "unknown"
 
@@ -173,14 +182,15 @@ def main(argv: list[str] | None = None) -> int:
     # reshuffled file.
     rows.sort(key=lambda r: (r["dataset"], r["model"], r["seed"], r["method"]))
 
+    environment = _environment()
     RESULTS.mkdir(exist_ok=True)
     out = args.out or (RESULTS / ("quick.csv" if args.quick else "raw.csv"))
     with out.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=FIELDNAMES)
+        writer = csv.DictWriter(handle, fieldnames=FIELDNAMES, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
-    (RESULTS / "environment.json").write_text(json.dumps(_environment(), indent=1))
+    (RESULTS / "environment.json").write_text(f"{json.dumps(environment, indent=1)}\n")
     print(f"wrote {out} ({len(rows)} rows)")
     return 0
 

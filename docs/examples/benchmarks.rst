@@ -5,17 +5,10 @@ Every number on this page is produced by :mod:`benchmarks`, whose results are
 committed to the repository. ``python -m benchmarks.run`` reproduces them, and
 the docs build reads the committed CSVs rather than re-running anything.
 
-.. note::
-
-   This page previously carried a star-rating table scoring the calibrators on
-   "calibration error", "granularity preservation", "speed" and "robustness".
-   Those ratings had no provenance — no script produced them and no measurement
-   backed them. They were removed, and this is what replaced them.
-
 The design
 ----------
 
-Thirty seeds over ten methods and ten dataset/model cells. Within a cell the
+Thirty seeds over nine methods and ten dataset/model cells. Within a cell the
 calibrator is **the only thing that varies**: the out-of-fold scores and the test
 scores are computed once and shared, so a difference between two calibrators
 cannot be resampling noise. The test split is touched exactly once — nothing is
@@ -27,10 +20,10 @@ fitted there learns the wrong correction.
 
 Library defaults only. Tuning calibre's methods against an untuned isotonic
 baseline would settle the comparison by construction. One asymmetry is worth
-naming rather than hiding: :class:`~calibre.SplineCalibrator`, and the ``"auto"``
-defaults of the relaxed and regularized calibrators, choose their own
-hyperparameters by internal cross-validation. That is a real advantage over a
-fixed competitor, and it is paid for in the fit time the benchmark also records.
+naming rather than hiding: :class:`~calibre.SplineCalibrator` and the ``"auto"``
+default of the relaxed calibrator choose their own hyperparameters by internal
+cross-validation. That is a real advantage over a fixed competitor, and it is
+paid for in the fit time the benchmark also records.
 
 Everything that could be tuned to flatter calibre — datasets, seeds, model and
 calibrator settings, the baseline, which metrics are primary — lives in
@@ -54,12 +47,12 @@ Three things to read off it.
 **The Brier gains over isotonic are small.** The large win is the distinct-value
 column: around 1400–1600 values instead of 49, at a Brier difference in the fourth
 decimal. :class:`~calibre.RelaxedPAVACalibrator` is the cleanest case — it beats
-isotonic on 28 of 30 seeds by an average of 0.00001, which is to say it costs
-nothing, and keeps 28 times the resolution.
+isotonic on 28 of 30 seeds by an average of 0.00001 in this design, while keeping
+1,356 distinct values on average instead of 49.
 
 **scikit-learn's parametric methods win this design outright.** Both score better
 than anything in calibre and land four times closer to the known truth. That is
-not an artefact: the distortion here *is* a pure temperature change, so a
+not an artifact: the distortion here *is* a pure temperature change, so a
 one-parameter model is exactly specified and a non-parametric one is paying for
 flexibility it does not need. This is a regime where calibre loses, and it is a
 real one.
@@ -100,8 +93,8 @@ model fit and the split, leaving only the calibrator. The interval resamples
    :alt: Per-seed Brier improvement over sklearn_isotonic, with intervals
    :width: 100%
 
-An interval that spans zero is drawn spanning zero. Across all 90 method-cells, 45
-beat ``sklearn_isotonic`` with an interval clear of zero.
+An interval that spans zero is drawn spanning zero. Across the 80 non-baseline
+method-cells, 36 beat ``sklearn_isotonic`` with an interval clear of zero.
 
 Where calibre loses
 -------------------
@@ -116,12 +109,12 @@ benchmark.
   already close to calibrated there and the test half is only about 228 rows, so
   pooling costs more than it buys.
 - **``NearlyIsotonicCalibrator``** at its defaults is close to plain isotonic on
-  these designs — 51 distinct values against 49. Its resolution frontier is
+  these designs — 54 distinct values against 49. Its resolution frontier is
   dominated by centered isotonic regression, which reaches more distinct values at
   a better score, so no default was invented to hide this. See the class docstring.
 
 ``nonmonotone`` was built expecting calibre to lose, since no monotone calibrator
-can express a non-monotone truth. It did not: :class:`~calibre.RegularizedIsotonicCalibrator`
+can express a non-monotone truth. It did not: :class:`~calibre.SplineCalibrator`
 scores 0.2156 against Platt's 0.2224, because the parametric methods cannot follow
 the dip either and give up more. That is what measuring is for.
 
@@ -134,7 +127,7 @@ Guards, not promises. Each of these fails loudly:
   calibre's wrapper is a thin layer over scikit-learn's, so any divergence is a
   bug — and a benchmark that hid it would be reporting calibre's advantage over
   its own baseline.
-- ``aggregate.py`` refuses to summarise a cell missing any of its seeds, naming
+- ``aggregate.py`` refuses to summarize a cell missing any of its seeds, naming
   the offenders. A dataset that errored on half its seeds would otherwise be
   averaged over whatever survived.
 - **No composite score.** Score and resolution stay on separate axes. Folding them

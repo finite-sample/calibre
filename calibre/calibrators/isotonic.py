@@ -14,7 +14,7 @@ import numpy as np
 from sklearn.isotonic import IsotonicRegression
 
 from ..base import BaseCalibrator
-from ..utils import check_arrays
+from ..utils import check_array_1d, check_arrays, check_fitted
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +60,10 @@ class IsotonicCalibrator(BaseCalibrator):
 
     See Also:
         NearlyIsotonicCalibrator : Relaxed monotonicity constraint
-        SmoothedIsotonicCalibrator : Isotonic with smoothing
+        SplineCalibrator : Smooth monotone spline calibration
     """
+
+    isotonic_: IsotonicRegression
 
     def __init__(
         self,
@@ -78,8 +80,6 @@ class IsotonicCalibrator(BaseCalibrator):
         self.y_max = y_max
         self.increasing = increasing
         self.out_of_bounds = out_of_bounds
-
-        self.isotonic_: IsotonicRegression | None = None
 
     def _fit_impl(
         self,
@@ -119,11 +119,7 @@ class IsotonicCalibrator(BaseCalibrator):
         Returns:
             Calibrated values.
 
-        Raises:
-            ValueError: If called before fit().
         """
-        if self.isotonic_ is None:
-            raise ValueError("Model must be fitted before transform")
-
-        X = np.asarray(X).ravel()
-        return np.asarray(self.isotonic_.transform(X))
+        check_fitted(self, ["isotonic_"])
+        isotonic = self.isotonic_
+        return np.asarray(isotonic.transform(check_array_1d(X)))

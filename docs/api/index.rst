@@ -30,7 +30,7 @@ Overview
 **Measuring.**
 
 - :doc:`evaluation` — CORP reliability diagrams and the ``MCB``/``DSC``/``UNC``
-  score decomposition. No bin count to choose, and none to tune in your favour.
+  score decomposition. No bin count to choose, and none to tune in your favor.
 - :doc:`metrics` — calibration error estimators, including the bias-aware ones and
   smECE, plus the granularity metrics.
 - :doc:`report` — one call that gathers all of it, with optional bootstrap intervals.

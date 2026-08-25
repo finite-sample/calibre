@@ -10,8 +10,8 @@ import numpy as np
 from sklearn.utils import check_array
 
 
-def _as_float_1d(a: np.ndarray) -> np.ndarray:
-    """Validate an array and return it as 1-D ``float64``, allowing NaN.
+def _as_float_1d(a: np.ndarray, name: str) -> np.ndarray:
+    """Validate an array and return it as a finite 1-D ``float64`` array.
 
     Wrapped for two reasons. sklearn's ``check_array`` preserves an integer dtype,
     and integer targets are a trap for any estimator that averages labels: pooling
@@ -21,17 +21,26 @@ def _as_float_1d(a: np.ndarray) -> np.ndarray:
 
     Args:
         a: Array-like input.
+        name: Name used in validation errors.
 
     Returns:
         ndarray: A 1-D float64 array.
+
+    Raises:
+        ValueError: If the input is not one-dimensional and finite.
     """
     checked = check_array(
         a,
         ensure_2d=False,
-        ensure_all_finite="allow-nan",  # type: ignore[arg-type]
+        ensure_all_finite=False,
         dtype="numeric",
     )
-    return np.asarray(checked, dtype=np.float64).ravel()
+    result = np.asarray(checked, dtype=np.float64)
+    if result.ndim != 1:
+        raise ValueError(f"{name} must be 1-dimensional, got shape {result.shape}")
+    if not np.all(np.isfinite(result)):
+        raise ValueError(f"{name} must contain only finite values")
+    return result
 
 
 def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -68,12 +77,8 @@ def check_arrays(X: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         >>> y_checked.dtype                       # integer labels are widened
         dtype('float64')
     """
-    X = _as_float_1d(X)
-    y = _as_float_1d(y)
-
-    # Ensure 1D arrays
-    X = X.ravel()
-    y = y.ravel()
+    X = _as_float_1d(X, "X")
+    y = _as_float_1d(y, "y")
 
     # Check for empty arrays
     if len(X) == 0:
@@ -111,10 +116,7 @@ def check_array_1d(X: np.ndarray, name: str = "X") -> np.ndarray:
         >>> print(X_checked.shape)
         (3,)
     """
-    if np.asarray(X).ndim != 1:
-        raise ValueError(f"Array '{name}' must be 1-dimensional")
-
-    X = _as_float_1d(X)
+    X = _as_float_1d(X, name)
 
     if len(X) == 0:
         raise ValueError(f"Array '{name}' cannot be empty")
@@ -131,7 +133,7 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
             None, checks for common fitted attributes.
 
     Raises:
-        ValueError: If the calibrator has not been fitted.
+        NotFittedError: If the calibrator has not been fitted.
 
     Examples:
         >>> from calibre import IsotonicCalibrator
@@ -140,7 +142,7 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
         >>> cal = IsotonicCalibrator()
         >>> try:
         ...     check_fitted(cal)
-        ... except ValueError as e:
+        ... except Exception as e:
         ...     print("Not fitted:", e)
         Not fitted: IsotonicCalibrator must be fitted...Call fit(X, y) first.
     """
@@ -151,7 +153,7 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
         not hasattr(calibrator, attr) or getattr(calibrator, attr) is None
         for attr in attributes
     ):
-        raise ValueError(
+        raise NotFittedError(
             f"{calibrator.__class__.__name__} must be fitted before transform. "
             "Call fit(X, y) first."
         )
@@ -159,7 +161,7 @@ def check_fitted(calibrator: object, attributes: list[str] | None = None) -> Non
     try:
         check_is_fitted(calibrator, attributes=attributes)
     except (NotFittedError, TypeError) as exc:
-        raise ValueError(
+        raise NotFittedError(
             f"{calibrator.__class__.__name__} must be fitted before transform. "
             "Call fit(X, y) first."
         ) from exc

@@ -4,7 +4,7 @@ Calibration Metrics
 This module provides metrics for evaluating calibration quality.
 
 For the CORP reliability diagram and the ``MCB``/``DSC``/``UNC`` score
-decomposition — which need no bin count and cannot be tuned in your favour —
+decomposition — which need no bin count and cannot be tuned in your favor —
 see :doc:`evaluation`.
 
 Bias-aware calibration error
@@ -132,7 +132,7 @@ Basic Evaluation
    print(f"ECE         {expected_calibration_error(y_true, y_pred, n_bins=5):.4f}")
    print(f"bias        {mean_calibration_error(y_true, y_pred):.4f}")
 
-``brier_score`` is a proper scoring rule and the one to optimise.
+``brier_score`` is a proper scoring rule and the one to optimize.
 ``mean_calibration_error`` is calibration in the large, ``|mean(prediction) −
 base rate|``.
 

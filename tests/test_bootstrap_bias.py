@@ -137,7 +137,7 @@ def test_a_convex_functional_is_biased_upward_on_the_same_data():
 
 @pytest.mark.parametrize("n", [500, 4000])
 def test_the_inflation_does_not_vanish_with_more_data(n):
-    """It is structural, not a small-sample artefact.
+    """It is structural, not a small-sample artifact.
 
     Both the observed value and the resampling noise scale as ``1/sqrt(n)``, so
     their ratio is roughly constant. A ratio that shrank with ``n`` would mean

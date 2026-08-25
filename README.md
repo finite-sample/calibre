@@ -29,7 +29,7 @@ pip install calibre           # core
 pip install 'calibre[plots]'  # adds matplotlib for calibre.plots
 ```
 
-Python 3.12+. Depends on numpy, scipy, scikit-learn and cvxpy. matplotlib is
+Python 3.12+. Depends on numpy, scipy and scikit-learn. matplotlib is
 optional and imported only when you use `calibre.plots`.
 
 ## The problem, in 20 lines
@@ -60,8 +60,9 @@ print("distinct values, calibre: ", len(np.unique(centered.transform(s_test))))
 # > distinct values, calibre:  1863
 ```
 
-Both are well calibrated. Only one of them still tells you which of two customers is
-the riskier bet.
+This example measures resolution, not calibration quality. Only the centered fit
+still tells you which of two customers is the riskier bet; compare calibration on
+labels that neither fit has seen.
 
 ## Which calibrator should I use?
 
@@ -73,7 +74,7 @@ isotonic blocks.
 |---|---|---|
 | A drop-in isotonic replacement, no tuning | `CenteredIsotonicCalibrator` | Collapses isotonic's flat steps to points and interpolates. O(n). |
 | A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing using the loss appropriate for its link. |
-| A smooth curve with smoothing you control | `RegularizedIsotonicCalibrator` | Same model, you set `alpha` instead of tuning it. Fast. |
+| A smooth curve with smoothing you control | `SplineCalibrator` | Set `alpha`; also set `n_knots` to skip cross-validation. |
 | Exactly scikit-learn's isotonic behavior | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
 | Strict increase without output clipping | `RelaxedPAVACalibrator` | Forces a minimum step; clipping can flatten boundary values. |
 | To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. Not the one to reach for if you want resolution — see its docstring. |
@@ -84,7 +85,9 @@ Every calibrator follows the scikit-learn transformer API: `.fit(scores, labels)
 
 ## What you actually get
 
-Every number below comes from [`benchmarks/`](benchmarks/), whose results are
+Every number below comes from the
+[`benchmarks/`](https://github.com/finite-sample/calibre/tree/main/benchmarks)
+directory, whose results are
 committed — `python -m benchmarks.run` reproduces them. This is the
 `overconfident` design (a model reporting `1.8 * z` for true log-odds `z`), thirty
 seeds, scored on a held-out half that nothing was tuned on. Lower Brier is better;
@@ -94,11 +97,10 @@ seeds, scored on a held-out half that nothing was tuned on. Lower Brier is bette
 |---|---|---|---|---|---|
 | Uncalibrated | 0.1604 | — | 0.0835 | 1594 | — |
 | `IsotonicCalibrator` | 0.1530 | +0.0073 | 0.0270 | **49** | baseline |
-| `NearlyIsotonicCalibrator` | 0.1531 | +0.0072 | 0.0270 | 51 | 4/30 |
+| `NearlyIsotonicCalibrator` | 0.1532 | +0.0072 | 0.0271 | 54 | 7/30 |
 | `RelaxedPAVACalibrator` | 0.1530 | +0.0073 | 0.0270 | 1356 | 28/30 |
 | `CenteredIsotonicCalibrator` | 0.1527 | +0.0076 | 0.0284 | 1514 | 25/30 |
-| `RegularizedIsotonicCalibrator` | 0.1525 | +0.0079 | 0.0264 | 1596 | 24/30 |
-| `SplineCalibrator` | 0.1524 | +0.0079 | 0.0259 | 1588 | 28/30 |
+| `SplineCalibrator` | 0.1524 | +0.0080 | 0.0263 | 1595 | 28/30 |
 | Platt scaling (sklearn `method="sigmoid"`) | **0.1521** | **+0.0082** | 0.0251 | 1599 | 26/30 |
 | Temperature scaling (sklearn `method="temperature"`) | 0.1522 | +0.0082 | 0.0251 | 1599 | 26/30 |
 
@@ -107,14 +109,14 @@ Read three things off it honestly.
 **The Brier gains over isotonic are small.** The large win is the distinct-value
 column: ~1400–1600 values instead of 49, at a Brier difference in the fourth
 decimal. `RelaxedPAVACalibrator` is the cleanest case — it beats isotonic on 28 of
-30 seeds by an average of 0.00001, which is to say it costs nothing, and keeps 29
-times the resolution.
+30 seeds by an average of 0.00001 in this design, while keeping 1,356 distinct
+values on average instead of 49.
 
 **scikit-learn's parametric methods win this design outright.** Both are
 `CalibratedClassifierCV` options — `method="sigmoid"`, and `method="temperature"`
 since 1.8. Both score better than anything in calibre, and against the *known*
-truth they are four times more accurate (0.0064 and 0.0040, against 0.0169 for the
-best calibre method). That is not an artefact: the distortion here is a pure
+truth they are four times more accurate (0.0064 and 0.0040, against 0.0175 for the
+best calibre method). That is not an artifact: the distortion here is a pure
 temperature change, so a one-parameter model is exactly specified and a
 non-parametric one is paying for flexibility it does not need. If you know your
 miscalibration has that shape, use them. calibre is for when you don't.
@@ -123,12 +125,12 @@ miscalibration has that shape, use them. calibre is for when you don't.
 resolution is not miscalibration. That is a reason to look at more than one number,
 which is what `calibration_report` below is for.
 
-The cost is fit time: isotonic fits in 1.3 ms, `RelaxedPAVACalibrator` in 113 ms,
-`RegularizedIsotonicCalibrator` in 0.6 s and `SplineCalibrator` in 2.3 s, the last
-two because they cross-validate their own hyperparameters.
+The cost is fit time: isotonic fits in 1.0 ms, `RelaxedPAVACalibrator` in 89 ms,
+and `SplineCalibrator` in 1.14 s. The latter two cross-validate their own
+hyperparameters.
 
 `nonmonotone` is in the grid because monotone methods should lose there. They
-don't: `RegularizedIsotonicCalibrator` scores 0.2156 against Platt's 0.2224,
+don't: `SplineCalibrator` scores 0.2156 against Platt's 0.2224,
 because the parametric methods cannot follow the dip either and give up more. And
 on `breast_cancer/logreg`, *not calibrating at all* beats isotonic by 0.0013 with a
 bootstrap interval clear of zero — the model was already close to calibrated and
@@ -251,7 +253,7 @@ print(f"bias           {mean_calibration_error(y_true, y_pred):.4f}")
 # > bias           0.0813
 ```
 
-`brier_score` is a proper scoring rule and the one to optimise.
+`brier_score` is a proper scoring rule and the one to optimize.
 `expected_calibration_error` is the familiar binned ECE — useful, but sensitive to the
 bin count and blind to resolution. `mean_calibration_error` is calibration in the
 large, `|mean(prediction) − base rate|`.
@@ -374,7 +376,7 @@ control — Brier, being linear, shows no bias at all.
 Scoring a calibrator on the data it was fit to does not merely flatter it. For any
 isotonic-family calibrator it reports **perfect calibration by construction**, because
 the calibrator and the diagnostic are the same PAV projection and PAV is idempotent. The
-number is zero no matter how badly the model generalises:
+number is zero no matter how badly the model generalizes:
 
 ```python
 import numpy as np
@@ -402,7 +404,7 @@ that never saw that observation. Use those for any number you intend to believe.
 `score_decomposition` splits a proper score into the three things you actually want to
 know, following the CORP approach of Dimitriadis, Gneiting & Jordan (2021). It uses
 isotonic regression to find the bins, so there is no bin count to choose and none to
-tune in your favour:
+tune in your favor:
 
 ```python
 import numpy as np
@@ -602,7 +604,7 @@ anything large.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](https://github.com/finite-sample/calibre/blob/main/LICENSE).
 
 ## Citation
 
@@ -620,6 +622,8 @@ MIT — see [LICENSE](LICENSE).
   for Dose–Response Studies", *Statistics in Biopharmaceutical Research* 9(3).
 - Tibshirani, Höfling & Tibshirani (2011), "Nearly-Isotonic Regression",
   *Technometrics* 53(1), 54–61.
+- Ramsay (1988), "Monotone Regression Splines in Action", *Statistical Science*
+  3(4), 425–441.
 - Pya & Wood (2015), "Shape constrained additive models", *Statistics and Computing*
   25(3), 543–559.
 - Eilers & Marx (1996), "Flexible smoothing with B-splines and penalties",

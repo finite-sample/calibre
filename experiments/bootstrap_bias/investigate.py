@@ -281,7 +281,7 @@ def e2b_frozen_edges(n_datasets: int = 150, n: int = 2000, n_resamples: int = 15
         Resamples per dataset.
     """
     print("\nE2b frozen bin edges (isolates re-binning from convexity)")
-    print("    prediction: still inflated; convexity is not an artefact of re-binning")
+    print("    prediction: still inflated; convexity is not an artifact of re-binning")
     rng = np.random.default_rng(20)
     obs_all, boot_all = [], []
     for _ in range(n_datasets):
@@ -299,7 +299,7 @@ def e2b_frozen_edges(n_datasets: int = 150, n: int = 2000, n_resamples: int = 15
 
 
 def e3_sample_size(n_resamples: int = 120, n_datasets: int = 80) -> None:
-    """The inflation is not a small-sample artefact.
+    """The inflation is not a small-sample artifact.
 
     Both the observed value and the added noise scale as ``1/sqrt(n)``, so their
     ratio should be roughly constant. If instead it shrank with ``n``, the effect

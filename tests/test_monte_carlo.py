@@ -533,7 +533,7 @@ def test_the_bands_are_pointwise_and_not_simultaneous():
 
 
 def test_confidence_bands_approach_nominal_coverage_of_the_truth():
-    """These bands are centred on an isotonic fit, which is biased at small n.
+    """These bands are centered on an isotonic fit, which is biased at small n.
 
     Coverage of the *true* conditional event probability curve is therefore below
     nominal on small samples and improves as the centring bias shrinks. Asserted

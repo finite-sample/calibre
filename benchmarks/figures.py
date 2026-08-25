@@ -69,7 +69,14 @@ def _save(figure, stem: str) -> None:
         figure: Figure to write.
         stem: File name without extension.
     """
-    figure.savefig(FIGURES / f"{stem}.svg", bbox_inches="tight")
+    import matplotlib as mpl
+
+    svg = FIGURES / f"{stem}.svg"
+    with mpl.rc_context({"svg.hashsalt": "calibre"}):
+        figure.savefig(svg, bbox_inches="tight", metadata={"Date": None})
+    svg.write_text(
+        "\n".join(line.rstrip() for line in svg.read_text().splitlines()) + "\n"
+    )
     figure.savefig(FIGURES / f"{stem}.png", dpi=140, bbox_inches="tight")
 
 
@@ -136,14 +143,14 @@ def paired_deltas(paired: list[dict[str, str]], dataset: str, model: str) -> Non
         for position, row in zip(positions, rows, strict=True):
             low, high = _float(row["delta_brier_lo"]), _float(row["delta_brier_hi"])
             beats = row["beats_baseline"] == "True"
-            colour = SEMANTIC["calibre"] if beats else SEMANTIC["reference"]
-            ax.plot([low, high], [position, position], color=colour, linewidth=2.0)
+            color = SEMANTIC["calibre"] if beats else SEMANTIC["reference"]
+            ax.plot([low, high], [position, position], color=color, linewidth=2.0)
             ax.plot(
                 [_float(row["delta_brier"])],
                 [position],
                 marker="o",
                 markersize=6,
-                color=colour,
+                color=color,
             )
         ax.axvline(0.0, color=SEMANTIC["score"], linewidth=1.0, linestyle="--")
         ax.set_yticks(positions)
@@ -182,7 +189,6 @@ def resolution_barcode(dataset: str, model: str, seed: int) -> None:
         "sklearn_isotonic",
         "calibre_centered",
         "calibre_spline",
-        "calibre_regularized",
         "calibre_relaxed_pava",
     ]
     outputs = {
@@ -269,7 +275,7 @@ def headline_table(
 
     out = RESULTS.parent.parent / "docs" / "_static" / "bench"
     with (out / "headline.csv").open("w", newline="") as handle:
-        writer = csv.writer(handle)
+        writer = csv.writer(handle, lineterminator="\n")
         writer.writerow(
             ["Method", "Brier", "dBrier", "smECE", "Distinct", "vs known truth", "Wins"]
         )

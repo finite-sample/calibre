@@ -25,7 +25,6 @@ __all__ = [
     "StepFunction",
     "aggregate_ties",
     "collapse_blocks",
-    "cumulative_max",
     "fit_monotone_spline",
     "monotone_projection",
     "monotone_spline_basis",
@@ -186,8 +185,7 @@ def monotone_projection(
     """Project ``y`` onto the non-decreasing cone in weighted L2.
 
     An alias for :func:`weighted_pava`, named for the role it plays when a
-    smoother's output needs to be made monotone. Prefer this over
-    :func:`cumulative_max`, which is not a projection.
+    smoother's output needs to be made monotone.
 
     Args:
         y: Values to project.
@@ -198,29 +196,6 @@ def monotone_projection(
             weighted L2.
     """
     return weighted_pava(y, sample_weight)
-
-
-def cumulative_max(y: np.ndarray) -> np.ndarray:
-    """Enforce monotonicity by a running maximum.
-
-    This is *not* the L2 projection. It only ever raises values, so it biases
-    the result upward relative to :func:`monotone_projection`. It is retained
-    because it preserves the original value at every point that is already in
-    order, which is occasionally what a caller wants; when in doubt use
-    :func:`monotone_projection`.
-
-    Args:
-        y: Values to make non-decreasing.
-
-    Returns:
-        ndarray of shape (n_samples,): ``out[i] = max(y[0], ..., y[i])``.
-
-    Examples:
-        >>> import numpy as np
-        >>> cumulative_max(np.array([0.1, 0.3, 0.2, 0.5, 0.4]))
-        array([0.1, 0.3, 0.3, 0.5, 0.5])
-    """
-    return np.asarray(np.maximum.accumulate(np.asarray(y, dtype=float).ravel()))
 
 
 def shift_to_pava(
@@ -300,20 +275,20 @@ def nearly_isotonic_path(
     Solves
 
     .. math::
-        \min_{\beta} \sum_i w_i (y_i - \beta_i)^2
+        \min_{\beta} \frac{1}{2}\sum_i w_i (y_i - \beta_i)^2
         + \lambda \sum_{i=1}^{n-1} \max(0,\ \beta_i - \beta_{i+1})
 
-    exactly, in O(n log n), by following the solution path from
+    exactly by following the solution path from
     :math:`\lambda = 0` to the requested value.
 
-    Monotonicity is penalised rather than imposed, so ``lam`` acts as a
+    Monotonicity is penalized rather than imposed, so ``lam`` acts as a
     bias-variance knob on pooling: ``lam = 0`` returns the data untouched,
     ``lam -> inf`` returns the isotonic fit, and intermediate values give shorter
     plateaus than isotonic regression at the cost of bounded violations.
 
     Args:
         y: Target values in constraint order.
-        lam: Penalty on monotonicity violations. See Notes on scaling.
+        lam: Penalty on monotonicity violations.
         sample_weight: Non-negative weights. Defaults to 1.
         return_path: Also return the merge events as ``(lambda, n_blocks)``
             pairs. The block count is an unbiased estimate of the fit's degrees
@@ -321,38 +296,37 @@ def nearly_isotonic_path(
             guessed.
 
     Returns:
-        beta: The exact minimiser at ``lam``.
+        beta: The exact minimizer at ``lam``.
         path: Returned when ``return_path`` is set.
 
     Raises:
         ValueError: If ``y`` is empty or ``lam`` is negative.
 
     Notes:
-        **Scaling.** The reference formulation (Tibshirani, Hoefling & Tibshirani
-        2011, *Technometrics* 53(1), 54-61) carries a factor of one half on the
-        squared-error term. The objective above does not, so
+        The objective and lambda scale match Tibshirani, Hoefling & Tibshirani
+        (2011, *Technometrics* 53(1), 54-61) and the authors' R implementation,
+        ``neariso``. Cross-language fixtures pin that agreement in
+        ``tests/test_r_reference.py``.
 
-        .. math:: \lambda_{\text{here}} = 2\,\lambda_{\text{paper}}
-
-        A penalty value taken from the paper must be doubled before being passed
-        here. This is verified against the authors' own R implementation
-        (``neariso``) in ``tests/test_r_reference.py``.
+        This array implementation recomputes collision times after each merge and
+        is O(n²) in the worst case. The tree-based implementation described by the
+        authors reduces the full path to O(n log n).
 
         **How the path is computed.** Subgradient stationarity gives
-        :math:`2 w_i(\beta_i - y_i) + \lambda(g_i - g_{i-1}) = 0`, where
+        :math:`w_i(\beta_i - y_i) + \lambda(g_i - g_{i-1}) = 0`, where
         :math:`g_i \in [0, 1]` is the subgradient of the hinge on adjacency
         :math:`i` and :math:`g_0 = g_n = 0`. Summing over a block :math:`A_k` of
         tied coordinates, the interior subgradients cancel telescopically and leave
 
         .. math::
             \beta_k(\lambda) = \bar{y}_k
-            - \frac{\lambda}{2}\cdot\frac{G_k - G_{k-1}}{W_k}
+            - \lambda\frac{G_k - G_{k-1}}{W_k}
 
         with :math:`\bar y_k` the block's weighted mean, :math:`W_k` its total
         weight, and :math:`G_k \in \{0, 1\}` indicating whether the boundary
         between blocks :math:`k` and :math:`k+1` is violated. So each block's value
         is *linear in* :math:`\lambda` with slope
-        :math:`s_k = -(G_k - G_{k-1}) / (2 W_k)`, and two adjacent blocks meet after
+        :math:`s_k = -(G_k - G_{k-1}) / W_k`, and two adjacent blocks meet after
 
         .. math::
             \Delta_k = \frac{\beta_{k+1} - \beta_k}{s_k - s_{k+1}}
@@ -379,8 +353,10 @@ def nearly_isotonic_path(
     n = y.size
     if n == 0:
         raise ValueError("y must not be empty")
-    if lam < 0:
-        raise ValueError(f"lam must be non-negative, got {lam}")
+    if not np.isfinite(lam) or lam < 0:
+        raise ValueError(f"lam must be finite and non-negative, got {lam}")
+    if not np.all(np.isfinite(y)):
+        raise ValueError("y must contain only finite values")
 
     w = (
         np.ones_like(y)
@@ -391,6 +367,8 @@ def nearly_isotonic_path(
         raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
     if not np.all(np.isfinite(w)) or np.any(w < 0.0):
         raise ValueError("sample_weight must contain finite non-negative values")
+    if np.sum(w) <= 0.0:
+        raise ValueError("sample_weight must contain at least one positive weight")
 
     # Block state. Blocks are consecutive runs; `size` counts original indices so
     # the result can be expanded at the end.
@@ -411,10 +389,10 @@ def nearly_isotonic_path(
         G = np.zeros(n_blocks + 1, dtype=float)  # G[0] = G[n_blocks] = 0
         G[1:n_blocks] = violated
 
-        # s_k = -(G_k - G_{k-1}) / (2 W_k), indexing G so that G[k] is the
+        # s_k = -(G_k - G_{k-1}) / W_k, indexing G so that G[k] is the
         # boundary to the right of block k-1.
         with np.errstate(divide="ignore", invalid="ignore"):
-            slope = -(G[1:] - G[:-1]) / (2.0 * bw)
+            slope = -(G[1:] - G[:-1]) / bw
         slope[~np.isfinite(slope)] = 0.0  # zero-weight blocks do not move
 
         # Collision time for each adjacent pair.
@@ -431,7 +409,8 @@ def nearly_isotonic_path(
 
         if not np.any(np.isfinite(delta)):
             # Nothing will ever collide: advance to lam and stop.
-            beta[:n_blocks] = b + slope * (lam - lam_curr)
+            if np.isfinite(lam):
+                beta[:n_blocks] = b + slope * (lam - lam_curr)
             lam_curr = lam
             break
 
@@ -460,7 +439,7 @@ def nearly_isotonic_path(
         # Keep the value the merging blocks met at. The solution path is
         # continuous in lambda, so a merged block does NOT jump to the weighted
         # mean of its members: that mean is only its intercept at lambda = 0, and
-        # the block has already drifted away from it by -(lambda/2)*dG/W.
+        # the block has already drifted away from it by -lambda*dG/W.
         beta[:n_new] = beta[idx]
         n_blocks = n_new
         path.append((lam_curr, n_blocks))
@@ -686,11 +665,14 @@ class MonotoneSplineBasis:
 
     The :math:`I_k` are the **I-splines**: right-cumulative sums of the B-spline
     basis, each non-decreasing. The :math:`k = 0` term is constant by partition of
-    unity, so it is dropped in favour of an explicit intercept, leaving a design
+    unity, so it is dropped in favor of an explicit intercept, leaving a design
     whose every column is monotone.
 
-    This is the same construction as the SCOP-splines of Pya & Wood (2015), used
-    by R's ``scam``, and the penalised B-splines of Eilers & Marx (1996).
+    The cumulative monotone basis follows the I-spline construction of Ramsay
+    (1988). The coefficient-difference penalty used by :class:`SplineCalibrator`
+    follows the P-spline idea of Eilers & Marx (1996). Pya & Wood's (2015)
+    SCOP-splines in R's ``scam`` are a related penalized monotone B-spline model,
+    but use a different coefficient parameterization and smoothing selection.
 
     Args:
         n_knots: Number of knots. The basis has ``n_knots + degree - 1``
@@ -870,7 +852,7 @@ def _difference_matrix(p: int) -> Any:
     Because the increments are already the first differences of the B-spline
     coefficients, differencing them once more gives a **second**-order penalty on
     the coefficients. Second order is the right choice: it leaves any straight
-    line unpenalised, so the identity map and the empirical base rate both survive
+    line unpenalized, so the identity map and the empirical base rate both survive
     shrinkage. A first-order penalty would instead pull the fit toward flat.
 
     Args:
@@ -899,13 +881,13 @@ def fit_monotone_spline(
     alpha: float = 0.0,
     link: str = "logit",
 ) -> tuple[float, np.ndarray]:
-    r"""Fit a monotone spline by penalised, non-negativity-constrained regression.
+    r"""Fit a monotone spline by penalized, non-negativity-constrained regression.
 
     Solves
 
     .. math::
         \min_{\theta,\ \delta \ge 0}\;
-        \mathcal{L}\!\left(\theta + M\delta;\ y, w\right)
+        \overline{\mathcal{L}}\!\left(\theta + M\delta;\ y, w\right)
         + \alpha \lVert \Delta\delta \rVert^2
 
     where ``M`` is a monotone design (see :class:`MonotoneSplineBasis`), so
@@ -916,10 +898,12 @@ def fit_monotone_spline(
         design: Monotone design matrix of shape ``(n_samples, n_basis)``.
         y: Targets in ``[0, 1]``.
         sample_weight: Non-negative weights. Defaults to 1.
-        alpha: Roughness penalty on the increments.
-        link: ``"logit"`` fits a penalised Bernoulli likelihood, so predictions
+        alpha: Roughness penalty on the increments. The data loss is a weighted
+            mean, so the same alpha has the same meaning across sample sizes and
+            constant rescalings of ``sample_weight``.
+        link: ``"logit"`` fits a penalized Bernoulli likelihood, so predictions
             live in ``(0, 1)`` with no clipping and the objective is the proper
-            score for binary labels. ``"identity"`` fits penalised least
+            score for binary labels. ``"identity"`` fits penalized least
             squares on the probability scale, which is a single bounded linear
             solve and is therefore easy to check against an external QP solver.
 
@@ -929,11 +913,12 @@ def fit_monotone_spline(
 
     Raises:
         ValueError: If ``link`` is unknown, ``alpha`` is negative, or shapes disagree.
+        RuntimeError: If the numerical optimizer does not converge.
 
     Notes:
         Both objectives are convex on the feasible set ``delta >= 0``, so the returned
         solution is a global optimum: the identity case is a convex QP solved by
-        bounded least squares, and the logit case is a convex penalised likelihood
+        bounded least squares, and the logit case is a convex penalized likelihood
         solved by L-BFGS-B.
     """
     from scipy import sparse
@@ -948,8 +933,12 @@ def fit_monotone_spline(
         raise ValueError(f"design has {M.shape[0]} rows but y has {y.size}")
     if link not in VALID_LINKS:
         raise ValueError(f"link must be one of {VALID_LINKS}, got {link!r}")
-    if alpha < 0:
-        raise ValueError(f"alpha must be non-negative, got {alpha}")
+    if not np.isfinite(alpha) or alpha < 0:
+        raise ValueError(f"alpha must be finite and non-negative, got {alpha}")
+    if not np.all(np.isfinite(M)) or not np.all(np.isfinite(y)):
+        raise ValueError("design and y must contain only finite values")
+    if link == "logit" and np.any((y < 0.0) | (y > 1.0)):
+        raise ValueError('y must lie in [0, 1] for link="logit"')
 
     w = (
         np.ones_like(y)
@@ -962,6 +951,7 @@ def fit_monotone_spline(
         raise ValueError("sample_weight must contain finite non-negative values")
     if np.sum(w) <= 0.0:
         raise ValueError("sample_weight must contain at least one positive weight")
+    w = w / np.sum(w)
 
     n, p = M.shape
     D = _difference_matrix(p)
@@ -981,10 +971,15 @@ def fit_monotone_spline(
         A = sparse.vstack(blocks, format="csr")
         b = np.concatenate(rhs)
         result = lsq_linear(A, b, bounds=(lower, upper), lsmr_tol="auto", max_iter=500)
+        if not result.success:
+            raise RuntimeError(
+                "bounded least-squares optimization failed "
+                f"(status={result.status}): {result.message}"
+            )
         z = np.asarray(result.x, dtype=float)
         return float(z[0]), z[1:]
 
-    # Logit link: penalised Bernoulli negative log-likelihood.
+    # Logit link: penalized Bernoulli negative log-likelihood.
     DtD = (D.T @ D) if D.shape[0] > 0 else sparse.csr_matrix((p, p))
 
     def objective(z: np.ndarray) -> tuple[float, np.ndarray]:
@@ -1017,5 +1012,9 @@ def fit_monotone_spline(
         bounds=[(None, None)] + [(0.0, None)] * p,
         options={"maxiter": 5000, "ftol": 1e-12, "gtol": 1e-10},
     )
+    if not result.success:
+        raise RuntimeError(
+            f"L-BFGS-B optimization failed (status={result.status}): {result.message}"
+        )
     z = np.asarray(result.x, dtype=float)
     return float(z[0]), np.maximum(z[1:], 0.0)

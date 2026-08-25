@@ -232,11 +232,6 @@ def test_cir_is_monotone_and_at_least_as_granular_as_isotonic(name):
 # Nearly-isotonic regression
 # --------------------------------------------------------------------------- #
 
-# calibre minimizes  ||y - b||^2 + lam * sum max(0, b_i - b_{i+1})
-# the paper minimizes (1/2)||y - b||^2 + lam_paper * sum max(0, ...)
-# so lam_calibre = 2 * lam_paper.
-LAMBDA_SCALE = 2.0
-
 
 def _neariso_points():
     for name, case in NEARISO.items():
@@ -245,24 +240,6 @@ def _neariso_points():
             if lam_paper <= 0:
                 continue  # lambda=0 interpolates the data; nothing to pin
             yield pytest.param(name, key, id=f"{name}-{key}")
-
-
-@pytest.mark.parametrize(("name", "key"), list(_neariso_points()))
-def test_nearly_isotonic_cvx_matches_r_neariso(name, key):
-    """The CVXPY solver reproduces R's neariso at the matched lambda."""
-    from calibre import NearlyIsotonicCalibrator
-
-    case = NEARISO[name]
-    y = np.asarray(case["y"], dtype=float)
-    x = np.arange(1.0, len(y) + 1.0)
-
-    sol = case["solutions"][key]
-    lam_paper = float(np.atleast_1d(sol["lambda_paper"])[0])
-    expected = np.asarray(sol["beta"], dtype=float)
-
-    cal = NearlyIsotonicCalibrator(lam=LAMBDA_SCALE * lam_paper, method="cvx")
-    got = cal.fit(x, y).transform(x)
-    np.testing.assert_allclose(got, expected, rtol=0, atol=1e-6)
 
 
 @pytest.mark.parametrize(("name", "key"), list(_neariso_points()))
@@ -285,30 +262,53 @@ def test_nearly_isotonic_path_matches_r_neariso(name, key):
     lam_paper = float(np.atleast_1d(sol["lambda_paper"])[0])
     expected = np.asarray(sol["beta"], dtype=float)
 
-    cal = NearlyIsotonicCalibrator(lam=LAMBDA_SCALE * lam_paper, method="path")
+    cal = NearlyIsotonicCalibrator(lam=lam_paper)
     got = cal.fit(x, y).transform(x)
     np.testing.assert_allclose(got, expected, rtol=0, atol=1e-6)
 
 
+def _cvx_neariso(y, lam, weight=None):
+    """Independent convex-program oracle for the documented objective."""
+    import cvxpy as cp
+
+    weight = np.ones_like(y) if weight is None else np.asarray(weight, dtype=float)
+    beta = cp.Variable(len(y))
+    objective = 0.5 * cp.sum(cp.multiply(weight, cp.square(y - beta)))
+    objective += lam * cp.sum(cp.pos(beta[:-1] - beta[1:]))
+    problem = cp.Problem(cp.Minimize(objective))
+    problem.solve(
+        solver=cp.OSQP,
+        eps_abs=1e-9,
+        eps_rel=1e-9,
+        polishing=True,
+    )
+    assert problem.status == "optimal"
+    return np.asarray(beta.value, dtype=float)
+
+
 @pytest.mark.parametrize("name", sorted(NEARISO))
-def test_nearly_isotonic_solvers_agree(name):
-    """cvx and path must solve the same problem at the same lambda."""
+def test_nearly_isotonic_matches_independent_convex_program(name):
+    """The path must attain the same solution as an independent optimizer."""
     from calibre import NearlyIsotonicCalibrator
 
     y = np.asarray(NEARISO[name]["y"], dtype=float)
     x = np.arange(1.0, len(y) + 1.0)
 
     for lam in (0.05, 0.2, 0.5, 1.0):
-        a = NearlyIsotonicCalibrator(lam=lam, method="cvx").fit(x, y).transform(x)
-        b = NearlyIsotonicCalibrator(lam=lam, method="path").fit(x, y).transform(x)
+        expected = _cvx_neariso(y, lam)
+        got = NearlyIsotonicCalibrator(lam=lam).fit(x, y).transform(x)
         np.testing.assert_allclose(
-            b, a, rtol=0, atol=1e-6, err_msg=f"{name}: solvers disagree at lam={lam}"
+            got,
+            expected,
+            rtol=0,
+            atol=1e-6,
+            err_msg=f"{name}: path and convex program disagree at lam={lam}",
         )
 
 
 @pytest.mark.parametrize("name", sorted(NEARISO))
 def test_nearly_isotonic_attains_the_objective(name):
-    """Both solvers must attain the documented objective's optimum.
+    """The path solver must attain the documented objective's optimum.
 
     An independent check that does not rely on R: whatever the solver does, it
     cannot beat -- or fall short of -- the optimum of the objective it claims.
@@ -320,12 +320,12 @@ def test_nearly_isotonic_attains_the_objective(name):
 
     def objective(b, lam):
         return float(
-            np.sum((y - b) ** 2) + lam * np.sum(np.maximum(0.0, b[:-1] - b[1:]))
+            0.5 * np.sum((y - b) ** 2) + lam * np.sum(np.maximum(0.0, b[:-1] - b[1:]))
         )
 
     for lam in (0.05, 0.2, 0.5, 1.0):
-        ref = NearlyIsotonicCalibrator(lam=lam, method="cvx").fit(x, y).transform(x)
-        got = NearlyIsotonicCalibrator(lam=lam, method="path").fit(x, y).transform(x)
+        ref = _cvx_neariso(y, lam)
+        got = NearlyIsotonicCalibrator(lam=lam).fit(x, y).transform(x)
         assert objective(got, lam) <= objective(ref, lam) + 1e-6, (
             f"{name}: path solver is suboptimal at lam={lam}: "
             f"{objective(got, lam):.8f} > {objective(ref, lam):.8f}"
@@ -351,31 +351,76 @@ def test_clipping_is_opt_out_able(key):
     expected = np.asarray(sol["beta"], dtype=float)
     assert np.any((expected < 0) | (expected > 1)), "fixture must exercise the clip"
 
-    cal = NearlyIsotonicCalibrator(
-        lam=LAMBDA_SCALE * lam_paper, method="cvx", clip_output=False
-    )
+    cal = NearlyIsotonicCalibrator(lam=lam_paper, clip_output=False)
     got = cal.fit(x, y).transform(x)
     np.testing.assert_allclose(got, expected, rtol=0, atol=1e-6)
 
 
-def test_lambda_scaling_is_documented():
-    """calibre's lam is 2x the paper's lambda; the docstring must say so.
-
-    The class docstring reproduces the paper's objective verbatim while the code
-    omits the 1/2 on the squared-error term, so a lambda transferred from the
-    paper delivers half the intended regularization.
-    """
+def test_lambda_scaling_matches_the_paper():
+    """The public lambda must use the source paper's scale without conversion."""
     from calibre import NearlyIsotonicCalibrator
 
-    doc = (NearlyIsotonicCalibrator.__doc__ or "") + (
-        NearlyIsotonicCalibrator.__init__.__doc__ or ""
+    y = np.asarray(NEARISO["simple"]["y"], dtype=float)
+    x = np.arange(y.size, dtype=float)
+    solution = NEARISO["simple"]["solutions"]["bp02"]
+    lam_paper = float(np.atleast_1d(solution["lambda_paper"])[0])
+    expected = np.asarray(solution["beta"], dtype=float)
+
+    got = NearlyIsotonicCalibrator(lam=lam_paper).fit_transform(x, y)
+    np.testing.assert_allclose(got, expected, rtol=0, atol=1e-6)
+
+
+def test_weighted_nearly_isotonic_matches_independent_convex_program():
+    """Observation weights must enter the same objective as the paper's loss."""
+    from calibre import NearlyIsotonicCalibrator
+
+    x = np.arange(7, dtype=float)
+    y = np.array([0.1, 0.8, 0.2, 0.7, 0.4, 0.9, 0.6])
+    weight = np.array([1.0, 4.0, 2.0, 1.0, 3.0, 2.0, 5.0])
+    lam = 0.35
+
+    expected = _cvx_neariso(y, lam, weight)
+    got = NearlyIsotonicCalibrator(lam=lam).fit_transform(x, y, sample_weight=weight)
+    np.testing.assert_allclose(got, expected, rtol=0, atol=1e-6)
+
+
+def test_integer_weights_equal_literal_frequency_replication():
+    """Frequency weights and repeated observations must define the same curve."""
+    from calibre import NearlyIsotonicCalibrator
+
+    x = np.arange(6, dtype=float)
+    y = np.array([0.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+    weight = np.array([1, 3, 2, 4, 2, 1])
+    grid = np.linspace(0.0, 5.0, 51)
+
+    weighted = (
+        NearlyIsotonicCalibrator(lam=0.5)
+        .fit(x, y, sample_weight=weight)
+        .transform(grid)
     )
-    lowered = doc.lower()
-    assert "1/2" in doc or "\\frac{1}{2}" in doc or "twice" in lowered, (
-        "NearlyIsotonicCalibrator's documented objective omits the 1/2 factor "
-        "that the reference formulation carries, so `lam` is silently 2x the "
-        "paper's lambda. Either match the paper's scaling or document the "
-        "difference."
+    repeated = (
+        NearlyIsotonicCalibrator(lam=0.5)
+        .fit(np.repeat(x, weight), np.repeat(y, weight))
+        .transform(grid)
+    )
+    np.testing.assert_allclose(weighted, repeated, rtol=0, atol=1e-12)
+
+
+def test_data_scaled_auto_lambda_is_invariant_to_weight_units():
+    """Changing weight units must scale lambda, not change the selected curve."""
+    from calibre import NearlyIsotonicCalibrator
+
+    x = np.linspace(0.0, 1.0, 60)
+    y = (np.arange(60) % 4 == 0).astype(float)
+    weight = np.linspace(1.0, 3.0, 60)
+    grid = np.linspace(0.0, 1.0, 101)
+
+    unit = NearlyIsotonicCalibrator(cv=3).fit(x, y, sample_weight=weight)
+    scaled = NearlyIsotonicCalibrator(cv=3).fit(x, y, sample_weight=7.0 * weight)
+
+    assert scaled.lam_ == pytest.approx(7.0 * unit.lam_)
+    np.testing.assert_allclose(
+        scaled.transform(grid), unit.transform(grid), rtol=0, atol=1e-10
     )
 
 
@@ -388,11 +433,12 @@ _SCAM = _load("scam_reference.json")["cases"]
 
 @pytest.mark.parametrize("name", sorted(_SCAM))
 def test_monotone_spline_agrees_with_scam(name):
-    """The monotone spline must track ``scam(bs="mpi")``.
+    """The monotone spline must track the related ``scam(bs="mpi")`` model.
 
-    ``scam`` implements the same construction -- a B-spline basis with a discrete
-    coefficient penalty, reparameterised so the coefficients increase (Pya & Wood
-    2015). So it is the right external reference.
+    Both methods use penalized monotone B-splines, but ``scam`` uses the nonlinear
+    SCOP-spline parameterization and GCV smoothing selection of Pya & Wood (2015),
+    while calibre uses hard nonnegative increments and cross-validated proper loss.
+    It is therefore a behavioral external reference, not an implementation oracle.
 
     A tight pointwise bound would be the wrong assertion, and measuring it showed
     why. ``scam`` selects its smoothing parameter by GCV while calibre

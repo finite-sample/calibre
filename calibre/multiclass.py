@@ -417,7 +417,7 @@ class TemperatureScaler:
         the ordering of people *within a class*: the softmax denominator makes each
         calibrated probability depend on the whole row. Measured at 49.6% of adjacent
         within-class pairs inverted -- worse than one-vs-rest calibration followed by
-        normalisation. If you rank people by their probability of a given class,
+        normalization. If you rank people by their probability of a given class,
         that reordering is real and no standard calibration metric reveals it.
 
     Examples:

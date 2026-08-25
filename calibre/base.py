@@ -27,8 +27,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         enable_diagnostics: Whether to run plateau diagnostics after fitting.
 
     Notes:
-        Subclasses must implement the fit() and transform() methods.
-        The fit_transform() method is provided by default.
+        Subclasses implement :meth:`_fit_impl` and :meth:`transform`.
+        The shared :meth:`fit` and :meth:`fit_transform` methods validate and
+        retain the fitting data, maintain fitted state, and run diagnostics.
 
     Examples:
         >>> import numpy as np
@@ -37,9 +38,8 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         >>> class SimpleCalibrator(BaseCalibrator):
         ...     def __init__(self, enable_diagnostics=False):
         ...         super().__init__(enable_diagnostics=enable_diagnostics)
-        ...     def fit(self, X, y):
+        ...     def _fit_impl(self, X, y, sample_weight=None):
         ...         self.mean_ = np.mean(y)
-        ...         return self
         ...
         ...     def transform(self, X):
         ...         return np.full_like(X, self.mean_)
@@ -79,27 +79,45 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
 
         Returns:
             BaseCalibrator: Returns self for method chaining.
+
+        Raises:
+            ValueError: If ``sample_weight`` is not one-dimensional.
         """
-        # Delegate actual fitting to subclass implementation
-        self._is_fitted = False
-        self._fit_impl(X, y, sample_weight)
-
-        # Retain the same one-dimensional numeric representation accepted by the
-        # concrete calibrators. Keeping the caller's raw list here made fitting
-        # succeed and diagnostics fail later when they used NumPy index arrays.
-        self._fit_data_X = np.asarray(X, dtype=float).ravel()
-        self._fit_data_y = np.asarray(y, dtype=float).ravel()
-        self._fit_data_weight = (
-            None
-            if sample_weight is None
-            else np.asarray(sample_weight, dtype=float).ravel()
-        )
-        self._is_fitted = True
-
-        # Run diagnostics if enabled
-        self._run_diagnostics()
+        self._reset_fit_state()
+        succeeded = False
+        try:
+            if sample_weight is not None and np.asarray(sample_weight).ndim != 1:
+                raise ValueError("sample_weight must be 1-dimensional")
+            self._fit_impl(X, y, sample_weight)
+            # Retain the same one-dimensional numeric representation accepted by the
+            # concrete calibrators. Keeping the caller's raw list here made fitting
+            # succeed and diagnostics fail later when they used NumPy index arrays.
+            self._fit_data_X = np.asarray(X, dtype=float).ravel()
+            self._fit_data_y = np.asarray(y, dtype=float).ravel()
+            self._fit_data_weight = (
+                None
+                if sample_weight is None
+                else np.asarray(sample_weight, dtype=float).ravel()
+            )
+            self._is_fitted = True
+            self._run_diagnostics()
+            succeeded = True
+        finally:
+            if not succeeded:
+                self._reset_fit_state()
 
         return self
+
+    def _reset_fit_state(self) -> None:
+        """Remove learned state before fitting or after a failed refit."""
+        for name in tuple(vars(self)):
+            if name.endswith("_") and not name.startswith("__"):
+                delattr(self, name)
+        self.diagnostics_ = None
+        self._fit_data_X = None
+        self._fit_data_y = None
+        self._fit_data_weight = None
+        self._is_fitted = False
 
     def __sklearn_is_fitted__(self) -> bool:
         """Return whether :meth:`fit` completed successfully.
@@ -151,24 +169,6 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             f"{self.__class__.__name__} must implement the _fit_impl() method"
         )
 
-    def _reject_sample_weight(self, sample_weight: np.ndarray | None) -> None:
-        """Raise if weights were supplied to a calibrator that cannot use them.
-
-        Silently discarding weights would quietly return the wrong estimator, so
-        calibrators that have not yet been made weight-aware call this instead.
-
-        Args:
-            sample_weight: The weights passed to :meth:`fit`.
-
-        Raises:
-            NotImplementedError: If ``sample_weight`` is not None.
-        """
-        if sample_weight is not None:
-            raise NotImplementedError(
-                f"{type(self).__name__} does not support sample_weight yet. "
-                "Use IsotonicCalibrator or CenteredIsotonicCalibrator, which do."
-            )
-
     def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply calibration to new data.
 
@@ -190,9 +190,6 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-        # Deliberately unused: accepted so the method matches scikit-learn's
-        # fit_transform signature and works in a Pipeline, as documented below.
-        **fit_params: object,  # noqa: ARG002
     ) -> np.ndarray:
         """Fit the calibrator and then transform the data.
 
@@ -204,7 +201,6 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             X: The values to be calibrated.
             y: The target values.
             sample_weight: Non-negative per-observation weights.
-            **fit_params: Ignored. Accepted for scikit-learn pipeline compatibility.
 
         Returns:
             Calibrated values.
@@ -415,29 +411,7 @@ class MonotonicMixin:
         return y_result
 
 
-# Module constants for validation and default values
-DEFAULT_MIN_WINDOW = 5
-# Shortest window a Savitzky-Golay filter can use here. The filter needs
-# window_length > polyorder and an odd length, so a cubic fit (DEFAULT_POLY_ORDER)
-# bottoms out at 5. Named because it appeared as a bare 5 in two places in
-# smoothed.py, where changing one and not the other would silently half-apply.
-MIN_SAVGOL_WINDOW = 5
-DEFAULT_POLY_ORDER = 3
-DEFAULT_N_BOOTSTRAPS = 100
-DEFAULT_N_SPLITS = 5
-MIN_VARIANCE_THRESHOLD = 1e-6
-WINDOW_DIVISOR = 10
-ADAPTIVE_WINDOW_DIVISOR = 5
-
 __all__ = [
-    "ADAPTIVE_WINDOW_DIVISOR",
-    "DEFAULT_MIN_WINDOW",
-    "DEFAULT_N_BOOTSTRAPS",
-    "DEFAULT_N_SPLITS",
-    "DEFAULT_POLY_ORDER",
-    "MIN_SAVGOL_WINDOW",
-    "MIN_VARIANCE_THRESHOLD",
-    "WINDOW_DIVISOR",
     "BaseCalibrator",
     "MonotonicMixin",
 ]

@@ -81,7 +81,7 @@ def test_readme_block_runs(line_no, code):
 # Lines of the form `#> expected output` record what the block above them prints.
 # The README previously claimed an output produced by a classifier that had been
 # deleted, so running the code is not enough -- the claimed numbers must match too.
-# `# >` is accepted as well because `ruff format` normalises comment spacing inside
+# `# >` is accepted as well because `ruff format` normalizes comment spacing inside
 # Markdown code blocks.
 # `[ \t]` rather than `\s` throughout: `\s` matches a newline, so on a bare `#>`
 # line recording a blank line of output the optional trailing `\s?` swallowed the

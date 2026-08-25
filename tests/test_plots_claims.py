@@ -345,7 +345,7 @@ def test_profile_bars_are_the_per_class_mcb():
 
 
 def test_profile_highlights_the_worst_classes():
-    """The accent colour must fall on the classes the profile named worst."""
+    """The accent color must fall on the classes the profile named worst."""
     rng = np.random.default_rng(0)
     truth = rng.dirichlet(np.ones(5) * 0.7, size=2000)
     y = np.array([rng.choice(5, p=t) for t in truth])
@@ -395,7 +395,7 @@ def test_frontier_labels_never_land_on_a_marker():
         "nearly": (51, 0.15312),
         "relaxed": (1356, 0.15304),
         "centered": (1514, 0.15272),
-        "regularized": (1596, 0.15246),
+        "spline_pinned": (1596, 0.15246),
         "spline": (1588, 0.15243),
         "platt": (1599, 0.15213),
         "temperature": (1599, 0.15216),
@@ -409,7 +409,7 @@ def test_frontier_labels_never_land_on_a_marker():
     right = [c for c in counts if np.log10(c) > midpoint]
 
     placed = {a.get_text(): a.get_position()[0] for a in ax.texts}
-    assert set(placed) == set(results), "every method must be labelled exactly once"
+    assert set(placed) == set(results), "every method must be labeled exactly once"
 
     for name, (count, _) in results.items():
         label_x = placed[name]

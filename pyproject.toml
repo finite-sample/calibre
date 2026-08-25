@@ -26,9 +26,8 @@ dependencies = [
     "numpy>=1.20.0",
     "scipy>=1.7.0",
     "scikit-learn>=1.6.0",
-    "cvxpy>=1.2.0",
 ]
-version = "0.11.0"
+version = "0.12.0"
 
 [project.optional-dependencies]
 # Drawing only. calibre.plots imports matplotlib lazily, so the core package
@@ -57,6 +56,7 @@ test = [
     "pytest-cov>=4.0",
     "pytest-xdist>=3.0",
     "matplotlib>=3.9",
+    "cvxpy>=1.2.0",
 ]
 docs = [
     "sphinx>=8",
@@ -79,9 +79,6 @@ docs = [
 [tool.pyright]
 include = ["calibre"]
 typeCheckingMode = "standard"
-# cvxpy ships no type information, so its import is unresolvable to pyright even
-# though it is a hard runtime dependency.
-reportMissingImports = "none"
 
 [tool.uv.build-backend]
 module-name = "calibre"
@@ -140,7 +137,7 @@ convention = "google"
 "docs/**" = ["D"]
 # Notebooks print by design, and each cell is linted without the preceding cells in
 # scope, so F821 fires on names that are defined earlier in the notebook.
-# SIM102/SIM108: notebook cells favour explicit stepwise branches for readability,
+# SIM102/SIM108: notebook cells favor explicit stepwise branches for readability,
 # since each branch usually carries the comment explaining what it demonstrates.
 "docs/**/*.ipynb" = ["D", "T201", "F821", "E402", "I001", "B905", "SIM102", "SIM108"]
 # Reference-generation and investigation scripts. They print by design (T201),
@@ -218,7 +215,6 @@ ignore-words-list = "FPR,fpr"
 # Pydoclint configuration
 [tool.pydoclint]
 style = "google"
-skip-checking-raises = true
 arg-type-hints-in-docstring = false
 check-return-types = false
 check-class-attributes = false

@@ -44,10 +44,10 @@ from tests.simulation import (
 # --------------------------------------------------------------------------
 
 
-def test_assert_unbiased_passes_on_a_centred_sample():
+def test_assert_unbiased_passes_on_a_centered_sample():
     """The gate must not fire on an estimator that is doing its job."""
     rng = np.random.default_rng(0)
-    assert_unbiased(rng.normal(2.0, 0.5, 400), 2.0, label="centred")
+    assert_unbiased(rng.normal(2.0, 0.5, 400), 2.0, label="centered")
 
 
 def test_assert_unbiased_fails_on_a_shifted_sample():

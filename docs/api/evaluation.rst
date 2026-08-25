@@ -5,7 +5,7 @@ A binned reliability diagram makes the analyst pick the bins, and the picture
 changes with the choice. The CORP approach of Dimitriadis, Gneiting & Jordan
 (*PNAS* 2021) removes the choice: conditional event probabilities are estimated
 by isotonic regression via PAV, so the algorithm determines the number and
-position of the flat segments and there is nothing left to tune in your favour.
+position of the flat segments and there is nothing left to tune in your favor.
 
 These numbers are pinned against R's ``reliabilitydiag`` on five datasets
 (calibrated, overconfident, squashed, heavily tied, rare-event) to 1e-16 or
@@ -90,7 +90,7 @@ projection and PAV is idempotent:
    print(f"MCB in-sample    {score_decomposition(in_sample, labels)['MCB']:.4f}")
    print(f"MCB out-of-fold  {score_decomposition(out_of_fold, labels)['MCB']:.4f}")
 
-The in-sample number is zero no matter how badly the model generalises. Use
+The in-sample number is zero no matter how badly the model generalizes. Use
 :func:`~calibre.cross_val_calibrate` for any number you intend to believe.
 
 References

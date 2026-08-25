@@ -29,7 +29,7 @@ from .._core import (
     weighted_pava,
 )
 from ..base import BaseCalibrator
-from ..utils import check_arrays
+from ..utils import check_array_1d, check_arrays, check_fitted
 
 __all__ = ["CenteredIsotonicCalibrator"]
 
@@ -55,7 +55,7 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
 
     Notes:
         Standard isotonic regression is the L2 projection onto the monotone cone and
-        is optimal for that objective; CIR is not a minimiser of the same criterion.
+        is optimal for that objective; CIR is not a minimizer of the same criterion.
         The justification is inferential rather than variational: within a flat block
         the data support a single pooled rate, and linear interpolation between
         consecutive pooled estimates is the minimal assumption that neither invents
@@ -139,11 +139,6 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
         Returns:
             ndarray of shape (n_samples,): Calibrated probabilities.
 
-        Raises:
-            AttributeError: If called before :meth:`fit`.
         """
-        if not hasattr(self, "calibration_curve_"):
-            raise AttributeError(
-                f"{type(self).__name__} is not fitted yet. Call fit() first."
-            )
-        return self.calibration_curve_(np.asarray(X, dtype=float).ravel())
+        check_fitted(self, ["calibration_curve_"])
+        return self.calibration_curve_(check_array_1d(X))

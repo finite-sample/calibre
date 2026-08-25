@@ -18,9 +18,7 @@ import pytest
 
 from calibre import (
     NearlyIsotonicCalibrator,
-    RegularizedIsotonicCalibrator,
     RelaxedPAVACalibrator,
-    SmoothedIsotonicCalibrator,
     SplineCalibrator,
 )
 from calibre.metrics import (
@@ -35,10 +33,8 @@ from tests.data_generators import CalibrationDataGenerator
 # asserts the two stay in step, so adding a calibrator to one and not the other
 # fails rather than silently going untested.
 _CALIBRATOR_NAMES = (
-    "nir_strict_cvx",
-    "nir_relaxed_cvx",
-    "nir_strict_path",
-    "nir_relaxed_path",
+    "nir_strict",
+    "nir_relaxed",
     "ispline_small",
     "ispline_medium",
     "ispline_large",
@@ -46,12 +42,9 @@ _CALIBRATOR_NAMES = (
     "rpava_loose_adaptive",
     "rpava_strict_block",
     "rpava_loose_block",
-    "rir_weak",
-    "rir_medium",
-    "rir_strong",
-    "sir_fixed_small",
-    "sir_fixed_medium",
-    "sir_adaptive",
+    "spline_penalty_weak",
+    "spline_penalty_medium",
+    "spline_penalty_strong",
 )
 
 
@@ -66,18 +59,12 @@ class TestMatrix:
         # Define calibrator configurations
         cls.calibrator_configs = {
             # Nearly Isotonic Regression variants
-            "nir_strict_cvx": lambda: NearlyIsotonicCalibrator(lam=10.0, method="cvx"),
-            "nir_relaxed_cvx": lambda: NearlyIsotonicCalibrator(lam=0.1, method="cvx"),
-            "nir_strict_path": lambda: NearlyIsotonicCalibrator(
-                lam=10.0, method="path"
-            ),
-            "nir_relaxed_path": lambda: NearlyIsotonicCalibrator(
-                lam=0.1, method="path"
-            ),
+            "nir_strict": lambda: NearlyIsotonicCalibrator(lam=5.0),
+            "nir_relaxed": lambda: NearlyIsotonicCalibrator(lam=0.05),
             # I-Spline Calibrator variants
-            "ispline_small": lambda: SplineCalibrator(n_knots=5, degree=2, cv=3),
-            "ispline_medium": lambda: SplineCalibrator(n_knots=10, degree=3, cv=3),
-            "ispline_large": lambda: SplineCalibrator(n_knots=20, degree=3, cv=5),
+            "ispline_small": lambda: SplineCalibrator(n_knots=5, degree=2, alpha=0.1),
+            "ispline_medium": lambda: SplineCalibrator(n_knots=10, degree=3, alpha=0.1),
+            "ispline_large": lambda: SplineCalibrator(n_knots=20, degree=3, alpha=0.1),
             # Epsilon-monotone / minimum-slope variants. The old adaptive-vs-block
             # split is gone (there is one exact algorithm now), so these cover the
             # two directions of the signed increment bound instead.
@@ -85,20 +72,10 @@ class TestMatrix:
             "rpava_loose_adaptive": lambda: RelaxedPAVACalibrator(epsilon=0.05),
             "rpava_strict_block": lambda: RelaxedPAVACalibrator(min_slope=0.001),
             "rpava_loose_block": lambda: RelaxedPAVACalibrator(min_slope=0.01),
-            # Regularized Isotonic variants
-            "rir_weak": lambda: RegularizedIsotonicCalibrator(alpha=0.01),
-            "rir_medium": lambda: RegularizedIsotonicCalibrator(alpha=0.1),
-            "rir_strong": lambda: RegularizedIsotonicCalibrator(alpha=1.0),
-            # Smoothed Isotonic variants
-            "sir_fixed_small": lambda: SmoothedIsotonicCalibrator(
-                window_length=5, poly_order=2
-            ),
-            "sir_fixed_medium": lambda: SmoothedIsotonicCalibrator(
-                window_length=11, poly_order=3
-            ),
-            "sir_adaptive": lambda: SmoothedIsotonicCalibrator(
-                window_length=None, adaptive=True, min_window=5
-            ),
+            # Pinned spline penalty variants
+            "spline_penalty_weak": lambda: SplineCalibrator(alpha=0.01, n_knots=10),
+            "spline_penalty_medium": lambda: SplineCalibrator(alpha=0.1, n_knots=10),
+            "spline_penalty_strong": lambda: SplineCalibrator(alpha=1.0, n_knots=10),
         }
 
         # Define data patterns
@@ -227,11 +204,10 @@ class TestMatrix:
             (cal, pat, n, noise)
             for cal, pat, n, noise in product(
                 [
-                    "nir_strict_path",
+                    "nir_strict",
                     "ispline_medium",
                     "rpava_strict_adaptive",
-                    "rir_medium",
-                    "sir_fixed_medium",
+                    "spline_penalty_medium",
                 ],  # Core calibrators
                 [
                     "overconfident_nn",
@@ -272,12 +248,11 @@ class TestMatrix:
     @pytest.mark.parametrize(
         "calibrator_name",
         [
-            "nir_strict_path",
-            "nir_relaxed_path",
+            "nir_strict",
+            "nir_relaxed",
             "ispline_medium",
             "rpava_strict_adaptive",
-            "rir_medium",
-            "sir_fixed_medium",
+            "spline_penalty_medium",
         ],
     )
     def test_bounds_across_patterns(self, calibrator_name):
@@ -303,11 +278,10 @@ class TestMatrix:
     def test_calibration_improvement_across_calibrators(self, pattern):
         """Test that most calibrators improve calibration on common patterns."""
         calibrators = [
-            "nir_strict_path",
+            "nir_strict",
             "ispline_medium",
             "rpava_strict_adaptive",
-            "rir_medium",
-            "sir_fixed_medium",
+            "spline_penalty_medium",
         ]
 
         improvements = 0
@@ -331,7 +305,11 @@ class TestMatrix:
     @pytest.mark.slow
     def test_monotonicity_strict_calibrators(self):
         """Test that strict monotonicity calibrators maintain monotonicity."""
-        strict_calibrators = ["rir_weak", "rir_medium", "rir_strong"]
+        strict_calibrators = [
+            "spline_penalty_weak",
+            "spline_penalty_medium",
+            "spline_penalty_strong",
+        ]
 
         for calibrator_name in strict_calibrators:
             for pattern in [
@@ -367,7 +345,7 @@ class TestMatrix:
         is the total violation *magnitude* that is controlled, not the violation
         count: the penalty is ``sum max(0, b_i - b_{i+1})``, so a larger ``lam``
         can shrink the total while spreading it over more, smaller, violations.
-        For any penalised problem ``min f(b) + lam * P(b)``, the penalty at the
+        For any penalized problem ``min f(b) + lam * P(b)``, the penalty at the
         optimum is non-increasing in ``lam``; that is the provable statement, and
         it must be measured on the fitted grid rather than on a resampled linspace
         (interpolating between knots creates sign changes of its own).
@@ -383,7 +361,7 @@ class TestMatrix:
 
             totals = []
             for lam in (0.1, 1.0, 10.0, 100.0):
-                cal = NearlyIsotonicCalibrator(lam=lam, method="path")
+                cal = NearlyIsotonicCalibrator(lam=lam)
                 fitted = cal.fit(y_pred, y_true).transform(grid)
                 totals.append(float(np.sum(np.maximum(0.0, -np.diff(fitted)))))
 
@@ -398,7 +376,7 @@ class TestMatrix:
     @pytest.mark.parametrize("n_samples", [100, 300, 1000])
     def test_scalability(self, n_samples):
         """Test that calibrators work across different sample sizes."""
-        calibrators = ["nir_strict_path", "ispline_medium", "rpava_strict_adaptive"]
+        calibrators = ["nir_strict", "ispline_medium", "rpava_strict_adaptive"]
         pattern = "overconfident_nn"
 
         for calibrator_name in calibrators:
@@ -418,7 +396,7 @@ class TestMatrix:
     @pytest.mark.parametrize("noise_level", [0.05, 0.1, 0.2])
     def test_noise_robustness(self, noise_level):
         """Test robustness to different noise levels."""
-        calibrators = ["nir_strict_path", "ispline_medium", "rir_medium"]
+        calibrators = ["nir_strict", "ispline_medium", "spline_penalty_medium"]
         pattern = "sigmoid_distorted"
 
         for calibrator_name in calibrators:
@@ -436,10 +414,9 @@ class TestMatrix:
     def test_granularity_preservation(self):
         """Test that calibrators preserve reasonable granularity."""
         calibrators = [
-            "nir_relaxed_path",
+            "nir_relaxed",
             "ispline_medium",
             "rpava_loose_adaptive",
-            "sir_adaptive",
         ]
         patterns = ["multi_modal", "weather_forecasting", "click_through_rate"]
 
@@ -469,7 +446,7 @@ class TestMatrix:
             ("click_through_rate", 600, 0.05),  # Power-law distribution
         ]
 
-        calibrators = ["nir_strict_path", "ispline_medium", "rir_medium"]
+        calibrators = ["nir_strict", "ispline_medium", "spline_penalty_medium"]
 
         for pattern, n_samples, noise_level in extreme_tests:
             for calibrator_name in calibrators:
@@ -501,7 +478,7 @@ class TestMatrix:
 
         results = []
         for lam in lambdas:
-            calibrator = NearlyIsotonicCalibrator(lam=lam, method="path")
+            calibrator = NearlyIsotonicCalibrator(lam=lam)
             try:
                 y_pred, y_true = self.data_generator.generate_dataset(
                     pattern, n_samples=300
@@ -590,11 +567,10 @@ class TestMatrixAnalysis:
         # This would typically be run after the comprehensive matrix
         # For now, we'll run a smaller subset
         calibrators = [
-            "nir_strict_path",
+            "nir_strict",
             "ispline_medium",
             "rpava_strict_adaptive",
-            "rir_medium",
-            "sir_fixed_medium",
+            "spline_penalty_medium",
         ]
         patterns = ["overconfident_nn", "underconfident_rf", "sigmoid_distorted"]
 
@@ -607,18 +583,14 @@ class TestMatrixAnalysis:
             for pattern in patterns:
                 try:
                     # Create calibrator
-                    if cal_name == "nir_strict_path":
-                        calibrator = NearlyIsotonicCalibrator(lam=10.0, method="path")
+                    if cal_name == "nir_strict":
+                        calibrator = NearlyIsotonicCalibrator(lam=5.0)
                     elif cal_name == "ispline_medium":
                         calibrator = SplineCalibrator(n_knots=10, degree=3, cv=3)
                     elif cal_name == "rpava_strict_adaptive":
                         calibrator = RelaxedPAVACalibrator(epsilon=0.01)
-                    elif cal_name == "rir_medium":
-                        calibrator = RegularizedIsotonicCalibrator(alpha=0.1)
-                    elif cal_name == "sir_fixed_medium":
-                        calibrator = SmoothedIsotonicCalibrator(
-                            window_length=11, poly_order=3
-                        )
+                    elif cal_name == "spline_penalty_medium":
+                        calibrator = SplineCalibrator(alpha=0.1)
 
                     # Generate data and test
                     y_pred, y_true = data_gen.generate_dataset(pattern, n_samples=300)

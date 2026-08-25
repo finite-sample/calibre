@@ -18,7 +18,7 @@ Two things live here:
 
 Selection scores on a strictly proper scoring rule -- log-loss by default, Brier
 available. Not on expected calibration error: ECE is a biased estimator whose
-value depends on the binning, so selecting on it optimises binning artifacts.
+value depends on the binning, so selecting on it optimizes binning artifacts.
 Use :mod:`calibre.evaluation` to understand a fitted model.
 """
 
@@ -77,6 +77,24 @@ def _brier(y: np.ndarray, p: np.ndarray) -> np.ndarray:
 _SCORINGS = {"log_loss": _log_loss, "brier": _brier}
 
 
+def _sample_weight_or_ones(
+    y: np.ndarray, sample_weight: np.ndarray | None
+) -> np.ndarray:
+    """Validate observation weights and return an explicit array."""
+    if sample_weight is None:
+        return np.ones_like(y)
+    w = np.asarray(sample_weight, dtype=float)
+    if w.ndim != 1:
+        raise ValueError("sample_weight must be 1-dimensional")
+    if w.shape != y.shape:
+        raise ValueError("sample_weight must have the same shape as y")
+    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
+        raise ValueError("sample_weight must contain finite non-negative values")
+    if np.sum(w) <= 0.0:
+        raise ValueError("sample_weight must contain at least one positive weight")
+    return w
+
+
 def _resolve_scoring(scoring: str) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
     """Look up a selection criterion by name.
 
@@ -132,6 +150,7 @@ def make_folds(
         >>> len(make_folds(x, y, cv=4))
         4
     """
+    X, y = check_arrays(X, y)
     if cv < 2:
         raise ValueError(f"cv must be at least 2, got {cv}")
 
@@ -141,6 +160,12 @@ def make_folds(
     n_splits = cv
     if is_binary:
         counts = np.bincount(y.astype(int), minlength=2)
+        present = counts[counts > 0]
+        if present.size == 2 and present.min() < 2:
+            raise ValueError(
+                "binary cross-validation requires at least two observations "
+                "from each class"
+            )
         n_splits = min(n_splits, int(counts[counts > 0].min()))
     n_splits = int(max(2, min(n_splits, y.size)))
 
@@ -237,17 +262,7 @@ def select_by_cv(
         raise ValueError("param_grid must contain at least one candidate")
     candidates = _grid_points(param_grid)
 
-    w = (
-        np.ones_like(y)
-        if sample_weight is None
-        else np.asarray(sample_weight, dtype=float).ravel()
-    )
-    if w.shape != y.shape:
-        raise ValueError("sample_weight must have the same shape as y")
-    if not np.all(np.isfinite(w)) or np.any(w < 0.0):
-        raise ValueError("sample_weight must contain finite non-negative values")
-    if np.sum(w) <= 0.0:
-        raise ValueError("sample_weight must contain at least one positive weight")
+    w = _sample_weight_or_ones(y, sample_weight)
 
     positive = w > 0.0
     X, y, w = X[positive], y[positive], w[positive]
@@ -289,7 +304,12 @@ def select_by_cv(
                         sample_weight=w[train_idx],
                     )
                 pred = model.transform(X[val_idx])
-            except (ValueError, ArithmeticError, np.linalg.LinAlgError) as exc:
+            except (
+                ValueError,
+                RuntimeError,
+                ArithmeticError,
+                np.linalg.LinAlgError,
+            ) as exc:
                 logger.debug("fold failed at %s: %s", params, exc)
                 failed = True
                 break
@@ -313,6 +333,7 @@ def cross_val_calibrate(
     calibrator: Any,
     X: np.ndarray,
     y: np.ndarray,
+    sample_weight: np.ndarray | None = None,
     cv: int = 5,
     random_state: int | None = 0,
 ) -> np.ndarray:
@@ -328,6 +349,9 @@ def cross_val_calibrate(
             passed in is left untouched.
         X: Uncalibrated scores.
         y: Targets.
+        sample_weight: Non-negative per-observation weights used to fit each
+            training fold. Validation rows retain their original positions,
+            including rows with zero weight.
         cv: Number of folds.
         random_state: Seed for the folds.
 
@@ -358,6 +382,7 @@ def cross_val_calibrate(
     from sklearn.base import clone
 
     X, y = check_arrays(X, y)
+    w = _sample_weight_or_ones(y, sample_weight)
     folds = make_folds(X, y, cv=cv, random_state=random_state)
 
     out = np.full(y.shape, np.nan, dtype=float)
@@ -365,7 +390,10 @@ def cross_val_calibrate(
         # Annotated because sklearn's clone() is overloaded for containers, so a
         # calibrator typed as Any resolves to a union without a fit method.
         model: Any = clone(calibrator)
-        model.fit(X[train_idx], y[train_idx])
+        if sample_weight is None:
+            model.fit(X[train_idx], y[train_idx])
+        else:
+            model.fit(X[train_idx], y[train_idx], sample_weight=w[train_idx])
         out[val_idx] = model.transform(X[val_idx])
 
     if np.isnan(out).any():  # pragma: no cover - folds partition the data
@@ -441,6 +469,10 @@ def resolve_auto(
         )
         return float(best[name])
 
-    if value < minimum:
-        raise ValueError(f"{name} must be {limit}, got {value}")
-    return float(value)
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f'{name} must be {limit} or "auto", got {value!r}') from exc
+    if not np.isfinite(numeric) or numeric < minimum:
+        raise ValueError(f"{name} must be finite and {limit}, got {value}")
+    return numeric
