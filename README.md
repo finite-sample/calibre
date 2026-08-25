@@ -125,9 +125,10 @@ miscalibration has that shape, use them. calibre is for when you don't.
 resolution is not miscalibration. That is a reason to look at more than one number,
 which is what `calibration_report` below is for.
 
-The cost is fit time: isotonic fits in 1.0 ms, `RelaxedPAVACalibrator` in 85 ms,
-and `SplineCalibrator` in 1.05 s. The latter two cross-validate their own
-hyperparameters.
+The cost is computation: isotonic fits one model, while
+`RelaxedPAVACalibrator` and `SplineCalibrator` cross-validate multiple candidates.
+Their exact runtime depends on the calibration-set size, fold count and hardware;
+the benchmark records timings for its own runs.
 
 `nonmonotone` is in the grid because monotone methods should lose there. They
 don't: `SplineCalibrator` scores 0.2156 against Platt's 0.2224,

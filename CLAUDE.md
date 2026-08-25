@@ -81,6 +81,9 @@ uv lock --upgrade
 # Build package
 uv build
 
+# Run the release checks in a standard Python 3.12 Linux container
+make ci-docker
+
 # Install in development mode (after uv sync)
 uv sync --all-groups
 ```
