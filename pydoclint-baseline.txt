@@ -1,8 +1,0 @@
-calibre/calibrators/nearly_isotonic.py
-    DOC503: Method `NearlyIsotonicCalibrator._fit_impl` exceptions in the "Raises" section in the docstring do not match those in the function body. Raised exceptions in the docstring: ['NotImplementedError', 'ValueError']. Raised exceptions in the body: ['ValueError'].
-    DOC502: Method `NearlyIsotonicCalibrator._resolve_lam` has a "Raises" section in the docstring, but there are not "raise" statements in the body
---------------------
-calibre/evaluation.py
-    DOC502: Function `consistency_bands` has a "Raises" section in the docstring, but there are not "raise" statements in the body
-    DOC502: Function `confidence_bands` has a "Raises" section in the docstring, but there are not "raise" statements in the body
---------------------

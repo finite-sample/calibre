@@ -1,7 +1,7 @@
 """Monotone spline calibration.
 
 A smooth, strictly monotone calibration map is the shape post-hoc calibration
-benchmarks consistently favour: it corrects miscalibration without collapsing the
+benchmarks consistently favor: it corrects miscalibration without collapsing the
 base model's score ordering into a staircase the way isotonic regression does.
 
 Monotonicity here is structural rather than enforced afterwards. The design matrix
@@ -13,6 +13,7 @@ curve cannot violate monotonicity at all.
 from __future__ import annotations
 
 import logging
+from numbers import Integral
 
 import numpy as np
 
@@ -26,41 +27,11 @@ from .._core import (
     monotone_spline_basis,
 )
 from ..base import BaseCalibrator
-from ..utils import check_arrays
+from ..utils import check_array_1d, check_arrays, check_fitted
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["SplineCalibrator"]
-
-
-def _log_loss(y: np.ndarray, p: np.ndarray, eps: float = 1e-12) -> np.ndarray:
-    """Per-observation Bernoulli log-loss, safe at the boundaries.
-
-    Args:
-        y: Targets in ``[0, 1]``.
-        p: Predicted probabilities.
-        eps: Clipping bound, so a confident-and-wrong prediction contributes a
-            large finite penalty rather than an infinite one that would leave
-            every candidate incomparable.
-
-    Returns:
-        ndarray: Elementwise loss.
-    """
-    p = np.clip(p, eps, 1.0 - eps)
-    return np.asarray(-(y * np.log(p) + (1.0 - y) * np.log1p(-p)), dtype=float)
-
-
-def _squared_error(y: np.ndarray, p: np.ndarray) -> np.ndarray:
-    """Return pointwise squared error for an identity-link fit.
-
-    Args:
-        y: Targets.
-        p: Predictions.
-
-    Returns:
-        ndarray: Elementwise squared error.
-    """
-    return np.asarray((y - p) ** 2, dtype=float)
 
 
 class SplineCalibrator(BaseCalibrator):
@@ -78,23 +49,26 @@ class SplineCalibrator(BaseCalibrator):
     increasing, so the calibrated probability is too.
 
     Args:
-        n_knots: Number of knots. The basis has ``n_knots + degree - 1``
-            functions. Used only when ``alpha`` is given; otherwise
-            cross-validation selects it.
-        degree: B-spline degree. 3 gives the usual cubic behaviour.
+        n_knots: Number of knots, or ``"auto"`` to select it by cross-validation.
+            The basis has ``n_knots + degree - 1`` functions.
+        degree: B-spline degree. 3 gives the usual cubic behavior.
         knots: ``"quantile"`` (default) places knots at score quantiles;
             ``"uniform"`` spaces them evenly. Quantile is normally right for
             calibration, where scores pile up wherever the base model is
             confident and uniform knots spend resolution on empty regions.
-        alpha: Roughness penalty on the coefficient increments. ``None``
-            (default) selects it, along with ``n_knots``, by cross-validation.
-            A number fixes it and skips cross-validation.
-        link: ``"logit"`` (default) fits a penalised Bernoulli likelihood:
+        alpha: Roughness penalty on the coefficient increments, or ``"auto"``
+            to select it by cross-validation. A number pins it exactly. The loss
+            is weight-normalized, so alpha does not change meaning with sample
+            size or a constant rescaling of observation weights.
+        link: ``"logit"`` (default) fits a penalized Bernoulli likelihood:
             log-loss is the proper score for binary labels, and predictions
-            land in ``(0, 1)`` with no clipping. ``"identity"`` fits penalised
+            land in ``(0, 1)`` with no clipping. ``"identity"`` fits penalized
             least squares on the probability scale -- a single bounded linear
             solve.
         cv: Number of cross-validation folds. Stratified when ``y`` is binary.
+        scoring: Proper scoring rule minimized during automatic selection.
+            ``"auto"`` uses log loss for the logit link and squared error for
+            the identity link.
         max_cv_samples: Cap on the number of observations used for
             *hyperparameter selection*. The final model is always refit on the
             full sample; this only bounds the cost of the search, which would
@@ -128,9 +102,10 @@ class SplineCalibrator(BaseCalibrator):
         non-negative coefficient already traces a curve that rises and then falls.
         Monotonicity requires non-negativity on the coefficient *differences*, which is
         exactly what the I-spline (cumulative) basis encodes; see
-        :class:`calibre._core.MonotoneSplineBasis`. This is the construction behind the
-        SCOP-splines of Pya & Wood (2015) in R's ``scam`` and the penalised B-splines
-        of Eilers & Marx (1996).
+        :class:`calibre._core.MonotoneSplineBasis`. The basis follows Ramsay (1988),
+        while the coefficient-difference penalty follows Eilers & Marx's (1996)
+        P-splines. Pya & Wood's (2015) SCOP-splines in R's ``scam`` are a related
+        reference model, not the same fitting algorithm.
 
         **Cross-validation selects a hyperparameter and then refits on all the data.**
         It is not a search for whichever fold's model scored best on its own validation
@@ -155,17 +130,21 @@ class SplineCalibrator(BaseCalibrator):
 
     See Also:
         CenteredIsotonicCalibrator : Non-parametric interpolation, without tuning.
-        RegularizedIsotonicCalibrator : Same basis, penalty specified rather than tuned.
+        IsotonicCalibrator : Piecewise-constant non-parametric calibration.
     """
+
+    ALPHA_GRID = (0.0, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0)
+    N_KNOTS_GRID = (5, 10, 20)
 
     def __init__(
         self,
-        n_knots: int = 10,
+        n_knots: int | str = "auto",
         degree: int = 3,
         knots: str = "quantile",
-        alpha: float | None = None,
+        alpha: float | str = "auto",
         link: str = "logit",
         cv: int = 5,
+        scoring: str = "auto",
         max_cv_samples: int | None = 20_000,
         random_state: int | None = 0,
         clip_output: bool = True,
@@ -180,6 +159,7 @@ class SplineCalibrator(BaseCalibrator):
         self.alpha = alpha
         self.link = link
         self.cv = cv
+        self.scoring = scoring
         self.max_cv_samples = max_cv_samples
         self.random_state = random_state
         self.clip_output = clip_output
@@ -196,22 +176,61 @@ class SplineCalibrator(BaseCalibrator):
             coerced value would persist and make ``clone`` return a differently
             configured estimator than the one it copied.
         """
-        if self.n_knots < 3:
-            raise ValueError(f"n_knots must be at least 3, got {self.n_knots}")
-        if self.degree < 1:
-            raise ValueError(f"degree must be at least 1, got {self.degree}")
+        if isinstance(self.n_knots, str):
+            if self.n_knots != "auto":
+                raise ValueError(
+                    f'n_knots must be an integer >= 3 or "auto", got {self.n_knots!r}'
+                )
+        elif (
+            isinstance(self.n_knots, bool)
+            or not isinstance(self.n_knots, Integral)
+            or self.n_knots < 3
+        ):
+            raise ValueError(
+                f'n_knots must be an integer >= 3 or "auto", got {self.n_knots!r}'
+            )
+        if (
+            isinstance(self.degree, bool)
+            or not isinstance(self.degree, Integral)
+            or self.degree < 1
+        ):
+            raise ValueError(f"degree must be an integer >= 1, got {self.degree!r}")
         if self.knots not in VALID_KNOTS:
             raise ValueError(f"knots must be one of {VALID_KNOTS}, got {self.knots!r}")
         if self.link not in VALID_LINKS:
             raise ValueError(f"link must be one of {VALID_LINKS}, got {self.link!r}")
-        if self.alpha is not None and self.alpha < 0:
-            raise ValueError(f"alpha must be non-negative, got {self.alpha}")
-        if self.cv < 2:
-            raise ValueError(f"cv must be at least 2, got {self.cv}")
-        if self.max_cv_samples is not None and self.max_cv_samples < 2 * self.cv:
+        if isinstance(self.alpha, str):
+            if self.alpha != "auto":
+                raise ValueError(
+                    "alpha must be finite and non-negative or "
+                    f'"auto", got {self.alpha!r}'
+                )
+        else:
+            try:
+                alpha = float(self.alpha)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "alpha must be finite and non-negative or "
+                    f'"auto", got {self.alpha!r}'
+                ) from exc
+            if not np.isfinite(alpha) or alpha < 0:
+                raise ValueError(
+                    f"alpha must be finite and non-negative, got {self.alpha}"
+                )
+        if (
+            isinstance(self.cv, bool)
+            or not isinstance(self.cv, Integral)
+            or self.cv < 2
+        ):
+            raise ValueError(f"cv must be an integer >= 2, got {self.cv!r}")
+        if self.max_cv_samples is not None and (
+            isinstance(self.max_cv_samples, bool)
+            or not isinstance(self.max_cv_samples, Integral)
+            or self.max_cv_samples < 2 * self.cv
+        ):
             raise ValueError(
-                f"max_cv_samples must be at least 2*cv={2 * self.cv}, "
-                f"got {self.max_cv_samples}"
+                f"max_cv_samples must be an integer >= 2*cv={2 * self.cv} "
+                f"or None, got {self.max_cv_samples!r}"
             )
 
     def _fit_impl(
@@ -254,10 +273,10 @@ class SplineCalibrator(BaseCalibrator):
                 'Bernoulli likelihood); use link="identity" for unbounded targets'
             )
 
-        if self.alpha is None:
-            n_knots, alpha = self._select_hyperparameters(X_fit, y_fit, w_fit)
+        if self.alpha == "auto" or self.n_knots == "auto":
+            n_knots, alpha = self._select_hyperparameters(X_fit, y_fit, fit_weight)
         else:
-            n_knots, alpha = self.n_knots, float(self.alpha)
+            n_knots, alpha = int(self.n_knots), float(self.alpha)
 
         basis = monotone_spline_basis(
             n_knots=n_knots, degree=self.degree, knots=self.knots
@@ -278,110 +297,60 @@ class SplineCalibrator(BaseCalibrator):
         self.n_features_in_ = 1
 
     def _select_hyperparameters(
-        self, X: np.ndarray, y: np.ndarray, w: np.ndarray
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None,
     ) -> tuple[int, float]:
         """Choose ``(n_knots, alpha)`` by cross-validated prediction loss.
 
         Args:
             X: Uncalibrated scores.
             y: Targets.
-            w: Sample weights.
+            sample_weight: Optional sample weights.
 
         Returns:
             n_knots: Selected knot count.
             alpha: Selected roughness penalty.
 
-        Raises:
-            ValueError: If every candidate fails to fit.
         """
-        from sklearn.model_selection import KFold, StratifiedKFold
-
-        loss = _log_loss if self.link == "logit" else _squared_error
-
-        # Selection only needs to rank candidates, so bound its cost. The winning
-        # configuration is refit on the full sample by the caller.
-        if self.max_cv_samples is not None and y.size > self.max_cv_samples:
-            rng = np.random.default_rng(self.random_state)
-            keep = rng.choice(y.size, size=self.max_cv_samples, replace=False)
-            X, y, w = X[keep], y[keep], w[keep]
+        from ..selection import select_by_cv
 
         # A quantile-knot basis needs enough distinct scores to place its knots.
         n_unique = int(np.unique(X).size)
-        knot_grid = [k for k in (5, 10, 20) if k <= max(3, n_unique - 1)] or [3]
-        alpha_grid = [0.0, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0]
-
-        is_binary = bool(np.all((y == 0.0) | (y == 1.0)))
-        n_splits = self.cv
-        if is_binary:
-            counts = np.bincount(y.astype(int), minlength=2)
-            n_splits = min(n_splits, int(counts[counts > 0].min()))
-        n_splits = int(max(2, min(n_splits, y.size)))
-
-        if is_binary:
-            splitter = StratifiedKFold(
-                n_splits=n_splits, shuffle=True, random_state=self.random_state
-            )
-            splits = list(splitter.split(X.reshape(-1, 1), y))
+        if self.n_knots == "auto":
+            knot_grid = [k for k in self.N_KNOTS_GRID if k <= max(3, n_unique - 1)] or [
+                3
+            ]
         else:
-            splits = list(
-                KFold(
-                    n_splits=n_splits, shuffle=True, random_state=self.random_state
-                ).split(X.reshape(-1, 1))
-            )
-
-        best_score, best_knots, best_alpha = np.inf, knot_grid[0], alpha_grid[0]
-        for n_knots in knot_grid:
-            for alpha in alpha_grid:
-                total = 0.0
-                weight_total = 0.0
-                failed = False
-                for train_idx, val_idx in splits:
-                    try:
-                        basis = monotone_spline_basis(
-                            n_knots=n_knots, degree=self.degree, knots=self.knots
-                        ).fit(
-                            X[train_idx],
-                            sample_weight=(
-                                None if np.all(w[train_idx] == 1.0) else w[train_idx]
-                            ),
-                        )
-                        intercept, coef = fit_monotone_spline(
-                            basis.design(X[train_idx]),
-                            y[train_idx],
-                            sample_weight=w[train_idx],
-                            alpha=alpha,
-                            link=self.link,
-                        )
-                        pred = self._predict_from(
-                            basis,
-                            intercept,
-                            coef,
-                            X[val_idx],
-                            clip=self.clip_output,
-                        )
-                    except (ValueError, np.linalg.LinAlgError) as exc:
-                        logger.debug(
-                            "fold failed at n_knots=%s alpha=%s: %s",
-                            n_knots,
-                            alpha,
-                            exc,
-                        )
-                        failed = True
-                        break
-                    total += float(np.sum(w[val_idx] * loss(y[val_idx], pred)))
-                    weight_total += float(np.sum(w[val_idx]))
-
-                if failed or weight_total <= 0:
-                    continue
-                score = total / weight_total
-                if score < best_score:
-                    best_score, best_knots, best_alpha = score, n_knots, alpha
-
-        if not np.isfinite(best_score):
-            raise ValueError(
-                "every spline candidate failed to fit; provide more data or pin alpha"
-            )
-        return best_knots, best_alpha
+            knot_grid = [int(self.n_knots)]
+        alpha_grid = (
+            list(self.ALPHA_GRID) if self.alpha == "auto" else [float(self.alpha)]
+        )
+        scoring = (
+            ("log_loss" if self.link == "logit" else "brier")
+            if self.scoring == "auto"
+            else self.scoring
+        )
+        best = select_by_cv(
+            lambda **params: type(self)(
+                degree=self.degree,
+                knots=self.knots,
+                link=self.link,
+                scoring=self.scoring,
+                clip_output=self.clip_output,
+                **params,
+            ),
+            {"n_knots": knot_grid, "alpha": alpha_grid},
+            X,
+            y,
+            sample_weight=sample_weight,
+            cv=self.cv,
+            scoring=scoring,
+            max_cv_samples=self.max_cv_samples,
+            random_state=self.random_state,
+        )
+        return int(best["n_knots"]), float(best["alpha"])
 
     def _predict_from(
         self,
@@ -418,18 +387,13 @@ class SplineCalibrator(BaseCalibrator):
         Returns:
             ndarray of shape (n_samples,): Calibrated probabilities.
 
-        Raises:
-            AttributeError: If called before :meth:`fit`.
         """
-        if not hasattr(self, "basis_"):
-            raise AttributeError(
-                f"{type(self).__name__} is not fitted yet. Call fit() first."
-            )
+        check_fitted(self, ["basis_", "intercept_", "coef_"])
         return self._predict_from(
             self.basis_,
             self.intercept_,
             self.coef_,
-            np.asarray(X, dtype=float).ravel(),
+            check_array_1d(X),
             clip=self.clip_output,
         )
 

@@ -8,7 +8,7 @@ the same commit without saying why in the message.
 
 from __future__ import annotations
 
-# Seeds are fixed and committed. `aggregate.py` refuses to summarise a cell that
+# Seeds are fixed and committed. `aggregate.py` refuses to summarize a cell that
 # is missing any of them, so a dataset that errors cannot be quietly dropped.
 SEEDS: tuple[int, ...] = tuple(range(30))
 

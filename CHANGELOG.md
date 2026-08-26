@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-08-25
+
+### Fixed
+
+- Nearly-isotonic regression now uses the penalty scale defined in the source paper
+  and matches the authors' R implementation, including weighted fits.
+- Nearly-isotonic automatic selection scales each fold's candidate by its share of
+  total observation weight, preserving the final fit's effective penalty.
+- Penalized I-spline loss is normalized by total observation weight, and failed
+  numerical optimizers now raise instead of returning an invalid fitted model.
+- Calibration fitting and transformation reject multidimensional and non-finite
+  inputs consistently. A failed refit no longer leaves the previous curve fitted.
+- Cross-validation rejects unsupported folds, ignores failed solver candidates, and
+  forwards observation weights when producing out-of-fold predictions.
+
+### Changed
+
+- `SplineCalibrator` is the single penalized I-spline API. `alpha` and `n_knots`
+  can each be fixed or selected by proper-score cross-validation.
+- The public surface contains only maintained calibrators and one canonical key for
+  each reported metric.
+- Runtime calibration no longer depends on CVXPY. The independent CVXPY programs
+  remain in the test suite as numerical oracles.
+- Package documentation now uses the tested README as its landing page, and the
+  committed benchmark was regenerated across 2,700 held-out method evaluations.
+
 ## [0.11.0] - 2026-08-24
 
 ### Fixed
@@ -219,7 +245,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      word "pointwise" previously appeared only in a private helper's docstring.
   3. **`confidence_bands` under-cover the truth on small samples**: 78.2%, 86.9%,
      90.5% coverage of the *true* conditional event probability curve at n of 300,
-     1200, 4800, nominal 90%. They are centred on an isotonic fit, which is biased at
+     1200, 4800, nominal 90%. They are centered on an isotonic fit, which is biased at
      finite n; the shortfall vanishes as that bias does. Treat a 90% band on a few
      hundred observations as closer to an 80% one.
 
@@ -242,7 +268,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   than typed.
 
   Guards rather than promises: `calibre_isotonic` must reproduce
-  `sklearn_isotonic` to 1e-12 on every row, `aggregate.py` refuses to summarise a
+  `sklearn_isotonic` to 1e-12 on every row, `aggregate.py` refuses to summarize a
   cell missing any of its seeds, paired differences carry bootstrap intervals that
   are reported spanning zero when they do, and there is no composite score.
   Regimes where calibre loses are included at full weight and named: temperature
@@ -252,7 +278,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **`RelaxedPAVACalibrator` now defaults to `min_slope="auto"`**, which resolves to
-  `0.01 / n_unique`. PAVA's plateaus are an artefact of pooling adjacent violators,
+  `0.01 / n_unique`. PAVA's plateaus are an artifact of pooling adjacent violators,
   not a finding about the data, and at the old `min_slope=0.0` this estimator kept
   only 1-4% of the input's distinct values. Measured on logit-inflated designs at n
   from 300 to 3000, the new default retains 80-95% for a Brier cost in the fifth
@@ -437,13 +463,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `cross_val_calibrate(calibrator, X, y)` — out-of-fold calibrated probabilities.
     **This is a precondition for honest evaluation, not a refinement of it:** for any
     isotonic-family calibrator, in-sample `MCB` is *exactly* zero regardless of how the
-    model generalises, because the calibrator and the CORP diagnostic are the same PAV
+    model generalizes, because the calibrator and the CORP diagnostic are the same PAV
     projection and PAV is idempotent. Measured on 1500 points, in-sample MCB is 0.0
     while the out-of-fold estimate is 0.0028.
   - `select_by_cv`, `make_folds`, `resolve_auto` — the shared primitives.
   - Selection scores on a strictly proper scoring rule (log-loss by default, Brier
     available). ECE is deliberately rejected as a criterion: it is biased and depends on
-    its binning, so selecting on it optimises binning artifacts.
+    its binning, so selecting on it optimizes binning artifacts.
 
 ### Changed
 
@@ -461,7 +487,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bias-variance tradeoff, and tuning them away would defeat the estimator.
 - `RegularizedIsotonicCalibrator` fits now depend on row order, as `SplineCalibrator`
   already did, because `KFold` assigns folds by position. That is cross-validation
-  behaviour, and the monotonicity guarantees are unaffected.
+  behavior, and the monotonicity guarantees are unaffected.
 
 ## [0.7.1] - 2026-07-30
 
@@ -519,7 +545,7 @@ were accepted and ignored, and a test suite that converted its own failures into
 - `SmoothedIsotonicCalibrator` is now documented as *not* preserving granularity: the
   running maximum that restores monotonicity re-flattens the curve wherever the filter
   dipped, retaining roughly 13–16% of distinct input values. This is long-standing
-  behaviour, identical in 0.7.0; it was simply never measured.
+  behavior, identical in 0.7.0; it was simply never measured.
 - Docs no longer advertise diagnostics that do not exist. `CLAUDE.md` and the
   diagnostics notebook claimed bootstrap tie stability, conditional AUC among tied
   pairs, and minimum detectable difference; none were ever implemented.
@@ -561,7 +587,7 @@ optimum, and the test suite asserts the guarantees rather than restating them.
   constrains" and the relaxation was a no-op for the package's main use case. `epsilon`
   is now an absolute tolerance, and `min_slope` runs the other way to forbid plateaus.
 - **`RegularizedIsotonicCalibrator` is a monotone spline with a curvature penalty, not
-  ridge-penalised isotonic regression.** `alpha * sum(beta^2)` buys no smoothness:
+  ridge-penalized isotonic regression.** `alpha * sum(beta^2)` buys no smoothness:
   unconstrained it is `beta = y/(1+alpha)`, a uniform deflation that breaks mean
   calibration and drives every prediction to zero as `alpha` grows. `alpha=0` no
   longer reduces to isotonic regression — use `IsotonicCalibrator` for that.

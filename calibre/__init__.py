@@ -22,15 +22,13 @@ from . import metrics
 # Import base classes
 from .base import BaseCalibrator, MonotonicMixin
 
-# Import all calibrators (including cvxpy-dependent ones)
+# Import calibrators
 from .calibrators import (
     CDIIsotonicCalibrator,
     CenteredIsotonicCalibrator,
     IsotonicCalibrator,
     NearlyIsotonicCalibrator,
-    RegularizedIsotonicCalibrator,
     RelaxedPAVACalibrator,
-    SmoothedIsotonicCalibrator,
     SplineCalibrator,
 )
 
@@ -91,9 +89,7 @@ __all__ = [
     "IsotonicCalibrator",
     "MonotonicMixin",
     "NearlyIsotonicCalibrator",
-    "RegularizedIsotonicCalibrator",
     "RelaxedPAVACalibrator",
-    "SmoothedIsotonicCalibrator",
     "SplineCalibrator",
     "TemperatureScaler",
     # Metrics functions

@@ -30,7 +30,7 @@ def _draw_bands(
     Args:
         ax: Axes to draw on.
         bands: A mapping with ``x``, ``lower`` and ``upper``, or a sequence of
-            them. Later bands are drawn with the same colour at lower opacity,
+            them. Later bands are drawn with the same color at lower opacity,
             so nested levels read as nested.
 
     Raises:
@@ -165,7 +165,7 @@ def plot_reliability_diagram(
             or ``"step"`` to show the PAV blocks as the step function they
             are.
         diagonal: Whether to draw the line of perfect calibration.
-        color: Colour of the curve. Defaults to calibre's semantic blue.
+        color: Color of the curve. Defaults to calibre's semantic blue.
         label: Legend label. Omit for no legend entry.
 
     Returns:

@@ -14,7 +14,31 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from benchmarks import aggregate, config, datasets, measures, methods, models, protocol
+from benchmarks import (
+    aggregate,
+    config,
+    datasets,
+    measures,
+    methods,
+    models,
+    protocol,
+    run,
+)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [("", "abc1234"), (" M README.md\n", "abc1234-dirty")],
+)
+def test_benchmark_git_sha_records_dirty_state(monkeypatch, status, expected):
+    """Committed results must say when uncommitted code produced them."""
+    outputs = iter(["abc1234\n", status])
+
+    def fake_run(*args, **kwargs):
+        return type("Result", (), {"stdout": next(outputs)})()
+
+    monkeypatch.setattr(run.subprocess, "run", fake_run)
+    assert run._git_sha() == expected
 
 
 def test_the_quick_configuration_is_offline():

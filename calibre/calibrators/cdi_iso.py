@@ -37,9 +37,11 @@ p_test = cal.transform(scores_test)
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
+
+from ..utils import check_array_1d, check_arrays, check_fitted
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -251,6 +253,32 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
     ) -> CDIIsotonicCalibrator:
+        """Fit CDI-ISO on a one-dimensional score and target pair."""
+        self._reset_fit_state()
+        try:
+            return self._fit_impl(scores, y, sample_weight)
+        except Exception:
+            self._reset_fit_state()
+            raise
+
+    def _reset_fit_state(self) -> None:
+        """Remove learned state before fitting or after a failed refit."""
+        self._fitted = False
+        self._s_min = 0.0
+        self._s_max = 1.0
+        self._x_unique = None
+        self._x_unique_scaled = None
+        self._z_fit = None
+        self._L = None
+        self._R = None
+        self._w_block = None
+
+    def _fit_impl(
+        self,
+        scores: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> CDIIsotonicCalibrator:
         """Fit CDI-ISO on (scores, y).
 
         Args:
@@ -267,15 +295,12 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
             ValueError: If scores and y have different lengths, y contains
                 invalid values, or sample_weight has invalid values.
         """
-        s = np.asarray(scores, dtype=float).reshape(-1)
-        y = np.asarray(y, dtype=float).reshape(-1)
-        if s.shape[0] != y.shape[0]:
-            raise ValueError("scores and y must have the same length")
+        s, y = check_arrays(scores, y)
 
         if sample_weight is None:
             w = np.ones_like(y, dtype=float)
         else:
-            w = np.asarray(sample_weight, dtype=float).reshape(-1)
+            w = check_array_1d(sample_weight, "sample_weight")
             if w.shape[0] != y.shape[0]:
                 raise ValueError("sample_weight must match length of y")
             if not np.all(np.isfinite(w)) or np.any(w < 0):
@@ -370,17 +395,12 @@ class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[mi
         Returns:
             Calibrated probabilities in [0,1] (if clip_output=True).
 
-        Raises:
-            RuntimeError: If called before fit().
         """
-        if not self._fitted:
-            raise RuntimeError("Call fit() before transform().")
-        x_unique = self._x_unique  # train scale
-        z_fit = self._z_fit
-        if x_unique is None or z_fit is None:  # pragma: no cover - guarded by _fitted
-            raise RuntimeError("Call fit() before transform().")
+        check_fitted(self, ["_x_unique", "_z_fit"])
+        x_unique = cast("np.ndarray", self._x_unique)
+        z_fit = cast("np.ndarray", self._z_fit)
 
-        s = np.asarray(scores, dtype=float).reshape(-1)
+        s = check_array_1d(scores, "scores")
         # Apply the same affine scaling for threshold distances if needed (not
         # required for prediction)
         # For prediction, we step on the ORIGINAL train-scale breakpoints.

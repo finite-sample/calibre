@@ -6,7 +6,7 @@ construction rather than by measurement, so ``config.CALIBRATOR_DEFAULTS_ONLY``
 records the rule and this module keeps it.
 
 The one asymmetry worth naming: :class:`~calibre.SplineCalibrator` and the
-``"auto"`` defaults of the relaxed and regularized calibrators select their own
+``"auto"`` default of the relaxed calibrator select their own
 hyperparameters by internal cross-validation. That is a real advantage over a
 fixed-hyperparameter competitor, and it is paid for in the fit time this
 benchmark also records.
@@ -31,7 +31,6 @@ METHODS: dict[str, str] = {
     "calibre_centered": "calibre",
     "calibre_spline": "calibre",
     "calibre_relaxed_pava": "calibre",
-    "calibre_regularized": "calibre",
     "calibre_nearly_isotonic": "calibre",
     "netcal_beta": "netcal",
     "netcal_bbq": "netcal",
@@ -91,7 +90,6 @@ def _build(name: str) -> Any:
         CenteredIsotonicCalibrator,
         IsotonicCalibrator,
         NearlyIsotonicCalibrator,
-        RegularizedIsotonicCalibrator,
         RelaxedPAVACalibrator,
         SplineCalibrator,
     )
@@ -101,7 +99,6 @@ def _build(name: str) -> Any:
         "calibre_centered": CenteredIsotonicCalibrator,
         "calibre_spline": SplineCalibrator,
         "calibre_relaxed_pava": RelaxedPAVACalibrator,
-        "calibre_regularized": RegularizedIsotonicCalibrator,
         "calibre_nearly_isotonic": NearlyIsotonicCalibrator,
     }
     if name not in builders:

@@ -22,9 +22,7 @@ from calibre import (
     IsotonicCalibrator,
     MonotonicMixin,
     NearlyIsotonicCalibrator,
-    RegularizedIsotonicCalibrator,
     RelaxedPAVACalibrator,
-    SmoothedIsotonicCalibrator,
     SplineCalibrator,
     TemperatureScaler,
     binned_calibration_error,
@@ -104,10 +102,8 @@ def test_public_namespace_is_fully_accounted_for():
         "IsotonicCalibrator",
         "MonotonicMixin",
         "NearlyIsotonicCalibrator",
-        "RegularizedIsotonicCalibrator",
-        "RelaxedPAVACalibrator",
-        "SmoothedIsotonicCalibrator",
         "SplineCalibrator",
+        "RelaxedPAVACalibrator",
         "TemperatureScaler",
         "binned_calibration_error",
         "bootstrap_ci",
@@ -181,7 +177,9 @@ def test_public_array_utilities_preserve_a_score_label_workflow():
     """Every exported array helper must preserve values, groups, and ordering."""
     scores_column = np.array([[0.8], [0.2], [0.2], [1.1]])
     labels_column = np.array([[1], [0], [1], [1]])
-    scores, labels = check_arrays(scores_column, labels_column)
+    with pytest.raises(ValueError, match="X must be 1-dimensional"):
+        check_arrays(scores_column, labels_column)
+    scores, labels = check_arrays(scores_column[:, 0], labels_column[:, 0])
     np.testing.assert_array_equal(scores, [0.8, 0.2, 0.2, 1.1])
     np.testing.assert_array_equal(labels, [1.0, 0.0, 1.0, 1.0])
     np.testing.assert_array_equal(check_array_1d(scores), scores)
@@ -224,9 +222,9 @@ def test_public_plot_style_helpers_are_bounded_and_restore_global_state():
     """Plot styling must cycle deterministically and remain scoped to its context."""
     import matplotlib as mpl
 
-    colours = calibre_plots.color_cycle(len(calibre_plots.PALETTE) + 1)
-    assert colours[: len(calibre_plots.PALETTE)] == list(calibre_plots.PALETTE)
-    assert colours[-1] == calibre_plots.PALETTE[0]
+    colors = calibre_plots.color_cycle(len(calibre_plots.PALETTE) + 1)
+    assert colors[: len(calibre_plots.PALETTE)] == list(calibre_plots.PALETTE)
+    assert colors[-1] == calibre_plots.PALETTE[0]
 
     before = mpl.rcParams["savefig.dpi"]
     with calibre_plots.style_context(**{"savefig.dpi": 144}):
@@ -327,8 +325,8 @@ def test_resolution_and_plateau_diagnostics_report_known_structure():
         y_orig=calibrated,
     )
     assert correlations["spearman_corr_to_x"] == pytest.approx(1.0)
+    assert correlations["spearman_corr_to_y_true"] == pytest.approx(1.0)
     assert correlations["spearman_corr_to_y_orig"] == pytest.approx(1.0)
-    assert correlations["spearman_corr_orig_to_calib"] == pytest.approx(1.0)
 
 
 def test_corp_decomposition_and_bands_agree_on_exact_calibration(
@@ -401,10 +399,8 @@ def test_bootstrap_and_report_reproduce_their_component_metrics(
         IsotonicCalibrator(),
         CenteredIsotonicCalibrator(),
         NearlyIsotonicCalibrator(),
-        RegularizedIsotonicCalibrator(),
-        RelaxedPAVACalibrator(),
-        SmoothedIsotonicCalibrator(),
         SplineCalibrator(),
+        RelaxedPAVACalibrator(),
         CDIIsotonicCalibrator(),
     ],
     ids=lambda calibrator: type(calibrator).__name__,
@@ -435,9 +431,8 @@ def test_default_calibrators_recover_a_known_monotone_distortion(
         IsotonicCalibrator(),
         CenteredIsotonicCalibrator(clip_output=False),
         NearlyIsotonicCalibrator(clip_output=False),
-        RegularizedIsotonicCalibrator(link="identity", clip_output=False),
-        RelaxedPAVACalibrator(clip_output=False),
         SplineCalibrator(link="identity", clip_output=False),
+        RelaxedPAVACalibrator(clip_output=False),
     ],
     ids=lambda calibrator: type(calibrator).__name__,
 )
@@ -461,7 +456,8 @@ def test_continuous_target_calibrators_preserve_an_unbounded_monotone_signal(
     [
         IsotonicCalibrator,
         CenteredIsotonicCalibrator,
-        lambda: RegularizedIsotonicCalibrator(alpha=0.01, n_knots=5),
+        lambda: NearlyIsotonicCalibrator(lam=0.5),
+        lambda: SplineCalibrator(alpha=0.01, n_knots=5),
         RelaxedPAVACalibrator,
         lambda: SplineCalibrator(alpha=0.001, n_knots=5),
         CDIIsotonicCalibrator,

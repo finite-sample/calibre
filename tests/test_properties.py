@@ -10,9 +10,7 @@ import pytest
 
 from calibre import (
     NearlyIsotonicCalibrator,
-    RegularizedIsotonicCalibrator,
     RelaxedPAVACalibrator,
-    SmoothedIsotonicCalibrator,
     SplineCalibrator,
 )
 from calibre.metrics import (
@@ -32,11 +30,10 @@ def data_generator():
 def core_calibrators():
     """Fixture providing core calibrators for property testing."""
     return {
-        "nearly_isotonic": NearlyIsotonicCalibrator(lam=1.0, method="path"),
+        "nearly_isotonic": NearlyIsotonicCalibrator(lam=0.5),
         "spline": SplineCalibrator(n_knots=10, degree=3, cv=3),
         "relaxed_pava": RelaxedPAVACalibrator(epsilon=0.02),
-        "regularized": RegularizedIsotonicCalibrator(alpha=0.1),
-        "smoothed": SmoothedIsotonicCalibrator(window_length=7, poly_order=3),
+        "spline_pinned": SplineCalibrator(alpha=0.1),
     }
 
 
@@ -127,17 +124,17 @@ class TestMonotonicity:
 
     @pytest.mark.parametrize("pattern", ["overconfident_nn", "multi_modal"])
     @pytest.mark.parametrize("alpha", [0.01, 1.0])
-    def test_regularized_is_monotone_at_every_alpha(
+    def test_pinned_spline_is_monotone_at_every_alpha(
         self, data_generator, pattern, alpha
     ):
-        """RegularizedIsotonicCalibrator is monotone by construction.
+        """SplineCalibrator is monotone by construction.
 
         The penalty controls curvature, not the order constraint, so no value of
         alpha may produce a violation. Exactly zero, not a tolerance.
         """
         y_pred, y_true = data_generator.generate_dataset(pattern, n_samples=200)
         _, violation_rate = self._check_monotonicity(
-            RegularizedIsotonicCalibrator(alpha=alpha), y_pred, y_true
+            SplineCalibrator(alpha=alpha), y_pred, y_true
         )
         assert violation_rate == 0.0, (
             f"alpha={alpha} produced violations at rate {violation_rate:.3f} "
@@ -164,7 +161,7 @@ class TestMonotonicity:
         x_test = np.sort(y_pred)
         rates = [
             self._check_monotonicity(
-                NearlyIsotonicCalibrator(lam=lam, method="path"),
+                NearlyIsotonicCalibrator(lam=lam),
                 y_pred,
                 y_true,
                 x_test=x_test,
@@ -237,8 +234,8 @@ class TestCalibrationImprovement:
         )
 
         calibrators = {
-            "nearly_isotonic": NearlyIsotonicCalibrator(lam=1.0, method="path"),
-            "regularized": RegularizedIsotonicCalibrator(alpha=0.1),
+            "nearly_isotonic": NearlyIsotonicCalibrator(lam=0.5),
+            "spline_pinned": SplineCalibrator(alpha=0.1),
         }
 
         for name, calibrator in calibrators.items():
@@ -276,9 +273,9 @@ class TestGranularityPreservation:
         #     with a running maximum, which re-flattens wherever the filter dipped.
         #     Measured ratios are 0.13 (multi_modal) and 0.16 (weather_forecasting),
         #     and the same numbers come out of the released 0.7.0 wheel -- this is
-        #     the estimator's long-standing behaviour, not a regression.
+        #     the estimator's long-standing behavior, not a regression.
         #     CenteredIsotonicCalibrator is the granularity-preserving answer.
-        granularity_preserving = {"spline", "relaxed_pava", "regularized"}
+        granularity_preserving = {"spline", "relaxed_pava", "spline_pinned"}
 
         for name, calibrator in core_calibrators.items():
             calibrator.fit(y_pred, y_true)
@@ -394,7 +391,7 @@ class TestParameterSensitivity:
         lambda_results = {}
         for lam in [0.1, 1.0, 10.0]:
             try:
-                calibrator = NearlyIsotonicCalibrator(lam=lam, method="path")
+                calibrator = NearlyIsotonicCalibrator(lam=lam)
                 calibrator.fit(y_pred, y_true)
                 x_test = np.linspace(0, 1, 50)
                 y_test_calib = calibrator.transform(x_test)

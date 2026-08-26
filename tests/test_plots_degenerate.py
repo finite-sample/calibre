@@ -276,7 +276,7 @@ def test_profile_rejects_a_missing_key():
 
 
 def test_profile_rejects_wrong_length_class_names():
-    """Mislabelled classes would be worse than unlabelled ones."""
+    """Mislabeled classes would be worse than unlabeled ones."""
     rng = np.random.default_rng(0)
     truth = rng.dirichlet(np.ones(3), size=300)
     y = np.array([rng.choice(3, p=t) for t in truth])

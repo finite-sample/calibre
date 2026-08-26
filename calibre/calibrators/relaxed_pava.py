@@ -14,7 +14,7 @@ import numpy as np
 
 from .._core import PiecewiseLinear, aggregate_ties, shift_to_pava
 from ..base import BaseCalibrator
-from ..utils import check_arrays
+from ..utils import check_array_1d, check_arrays, check_fitted
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
             as documented in the table above.
         cv: Number of cross-validation folds used when a hyperparameter is
             left at ``"auto"``. Ignored when every hyperparameter is pinned.
-        scoring: Proper scoring rule the ``"auto"`` search minimises.
+        scoring: Proper scoring rule the ``"auto"`` search minimizes.
             ``"auto"`` (the default) uses log loss for probability targets and
             squared error otherwise.
             Deliberately not a calibration error: ECE and its relatives are
@@ -89,7 +89,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         separates adjacent fitted values while keeping the map monotone.
 
         That is why the default is a slope rather than nothing. PAVA's plateaus are
-        an artefact of pooling adjacent violators, not a finding about the data, and
+        an artifact of pooling adjacent violators, not a finding about the data, and
         at ``min_slope=0`` this estimator keeps only 1-4% of the input's distinct
         values. A slope small enough to be invisible in the score recovers almost all
         of them: measured on logit-inflated designs at n from 300 to 3000, the
@@ -269,11 +269,6 @@ class RelaxedPAVACalibrator(BaseCalibrator):
         Returns:
             ndarray of shape (n_samples,): Calibrated values.
 
-        Raises:
-            AttributeError: If called before :meth:`fit`.
         """
-        if not hasattr(self, "calibration_curve_"):
-            raise AttributeError(
-                f"{type(self).__name__} is not fitted yet. Call fit() first."
-            )
-        return self.calibration_curve_(np.asarray(X, dtype=float).ravel())
+        check_fitted(self, ["calibration_curve_"])
+        return self.calibration_curve_(check_array_1d(X))

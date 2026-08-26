@@ -1,11 +1,10 @@
 Method,Brier,dBrier,smECE,Distinct,vs known truth,Wins
 sklearn_platt,0.1521,+0.0082,0.0251,1599,0.0064,26/30
 sklearn_temperature,0.1522,+0.0082,0.0251,1599,0.0040,26/30
-calibre_spline,0.1524,+0.0079,0.0259,1588,0.0169,28/30
-calibre_regularized,0.1525,+0.0079,0.0264,1596,0.0181,24/30
+calibre_spline,0.1524,+0.0080,0.0263,1595,0.0175,28/30
 calibre_centered,0.1527,+0.0076,0.0284,1514,0.0205,25/30
 calibre_relaxed_pava,0.1530,+0.0073,0.0270,1356,0.0254,28/30
 calibre_isotonic,0.1530,+0.0073,0.0270,49,0.0255,0/30
 sklearn_isotonic,0.1530,+0.0073,0.0270,49,0.0255,baseline
-calibre_nearly_isotonic,0.1531,+0.0072,0.0270,51,0.0262,4/30
+calibre_nearly_isotonic,0.1531,+0.0073,0.0270,52,0.0259,7/30
 uncalibrated,0.1604,--,0.0835,1594,0.0808,0/30

@@ -14,9 +14,7 @@ from calibre import (
     CDIIsotonicCalibrator,
     IsotonicCalibrator,
     NearlyIsotonicCalibrator,
-    RegularizedIsotonicCalibrator,
     RelaxedPAVACalibrator,
-    SmoothedIsotonicCalibrator,
     SplineCalibrator,
 )
 from calibre.metrics import binned_calibration_error, brier_score
@@ -280,48 +278,25 @@ class TestIsotonicCalibrator:
 class TestNearlyIsotonicCalibrator:
     """Test NearlyIsotonicCalibrator functionality."""
 
-    def test_cvx_method(self, calibration_data, miscalibrated_data):
-        """Test NearlyIsotonicCalibrator with CVX method."""
+    def test_basic_fit(self, calibration_data, miscalibrated_data):
+        """Fit the exact path implementation and exercise held-out behavior."""
         x, y_observed, _y_true = calibration_data
-        cal = NearlyIsotonicCalibrator(lam=10.0, method="cvx")
+        cal = NearlyIsotonicCalibrator(lam=5.0)
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
-        assert_calibrates(
-            NearlyIsotonicCalibrator(lam=10.0, method="cvx"), miscalibrated_data
-        )
+        assert_calibrates(NearlyIsotonicCalibrator(lam=5.0), miscalibrated_data)
 
-    def test_path_method(self, calibration_data, miscalibrated_data):
-        """Test NearlyIsotonicCalibrator with path method."""
+    def test_low_lambda_fit(self, calibration_data):
+        """A low penalty still returns a complete finite fit."""
         x, y_observed, _y_true = calibration_data
-        cal = NearlyIsotonicCalibrator(lam=0.1, method="path")
+        cal = NearlyIsotonicCalibrator(lam=0.05)
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
-        # lam=10.0 here, not the 0.1 this test used to pass in. The path
-        # solver is what is under test; lam=0.1 is so weak a penalty that the
-        # fit interpolates its training labels and comes out *worse* than
-        # doing nothing on held-out data. That is recorded in
-        # TestNearlyIsotonicOverfitsAtLowLambda rather than hidden by picking
-        # a setting the in-sample check happened to tolerate.
-        assert_calibrates(
-            NearlyIsotonicCalibrator(lam=10.0, method="path"), miscalibrated_data
-        )
-
-    def test_invalid_method(self, calibration_data):
-        """An unknown solver name must be rejected by fit, not deferred.
-
-        Validating in ``fit`` rather than in ``transform`` means a bad
-        configuration surfaces where the user can act on it, instead of after a
-        model has apparently trained successfully.
-        """
-        x, y_observed, _ = calibration_data
-        cal = NearlyIsotonicCalibrator(lam=1.0, method="invalid")
-
-        with pytest.raises(ValueError, match="method must be"):
-            cal.fit(x, y_observed)
+        assert np.all(np.isfinite(y_calib))
 
 
 class TestNearlyIsotonicOverfitsAtLowLambda:
@@ -355,15 +330,11 @@ class TestNearlyIsotonicOverfitsAtLowLambda:
 
     def test_a_low_lambda_does_not_calibrate_out_of_sample(self, miscalibrated_data):
         with pytest.raises(AssertionError):
-            assert_calibrates(
-                NearlyIsotonicCalibrator(lam=0.1, method="path"), miscalibrated_data
-            )
+            assert_calibrates(NearlyIsotonicCalibrator(lam=0.05), miscalibrated_data)
 
     def test_a_useful_lambda_does(self, miscalibrated_data):
         """The other half -- the solver is fine, the setting was not."""
-        assert_calibrates(
-            NearlyIsotonicCalibrator(lam=10.0, method="path"), miscalibrated_data
-        )
+        assert_calibrates(NearlyIsotonicCalibrator(lam=5.0), miscalibrated_data)
 
     def test_in_sample_error_hides_it(self, miscalibrated_data):
         """The mechanism, asserted rather than described.
@@ -373,15 +344,15 @@ class TestNearlyIsotonicOverfitsAtLowLambda:
         run this.
         """
         score, y, _ = miscalibrated_data
-        overfit = NearlyIsotonicCalibrator(lam=0.1, method="path").fit(score, y)
-        sound = NearlyIsotonicCalibrator(lam=10.0, method="path").fit(score, y)
+        overfit = NearlyIsotonicCalibrator(lam=0.05).fit(score, y)
+        sound = NearlyIsotonicCalibrator(lam=5.0).fit(score, y)
 
         assert _calibration_error(overfit.transform(score), y) < _calibration_error(
             sound.transform(score), y
         )
 
 
-class TestSplineCalibrator:
+class TestPinnedSplinePenalty:
     """Test SplineCalibrator functionality."""
 
     def test_basic_functionality(self, calibration_data, miscalibrated_data):
@@ -504,7 +475,7 @@ class TestRelaxedPAVACalibrator:
         This is the whole point of ``min_slope="auto"``. If the automatic slope
         stopped being reached on the default path -- because the epsilon search
         changed, or the interaction rule below were loosened -- the headline
-        behaviour would revert to isotonic's handful of distinct values while
+        behavior would revert to isotonic's handful of distinct values while
         every other test still passed.
 
         The data is built here rather than taken from the shared fixture because
@@ -570,64 +541,29 @@ class TestRelaxedPAVACalibrator:
         assert RelaxedPAVACalibrator(epsilon=0.02).fit(x, y_observed).min_slope_ == 0.0
 
 
-class TestRegularizedIsotonicCalibrator:
-    """Test RegularizedIsotonicCalibrator functionality."""
+class TestSplineCalibrator:
+    """Test SplineCalibrator functionality."""
 
     def test_basic_functionality(self, calibration_data, miscalibrated_data):
-        """Test RegularizedIsotonicCalibrator basic operations."""
+        """Test SplineCalibrator basic operations."""
         x, y_observed, _y_true = calibration_data
         # The `calibration_data` fixture's targets run outside [0, 1] (up to
         # ~1.52), so they are not probabilities and the Bernoulli likelihood
         # does not apply -- fit on the identity scale instead.
-        cal = RegularizedIsotonicCalibrator(alpha=0.1, link="identity")
+        cal = SplineCalibrator(alpha=0.1, link="identity")
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
         assert np.all((y_calib >= 0) & (y_calib <= 1))
-        assert_calibrates(RegularizedIsotonicCalibrator(alpha=0.1), miscalibrated_data)
+        assert_calibrates(SplineCalibrator(alpha=0.1), miscalibrated_data)
 
     def test_regularization_strength(self, calibration_data):
         """Test different regularization strengths."""
         x, y_observed, _y_true = calibration_data
 
         for alpha in [0.01, 0.1, 1.0]:
-            cal = RegularizedIsotonicCalibrator(alpha=alpha, link="identity")
-            cal.fit(x, y_observed)
-            y_calib = cal.transform(x)
-            assert len(y_calib) == len(x)
-            assert np.all((y_calib >= 0) & (y_calib <= 1))
-
-
-class TestSmoothedIsotonicCalibrator:
-    """Test SmoothedIsotonicCalibrator functionality."""
-
-    def test_basic_functionality(self, calibration_data, miscalibrated_data):
-        """Test SmoothedIsotonicCalibrator basic operations."""
-        x, y_observed, _y_true = calibration_data
-        cal = SmoothedIsotonicCalibrator(window_length=7, poly_order=3)
-        cal.fit(x, y_observed)
-        y_calib = cal.transform(x)
-
-        assert len(y_calib) == len(x)
-        assert np.all((y_calib >= 0) & (y_calib <= 1))
-        assert_calibrates(
-            SmoothedIsotonicCalibrator(window_length=7, poly_order=3),
-            miscalibrated_data,
-        )
-
-    def test_smoothing_parameters(self, calibration_data):
-        """Test different smoothing configurations."""
-        x, y_observed, _y_true = calibration_data
-
-        configs = [
-            {"window_length": 5, "poly_order": 2},
-            {"window_length": 9, "poly_order": 3},
-            {"window_length": 7, "poly_order": 1},
-        ]
-
-        for config in configs:
-            cal = SmoothedIsotonicCalibrator(**config)
+            cal = SplineCalibrator(alpha=alpha, link="identity")
             cal.fit(x, y_observed)
             y_calib = cal.transform(x)
             assert len(y_calib) == len(x)
@@ -644,11 +580,10 @@ class TestCalibratorErrorHandling:
         x_bad = np.array([1, 2, 3])  # mismatched length
 
         calibrators = [
-            NearlyIsotonicCalibrator(lam=1.0, method="cvx"),
+            NearlyIsotonicCalibrator(lam=0.5),
             SplineCalibrator(n_knots=5),
             RelaxedPAVACalibrator(epsilon=0.02),
-            RegularizedIsotonicCalibrator(alpha=0.1),
-            SmoothedIsotonicCalibrator(window_length=5),
+            SplineCalibrator(alpha=0.1),
         ]
 
         for cal in calibrators:
@@ -662,7 +597,7 @@ class TestCalibratorErrorHandling:
 
         calibrators = [
             IsotonicCalibrator(),
-            NearlyIsotonicCalibrator(lam=1.0, method="cvx"),
+            NearlyIsotonicCalibrator(lam=0.5),
             SplineCalibrator(n_knots=5),
         ]
 
@@ -677,7 +612,7 @@ class TestCalibratorErrorHandling:
         calibrators = [
             IsotonicCalibrator(),
             NearlyIsotonicCalibrator(),
-            RegularizedIsotonicCalibrator(),
+            SplineCalibrator(),
         ]
 
         for cal in calibrators:
@@ -722,11 +657,10 @@ class TestCalibratorCommonInterface:
         """Fixture providing all calibrator instances."""
         return [
             IsotonicCalibrator(),
-            NearlyIsotonicCalibrator(lam=1.0, method="path"),
+            NearlyIsotonicCalibrator(lam=0.5),
             SplineCalibrator(n_knots=8, cv=3),
             RelaxedPAVACalibrator(epsilon=0.02),
-            RegularizedIsotonicCalibrator(alpha=0.1),
-            SmoothedIsotonicCalibrator(window_length=7),
+            SplineCalibrator(alpha=0.1),
         ]
 
     def test_fit_returns_self(self, all_calibrators, binary_data):

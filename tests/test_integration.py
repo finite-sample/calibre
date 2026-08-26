@@ -11,9 +11,7 @@ from sklearn.model_selection import train_test_split
 
 from calibre import (
     NearlyIsotonicCalibrator,
-    RegularizedIsotonicCalibrator,
     RelaxedPAVACalibrator,
-    SmoothedIsotonicCalibrator,
     SplineCalibrator,
 )
 from calibre.metrics import (
@@ -68,7 +66,7 @@ class TestFullCalibrationWorkflow:
         [
             {
                 "class": NearlyIsotonicCalibrator,
-                "kwargs": {"lam": 1.0, "method": "path"},
+                "kwargs": {"lam": 0.5},
                 "name": "nearly_isotonic",
             },
             {
@@ -82,17 +80,9 @@ class TestFullCalibrationWorkflow:
                 "name": "relaxed_pava",
             },
             {
-                "class": RegularizedIsotonicCalibrator,
+                "class": SplineCalibrator,
                 "kwargs": {"alpha": 0.1},
-                "name": "regularized",
-            },
-            {
-                "class": SmoothedIsotonicCalibrator,
-                "kwargs": {
-                    "window_length": 7,
-                    "poly_order": 3,
-                },
-                "name": "smoothed",
+                "name": "spline_pinned",
             },
         ],
     )
@@ -127,14 +117,14 @@ class TestFullCalibrationWorkflow:
             corr_metrics = correlation_metrics(
                 data["y_test"], y_calib, y_orig=data["y_proba_test"]
             )
-            assert corr_metrics["spearman_corr_orig_to_calib"] > 0.5
+            assert corr_metrics["spearman_corr_to_y_orig"] > 0.5
 
-        elif name == "regularized":
+        elif name == "spline_pinned":
             # Monotonicity is a hard constraint here, so nothing may go backwards.
             sorted_idx = np.argsort(data["y_proba_test"])
             y_calib_sorted = y_calib[sorted_idx]
             assert np.all(np.diff(y_calib_sorted) >= -1e-9), (
-                "regularized isotonic constrains monotonicity, so a violation is "
+                "the penalized spline constrains monotonicity, so a violation is "
                 "a bug, not a tolerance to be widened"
             )
 
@@ -165,11 +155,10 @@ class TestCalibratorComparison:
         data = realistic_dataset
 
         calibrators = {
-            "nearly_isotonic": NearlyIsotonicCalibrator(lam=1.0, method="path"),
+            "nearly_isotonic": NearlyIsotonicCalibrator(lam=0.5),
             "spline": SplineCalibrator(n_knots=10, degree=3, cv=3),
             "relaxed_pava": RelaxedPAVACalibrator(epsilon=0.01),
-            "regularized": RegularizedIsotonicCalibrator(alpha=0.1),
-            "smoothed": SmoothedIsotonicCalibrator(window_length=7, poly_order=3),
+            "spline_pinned": SplineCalibrator(alpha=0.1),
         }
 
         for name, calibrator in calibrators.items():
@@ -201,9 +190,9 @@ class TestEdgeCasesAndRobustness:
     def core_calibrators(self):
         """Common set of calibrators for edge case testing."""
         return [
-            NearlyIsotonicCalibrator(lam=1.0, method="path"),
+            NearlyIsotonicCalibrator(lam=0.5),
             RelaxedPAVACalibrator(epsilon=0.01),
-            RegularizedIsotonicCalibrator(alpha=0.1),
+            SplineCalibrator(alpha=0.1),
         ]
 
     def _test_calibrator_robustness(
@@ -301,7 +290,7 @@ class TestSklearnCompatibility:
     def test_fit_transform_api(self, realistic_dataset):
         """Test sklearn-style fit/transform API."""
         data = realistic_dataset
-        calibrator = NearlyIsotonicCalibrator(lam=1.0, method="path")
+        calibrator = NearlyIsotonicCalibrator(lam=0.5)
 
         # Test fit method returns self
         fitted_calibrator = calibrator.fit(data["y_proba_train"], data["y_train"])
@@ -330,8 +319,16 @@ class TestSklearnCompatibility:
         # Each case pins the message too, so the test checks that the *right*
         # error is raised rather than merely that something went wrong.
         test_cases = [
-            (NearlyIsotonicCalibrator, {"lam": -1.0}, r"lam must be non-negative"),
-            (RelaxedPAVACalibrator, {"epsilon": -0.5}, r"epsilon must be non-negative"),
+            (
+                NearlyIsotonicCalibrator,
+                {"lam": -1.0},
+                r"lam must be finite and non-negative",
+            ),
+            (
+                RelaxedPAVACalibrator,
+                {"epsilon": -0.5},
+                r"epsilon must be finite and non-negative",
+            ),
             (
                 RelaxedPAVACalibrator,
                 {"min_slope": -0.5},
@@ -343,9 +340,9 @@ class TestSklearnCompatibility:
                 r"opposite directions",
             ),
             (
-                RegularizedIsotonicCalibrator,
+                SplineCalibrator,
                 {"alpha": -0.1},
-                r"alpha must be non-negative",
+                r"alpha must be finite and non-negative",
             ),
         ]
 
@@ -376,7 +373,7 @@ class TestErrorHandling:
         [
             NearlyIsotonicCalibrator,
             RelaxedPAVACalibrator,
-            RegularizedIsotonicCalibrator,
+            SplineCalibrator,
         ],
     )
     def test_input_validation_errors(self, calibrator_class):
@@ -396,7 +393,7 @@ class TestErrorHandling:
         y_true = np.array([0, 1, 0, 1])
         y_pred = np.array([-0.1, 1.1, 0.5, 0.7])  # Outside [0,1]
 
-        calibrator = NearlyIsotonicCalibrator(lam=1.0, method="path")
+        calibrator = NearlyIsotonicCalibrator(lam=0.5)
 
         # Some calibrators might handle this, others might raise errors
         try:

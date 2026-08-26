@@ -16,10 +16,6 @@ SplineCalibrator
     I-Spline calibration with cross-validation
 RelaxedPAVACalibrator
     Relaxed Pool Adjacent Violators Algorithm
-RegularizedIsotonicCalibrator
-    Isotonic regression with L2 regularization
-SmoothedIsotonicCalibrator
-    Isotonic regression with Savitzky-Golay smoothing
 
 Examples:
 --------
@@ -41,9 +37,7 @@ from .cdi_iso import CDIIsotonicCalibrator
 from .centered_isotonic import CenteredIsotonicCalibrator
 from .isotonic import IsotonicCalibrator
 from .nearly_isotonic import NearlyIsotonicCalibrator
-from .regularized import RegularizedIsotonicCalibrator
 from .relaxed_pava import RelaxedPAVACalibrator
-from .smoothed import SmoothedIsotonicCalibrator
 from .spline import SplineCalibrator
 
 # Define public API
@@ -52,8 +46,6 @@ __all__ = [
     "CenteredIsotonicCalibrator",
     "IsotonicCalibrator",
     "NearlyIsotonicCalibrator",
-    "RegularizedIsotonicCalibrator",
     "RelaxedPAVACalibrator",
-    "SmoothedIsotonicCalibrator",
     "SplineCalibrator",
 ]

@@ -41,16 +41,12 @@ class TestCheckArrays:
         np.testing.assert_array_equal(y_valid, y)
 
     def test_2d_arrays(self):
-        """Test with 2D arrays (should be flattened to 1D)."""
+        """Two-dimensional arrays must not be silently flattened."""
         X = np.array([[0.1], [0.3], [0.5]])
         y = np.array([[0], [1], [1]])
 
-        X_valid, y_valid = check_arrays(X, y)
-
-        assert X_valid.shape == (3,)
-        assert y_valid.shape == (3,)
-        np.testing.assert_array_equal(X_valid, [0.1, 0.3, 0.5])
-        np.testing.assert_array_equal(y_valid, [0, 1, 1])
+        with pytest.raises(ValueError, match="X must be 1-dimensional"):
+            check_arrays(X, y)
 
     def test_mismatched_lengths(self):
         """Test with mismatched array lengths."""
@@ -82,16 +78,18 @@ class TestCheckArrays:
         assert y_valid[0] == 1
 
     def test_nan_values(self):
-        """Test with NaN values (should be allowed with
-        ensure_all_finite='allow-nan')."""
+        """NaN values must be rejected at the shared boundary."""
         X = [0.1, np.nan, 0.5]
         y = [0, 1, 1]
 
-        X_valid, y_valid = check_arrays(X, y)
+        with pytest.raises(ValueError, match="X must contain only finite values"):
+            check_arrays(X, y)
 
-        assert len(X_valid) == 3
-        assert np.isnan(X_valid[1])
-        np.testing.assert_array_equal(y_valid, [0, 1, 1])
+    @pytest.mark.parametrize("bad", [np.nan, np.inf, -np.inf])
+    def test_nonfinite_targets(self, bad):
+        """Non-finite targets must be rejected before reaching an estimator."""
+        with pytest.raises(ValueError, match="y must contain only finite values"):
+            check_arrays([0.1, 0.3, 0.5], [0.0, bad, 1.0])
 
 
 class TestSortByX:

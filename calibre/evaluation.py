@@ -239,8 +239,7 @@ def corp_reliability(
     """
     x, y = check_arrays(x, y)
 
-    # Tied forecasts are one point, carrying the pooled weight. Skipping this is
-    # what made SmoothedIsotonicCalibrator non-monotone before 0.7.1.
+    # Tied forecasts are one point, carrying their pooled weight.
     x_unique, y_mean, weight = aggregate_ties(x, y, sample_weight)
     cep = weighted_pava(y_mean, weight)
     return ReliabilityDiagram(x_unique, cep, weight)
@@ -426,9 +425,6 @@ def consistency_bands(
     Returns:
         dict: ``x`` (the grid), ``lower`` and ``upper``.
 
-    Raises:
-        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
-
     Notes:
         **These are pointwise bands, not a simultaneous envelope.** Coverage holds at
         each forecast value separately. It does *not* hold at all of them at once, and
@@ -485,16 +481,13 @@ def confidence_bands(
     Returns:
         dict: ``x`` (the grid), ``lower`` and ``upper``.
 
-    Raises:
-        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
-
     Notes:
         **Pointwise, not simultaneous**, exactly as for :func:`consistency_bands`;
         see the table there.
 
         **Coverage of the truth is below nominal on small samples.** These bands are
-        centred on the PAV-recalibrated estimate, and isotonic regression is biased at
-        finite sample size, so the band is centred slightly off the true conditional
+        centered on the PAV-recalibrated estimate, and isotonic regression is biased at
+        finite sample size, so the band is centered slightly off the true conditional
         event probability curve. Coverage of that true curve, measured against a
         known data-generating process over 150 replications at a nominal 90%:
 
@@ -535,7 +528,7 @@ def _bias_correction(draws: np.ndarray, observed: float) -> float:
 
     Returns:
         float: ``z0 = Phi^-1(fraction of draws below the observed value)``.
-            Zero when the bootstrap distribution is centred on the estimate;
+            Zero when the bootstrap distribution is centered on the estimate;
             strongly negative when the draws sit above it, which is the case
             this function exists for.
 
@@ -581,11 +574,11 @@ def _acceleration(
         values[i] = float(metric(y_true[keep], y_pred[keep]))
         keep[i] = True
 
-    centred = values.mean() - values
-    denominator = 6.0 * float(np.sum(centred**2)) ** 1.5
+    centered = values.mean() - values
+    denominator = 6.0 * float(np.sum(centered**2)) ** 1.5
     if denominator == 0.0:
         return 0.0
-    return float(np.sum(centred**3) / denominator)
+    return float(np.sum(centered**3) / denominator)
 
 
 def _interval(

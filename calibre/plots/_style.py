@@ -1,7 +1,7 @@
 """Shared styling for calibre's plots.
 
 Colours are fixed here rather than left to matplotlib's cycle so that a given
-quantity keeps the same colour across every figure in the documentation: ``MCB``
+quantity keeps the same color across every figure in the documentation: ``MCB``
 is the same red whether it appears in a decomposition panel, a benchmark scatter
 or a notebook.
 
@@ -24,9 +24,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     from matplotlib.axes import Axes
     from matplotlib.container import Container
 
-# Okabe-Ito, the standard colourblind-safe qualitative palette. matplotlib's
-# default `tab10` is not colourblind-safe: its red and green are indistinguishable
-# under deuteranopia, and a calibration plot that compares methods by colour has
+# Okabe-Ito, the standard colorblind-safe qualitative palette. matplotlib's
+# default `tab10` is not colorblind-safe: its red and green are indistinguishable
+# under deuteranopia, and a calibration plot that compares methods by color has
 # to survive that. Yellow is last because it is illegible on a white background.
 PALETTE: tuple[str, ...] = (
     "#000000",  # black
@@ -39,7 +39,7 @@ PALETTE: tuple[str, ...] = (
     "#F0E442",  # yellow
 )
 
-# Roles, so that the same quantity is the same colour in every figure.
+# Roles, so that the same quantity is the same color in every figure.
 SEMANTIC: dict[str, str] = {
     # The line of perfect calibration, and other things that are not data.
     "reference": "#666666",
@@ -62,13 +62,13 @@ SEMANTIC: dict[str, str] = {
 
 
 def color_cycle(n: int) -> list[str]:
-    """Return ``n`` distinguishable colours, cycling if more are asked for.
+    """Return ``n`` distinguishable colors, cycling if more are asked for.
 
     Args:
-        n: How many colours are needed.
+        n: How many colors are needed.
 
     Returns:
-        list of str: Hex colour strings.
+        list of str: Hex color strings.
 
     Raises:
         ValueError: If ``n`` is negative.
@@ -251,7 +251,7 @@ def style_context(**overrides: Any) -> AbstractContextManager[None]:
 
 
 def artists(ax: Axes) -> Iterator[Artist | Container]:
-    """Iterate over every artist calibre may have labelled on ``ax``.
+    """Iterate over every artist calibre may have labeled on ``ax``.
 
     Used by the test suite to locate a drawn element by its label rather than by
     its index, since indices shift whenever drawing order changes.

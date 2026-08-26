@@ -61,5 +61,5 @@ the magnitude but not the number, which is the point of showing all three.
    Run this on **held-out** predictions. On the data a calibrator was fitted to,
    any isotonic-family method reports ``MCB`` of exactly zero by construction --
    the calibrator and this diagnostic are the same PAV projection, and PAV is
-   idempotent -- no matter how badly the model generalises. Use
+   idempotent -- no matter how badly the model generalizes. Use
    :func:`~calibre.cross_val_calibrate` for out-of-fold probabilities.

@@ -46,7 +46,7 @@ def plot_miscalibration_profile(
             ``mcb``, ``spread``, ``worst_classes`` and ``reading``.
         ax: Axes to draw on. A new figure is created when omitted.
         class_names: Names for the classes. Defaults to their indices.
-        highlight_worst: How many of the worst classes to draw in the accent colour.
+        highlight_worst: How many of the worst classes to draw in the accent color.
         show_reading: Whether to print ``profile["reading"]`` below the axes.
         reading_width: Column width to wrap the reading at.
 

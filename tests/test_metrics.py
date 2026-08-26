@@ -233,7 +233,7 @@ class TestCorrelationMetrics:
         y_orig = np.array([0.2, 0.3, 0.6, 0.7, 0.8])
 
         metrics = correlation_metrics(y_true, y_pred, y_orig=y_orig)
-        assert "spearman_corr_orig_to_calib" in metrics
+        assert "spearman_corr_to_y_orig" in metrics
         assert "spearman_corr_to_y_orig" in metrics
 
     def test_perfect_correlation(self):

@@ -39,7 +39,7 @@ class CalibrationReport:
         base_rate: Observed event frequency.
         mean_prediction: Mean forecast. Compare with ``base_rate``: the gap is ``bias``.
         bias: Calibration in the large, ``|mean_prediction - base_rate|``.
-        brier: Brier score. The proper scoring rule to optimise.
+        brier: Brier score. The proper scoring rule to optimize.
         mcb: Miscalibration, from the CORP decomposition. What recalibration recovers.
         dsc: Discrimination. What the forecasts buy over predicting the base rate.
         unc: Uncertainty. The difficulty of the problem; no forecaster changes it.
@@ -155,7 +155,7 @@ def calibration_report(
     random_state: int | None = 0,
     ci_method: str = "bc",
 ) -> CalibrationReport:
-    """Summarise the calibration of one set of probabilities.
+    """Summarize the calibration of one set of probabilities.
 
     Gathers the CORP decomposition, three calibration-error estimators that
     disagree in instructive ways, and the resolution the forecasts retain.
@@ -191,7 +191,7 @@ def calibration_report(
         Run this on **held-out** predictions. On the data a calibrator was fitted to,
         any isotonic-family method reports ``MCB`` of exactly zero by construction --
         the calibrator and this diagnostic are the same PAV projection, and PAV is
-        idempotent -- no matter how badly the model generalises. Use
+        idempotent -- no matter how badly the model generalizes. Use
         :func:`~calibre.cross_val_calibrate` for out-of-fold probabilities.
 
     Examples:

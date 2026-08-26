@@ -356,8 +356,7 @@ def correlation_metrics(
         >>> y_orig = np.array([0.1, 0.6, 0.9, 0.3, 0.5])
         >>> corr = correlation_metrics(y_true, y_pred, y_orig=y_orig)
         >>> sorted(corr)
-        ['spearman_corr_orig_to_calib', 'spearman_corr_to_y_orig',
-         'spearman_corr_to_y_true']
+        ['spearman_corr_to_y_orig', 'spearman_corr_to_y_true']
         >>> round(float(corr["spearman_corr_to_y_true"]), 4)
         0.866
         >>> round(float(corr["spearman_corr_to_y_orig"]), 4)
@@ -372,7 +371,6 @@ def correlation_metrics(
         orig = check_array(y_orig, ensure_2d=False)
         corr_orig = _spearman(orig, y_pred)
         results["spearman_corr_to_y_orig"] = corr_orig
-        results["spearman_corr_orig_to_calib"] = corr_orig  # backward-compatible alias
 
     if x is not None:
         scores = check_array(x, ensure_2d=False)
@@ -955,7 +953,7 @@ def _gaussian_kernel(sigma: float, n_points: int) -> np.ndarray:
         n_points: Grid size.
 
     Returns:
-        ndarray: Kernel values, centred on the grid.
+        ndarray: Kernel values, centered on the grid.
     """
     t = np.linspace(0.0, 1.0, n_points)
     return np.exp(-((t - 0.5) ** 2) / (2.0 * sigma**2)) / (np.sqrt(2.0 * np.pi) * sigma)
@@ -1071,7 +1069,7 @@ def smooth_calibration_error(
         y_true: Ground truth values (0 or 1).
         y_pred: Predicted probabilities in ``[0, 1]``.
         sigma: Kernel bandwidth. When None, the fixed point above is used,
-            which is the recommended behaviour and what makes the estimator
+            which is the recommended behavior and what makes the estimator
             hyperparameter-free.
         return_sigma: Also return the bandwidth used. Worth reporting: it is
             an interpretable scale, roughly the resolution at which
@@ -1089,7 +1087,7 @@ def smooth_calibration_error(
         - :func:`debiased_calibration_error` -- bias-corrected, but still needs a
           bin count.
         - :func:`calibre.evaluation.score_decomposition` -- avoids binning by using
-          isotonic regression, and decomposes the score rather than summarising
+          isotonic regression, and decomposes the score rather than summarizing
           the error.
 
     References:

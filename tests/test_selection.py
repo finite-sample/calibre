@@ -17,8 +17,8 @@ from calibre import (
     CenteredIsotonicCalibrator,
     IsotonicCalibrator,
     NearlyIsotonicCalibrator,
-    RegularizedIsotonicCalibrator,
     RelaxedPAVACalibrator,
+    SplineCalibrator,
 )
 from calibre.evaluation import score_decomposition
 from calibre.selection import (
@@ -30,7 +30,7 @@ from calibre.selection import (
 
 AUTO_CALIBRATORS = [
     (NearlyIsotonicCalibrator, "lam"),
-    (RegularizedIsotonicCalibrator, "alpha"),
+    (SplineCalibrator, "alpha"),
     (RelaxedPAVACalibrator, "epsilon"),
 ]
 
@@ -83,6 +83,15 @@ def test_binary_folds_are_capped_by_the_rarer_class():
     assert len(make_folds(x, y, cv=5)) == 3
 
 
+def test_binary_folds_reject_a_single_minority_observation():
+    """No validation split can leave the sole minority row in training every time."""
+    y = np.zeros(20)
+    y[-1] = 1.0
+    x = np.linspace(0, 1, y.size)
+    with pytest.raises(ValueError, match="at least two observations from each class"):
+        make_folds(x, y, cv=5)
+
+
 def test_folds_reject_a_single_split():
     """cv=1 is not cross-validation."""
     x, y = _data(2, n=50)
@@ -103,6 +112,55 @@ def test_out_of_fold_values_come_from_models_that_never_saw_them():
     for train, val in make_folds(x, y, cv=5, random_state=0):
         expected = IsotonicCalibrator().fit(x[train], y[train]).transform(x[val])
         np.testing.assert_allclose(oof[val], expected, atol=1e-12)
+
+
+def test_out_of_fold_calibration_forwards_training_weights():
+    """Each fold must fit the weighted estimator the caller requested."""
+    x, y = _data(30, n=600)
+    weights = np.linspace(0.2, 3.0, y.size)
+    oof = cross_val_calibrate(IsotonicCalibrator(), x, y, sample_weight=weights, cv=5)
+
+    for train, val in make_folds(x, y, cv=5, random_state=0):
+        expected = (
+            IsotonicCalibrator()
+            .fit(x[train], y[train], sample_weight=weights[train])
+            .transform(x[val])
+        )
+        np.testing.assert_allclose(oof[val], expected, atol=1e-12)
+
+
+def test_out_of_fold_calibration_rejects_column_weights():
+    """Cross-validation cannot silently flatten an invalid weight matrix."""
+    x, y = _data(31, n=100)
+    with pytest.raises(ValueError, match="sample_weight must be 1-dimensional"):
+        cross_val_calibrate(
+            IsotonicCalibrator(), x, y, sample_weight=np.ones((y.size, 1))
+        )
+
+
+def test_zero_weight_label_does_not_change_out_of_fold_fit():
+    """A zero-mass class must not affect folds, fits, or positive-mass outputs."""
+    x = np.linspace(0.0, 1.0, 21)
+    y = np.r_[np.zeros(20), 1.0]
+    weights = np.r_[np.ones(20), 0.0]
+
+    baseline = cross_val_calibrate(IsotonicCalibrator(), x[:-1], y[:-1], cv=5)
+    weighted = cross_val_calibrate(
+        IsotonicCalibrator(), x, y, sample_weight=weights, cv=5
+    )
+
+    np.testing.assert_allclose(weighted[:-1], baseline, rtol=0, atol=0)
+    assert np.isfinite(weighted[-1])
+
+
+def test_weighted_out_of_fold_requires_two_positive_mass_rows():
+    """One effective observation cannot define train and validation folds."""
+    x = np.linspace(0.0, 1.0, 5)
+    y = np.array([0.0, 1.0, 0.0, 1.0, 0.0])
+    weights = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
+
+    with pytest.raises(ValueError, match="at least two positive-weight observations"):
+        cross_val_calibrate(IsotonicCalibrator(), x, y, sample_weight=weights, cv=2)
 
 
 def test_out_of_fold_covers_every_observation():
@@ -127,7 +185,7 @@ def test_in_sample_miscalibration_is_structurally_zero():
 
     Both the calibrator and the CORP recalibration are the same PAV projection,
     and PAV is idempotent, so scoring a fit on its own training data always
-    reports MCB == 0 no matter how badly the model generalises. The out-of-fold
+    reports MCB == 0 no matter how badly the model generalizes. The out-of-fold
     estimate is the only informative one, which is why cross_val_calibrate is a
     precondition for the evaluation stack rather than a refinement of it.
     """
@@ -237,7 +295,7 @@ def test_select_by_cv_does_not_invent_weights_when_none_are_supplied():
 
 @pytest.mark.parametrize(
     ("cls", "name"),
-    [(RegularizedIsotonicCalibrator, "alpha"), (RelaxedPAVACalibrator, "epsilon")],
+    [(SplineCalibrator, "alpha"), (RelaxedPAVACalibrator, "epsilon")],
 )
 def test_auto_selection_forwards_sample_weight(monkeypatch, cls, name):
     """Auto-parameter search must use the same weights as the final fit."""
@@ -249,13 +307,61 @@ def test_auto_selection_forwards_sample_weight(monkeypatch, cls, name):
 
     def fake_select_by_cv(*args, sample_weight=None, **kwargs):
         captured["sample_weight"] = sample_weight
-        return {name: 0.0}
+        return {key: values[0] for key, values in args[1].items()}
 
     monkeypatch.setattr(selection, "select_by_cv", fake_select_by_cv)
 
     cls().fit(x, y, sample_weight=weights)
 
     np.testing.assert_allclose(captured["sample_weight"], weights)
+
+
+@pytest.mark.parametrize("weighted", [False, True])
+def test_nearly_isotonic_auto_cv_preserves_penalty_per_unit_weight(
+    monkeypatch, weighted
+):
+    """Each fold must evaluate the full fit's effective regularization."""
+    import calibre.calibrators.nearly_isotonic as nearly_module
+    from calibre._core import aggregate_ties, weighted_pava
+
+    x = np.linspace(0.0, 1.0, 80)
+    y = (np.arange(80) % 3 == 0).astype(float)
+    sample_weight = np.linspace(0.5, 3.0, y.size) if weighted else None
+    explicit_weight = (
+        np.ones_like(y) if sample_weight is None else np.asarray(sample_weight)
+    )
+    full_mass = float(np.sum(explicit_weight))
+
+    _, y_mean, pooled_weight = aggregate_ties(x, y, sample_weight)
+    isotonic = weighted_pava(y_mean, pooled_weight)
+    residual = np.cumsum(pooled_weight * (y_mean - isotonic))[:-1]
+    lam_max = max(0.0, float(np.max(residual, initial=0.0)))
+    candidates = np.linspace(0.0, lam_max, NearlyIsotonicCalibrator.N_AUTO_LAMBDAS)
+    folds = make_folds(x, y, cv=5, random_state=0)
+
+    calls = []
+    original = nearly_module.nearly_isotonic_path
+
+    def recording_path(y, lam, sample_weight=None, return_path=False):
+        weight = np.ones_like(y) if sample_weight is None else sample_weight
+        calls.append((float(lam), float(np.sum(weight))))
+        return original(y, lam, sample_weight, return_path)
+
+    monkeypatch.setattr(nearly_module, "nearly_isotonic_path", recording_path)
+    NearlyIsotonicCalibrator(cv=5, random_state=0).fit(
+        x, y, sample_weight=sample_weight
+    )
+
+    n_cv_fits = len(candidates) * len(folds)
+    assert len(calls) == n_cv_fits + 1
+    for candidate_index, candidate in enumerate(candidates):
+        for fold_index, (train, _) in enumerate(folds):
+            observed_lam, observed_mass = calls[
+                candidate_index * len(folds) + fold_index
+            ]
+            expected_mass = float(np.sum(explicit_weight[train]))
+            assert observed_mass == pytest.approx(expected_mass)
+            assert observed_lam / observed_mass == pytest.approx(candidate / full_mass)
 
 
 @pytest.mark.parametrize(
@@ -370,9 +476,7 @@ def test_log_loss_rejects_targets_outside_its_domain():
 
     with pytest.raises(ValueError, match=r"log_loss.*targets in \[0, 1\]"):
         select_by_cv(
-            lambda **kw: RegularizedIsotonicCalibrator(
-                link="identity", clip_output=False, **kw
-            ),
+            lambda **kw: SplineCalibrator(link="identity", clip_output=False, **kw),
             {"alpha": [0.0, 1.0]},
             x,
             y,
@@ -381,9 +485,7 @@ def test_log_loss_rejects_targets_outside_its_domain():
         )
 
     assert "alpha" in select_by_cv(
-        lambda **kw: RegularizedIsotonicCalibrator(
-            link="identity", clip_output=False, **kw
-        ),
+        lambda **kw: SplineCalibrator(link="identity", clip_output=False, **kw),
         {"alpha": [0.0, 1.0]},
         x,
         y,
@@ -392,9 +494,7 @@ def test_log_loss_rejects_targets_outside_its_domain():
     )
 
     assert "alpha" in select_by_cv(
-        lambda **kw: RegularizedIsotonicCalibrator(
-            link="identity", clip_output=False, **kw
-        ),
+        lambda **kw: SplineCalibrator(link="identity", clip_output=False, **kw),
         {"alpha": [0.0, 1.0]},
         x,
         y,
@@ -450,7 +550,7 @@ def test_a_bad_string_is_rejected(cls, name):
 def test_a_negative_value_is_rejected(cls, name):
     """Negative penalties are meaningless."""
     x, y = _data(16, n=200)
-    with pytest.raises(ValueError, match=f"{name} must be non-negative"):
+    with pytest.raises(ValueError, match=f"{name} must be finite and non-negative"):
         cls(**{name: -1.0}).fit(x, y)
 
 

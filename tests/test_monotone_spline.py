@@ -29,10 +29,8 @@ ALL_CALIBRATORS = [
     "CenteredIsotonicCalibrator",
     "IsotonicCalibrator",
     "NearlyIsotonicCalibrator",
-    "RegularizedIsotonicCalibrator",
-    "RelaxedPAVACalibrator",
-    "SmoothedIsotonicCalibrator",
     "SplineCalibrator",
+    "RelaxedPAVACalibrator",
 ]
 
 # NearlyIsotonicCalibrator is deliberately absent: it penalises monotonicity
@@ -181,12 +179,12 @@ def test_spline_calibrator_is_monotone_across_datasets(link, seed):
 
 
 @pytest.mark.parametrize("alpha", [0.0, 1e-6, 0.01, 1.0, 100.0])
-def test_regularized_calibrator_is_monotone(alpha):
-    """The regularized variant shares the basis, so it inherits the guarantee."""
-    from calibre import RegularizedIsotonicCalibrator
+def test_pinned_spline_is_monotone(alpha):
+    """The pinned spline shares the basis, so it inherits the guarantee."""
+    from calibre import SplineCalibrator
 
     x, y = _dataset(1, n=600)
-    cal = RegularizedIsotonicCalibrator(alpha=alpha).fit(x, y)
+    cal = SplineCalibrator(alpha=alpha).fit(x, y)
 
     grid = np.linspace(x.min(), x.max(), 2000)
     fitted = cal.transform(grid)
@@ -260,11 +258,11 @@ def test_final_model_is_refit_on_all_data():
 
 
 def test_cross_validation_selects_alpha():
-    """With alpha=None the class must actually choose, and record the choice."""
+    """With alpha="auto" the class must actually choose, and record the choice."""
     from calibre import SplineCalibrator
 
     x, y = _dataset(5, n=800)
-    cal = SplineCalibrator(alpha=None, cv=4, random_state=0).fit(x, y)
+    cal = SplineCalibrator(alpha="auto", cv=4, random_state=0).fit(x, y)
 
     assert hasattr(cal, "alpha_"), "the selected alpha must be recorded as alpha_"
     assert cal.alpha_ >= 0
@@ -317,7 +315,7 @@ def test_cross_validation_does_not_return_an_arbitrary_failed_candidate():
     """If every fold fit fails, selection has no defensible answer."""
     from calibre import SplineCalibrator
 
-    with pytest.raises(ValueError, match="every spline candidate failed"):
+    with pytest.raises(ValueError, match="every candidate failed to fit"):
         SplineCalibrator(link="identity", clip_output=False).fit(
             np.array([0.1, 0.9]), np.array([-1.0, 2.0])
         )
@@ -354,7 +352,7 @@ def test_identity_link_attains_the_constrained_optimum(alpha):
     theta = cp.Variable(1)
     d = cp.Variable(p)
     eta = theta + M @ d
-    obj = cp.sum(cp.multiply(w, cp.square(eta - y)))
+    obj = cp.sum(cp.multiply(w, cp.square(eta - y))) / np.sum(w)
     if alpha > 0 and p > 1:
         obj = obj + alpha * cp.sum_squares(cp.diff(d))
     prob = cp.Problem(cp.Minimize(obj), [d >= 0])
@@ -362,7 +360,7 @@ def test_identity_link_attains_the_constrained_optimum(alpha):
 
     def objective(b0, dd):
         e = b0 + M @ dd
-        val = float(np.sum(w * (e - y) ** 2))
+        val = float(np.sum(w * (e - y) ** 2) / np.sum(w))
         if alpha > 0 and p > 1:
             val += alpha * float(np.sum(np.diff(dd) ** 2))
         return val
@@ -372,6 +370,51 @@ def test_identity_link_attains_the_constrained_optimum(alpha):
     assert ours <= ref + 1e-6 * max(1.0, abs(ref)), (
         f"ours={ours:.8f} worse than CVXPY={ref:.8f}"
     )
+
+
+@pytest.mark.parametrize("link", ["identity", "logit"])
+def test_low_level_solver_rejects_nonfinite_alpha(link):
+    """NaN is not a non-negative smoothing penalty."""
+    from calibre._core import fit_monotone_spline
+
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        fit_monotone_spline(
+            np.ones((4, 2)), np.array([0.0, 0.0, 1.0, 1.0]), alpha=np.nan, link=link
+        )
+
+
+@pytest.mark.parametrize(
+    ("link", "solver_name", "message"),
+    [
+        ("identity", "lsq_linear", "bounded least-squares optimization failed"),
+        ("logit", "minimize", "L-BFGS-B optimization failed"),
+    ],
+)
+def test_low_level_solver_does_not_return_a_failed_result(
+    monkeypatch, link, solver_name, message
+):
+    """A finite iterate is not a solution when SciPy reports nonconvergence."""
+    from types import SimpleNamespace
+
+    import scipy.optimize
+
+    from calibre._core import fit_monotone_spline
+
+    failed = SimpleNamespace(
+        success=False,
+        status=0,
+        message="iteration limit reached",
+        x=np.zeros(3),
+    )
+    monkeypatch.setattr(scipy.optimize, solver_name, lambda *args, **kwargs: failed)
+
+    with pytest.raises(RuntimeError, match=message):
+        fit_monotone_spline(
+            np.ones((4, 2)),
+            np.array([0.0, 0.0, 1.0, 1.0]),
+            alpha=0.1,
+            link=link,
+        )
 
 
 def test_links_agree_closely_on_log_loss():
@@ -410,7 +453,7 @@ def test_links_agree_closely_on_log_loss():
 
 
 def test_monotone_spline_solver_rejects_invalid_weights():
-    """The low-level spline solver should not optimise an invalid objective."""
+    """The low-level spline solver should not optimize an invalid objective."""
     from calibre._core import fit_monotone_spline, monotone_spline_basis
 
     x, y = _dataset(17, n=100)
@@ -426,7 +469,7 @@ def test_monotone_spline_solver_rejects_invalid_weights():
 
 
 # --------------------------------------------------------------------------- #
-# Boundary behaviour, ranges, and scale
+# Boundary behavior, ranges, and scale
 # --------------------------------------------------------------------------- #
 
 
@@ -465,15 +508,13 @@ def test_clip_output_bounds_the_range(link):
     assert f.max() <= 1.0
 
 
-@pytest.mark.parametrize(
-    "cls_name", ["SplineCalibrator", "RegularizedIsotonicCalibrator"]
-)
+@pytest.mark.parametrize("cls_name", ["SplineCalibrator"])
 def test_scales_to_100k_without_degrading(cls_name):
     """Large n must fit quickly and still honour alpha.
 
-    The previous regularized implementation put one parameter per unique score;
+    The previous pinned spline implementation put one parameter per unique score;
     above a few thousand its solve stopped converging and it silently fell back to
-    unpenalised isotonic regression, so alpha became a no-op on exactly the sizes
+    unpenalized isotonic regression, so alpha became a no-op on exactly the sizes
     where smoothing matters. A fixed basis has no such regime.
     """
     import time
@@ -501,18 +542,18 @@ def test_scales_to_100k_without_degrading(cls_name):
     )
 
 
-def test_regularized_alpha_preserves_mean_calibration():
+def test_pinned_spline_alpha_preserves_mean_calibration():
     """Raising alpha must not deflate the predictions.
 
     A ridge-toward-zero penalty drives E[beta] to 0 as alpha grows. A roughness
     penalty leaves straight lines alone, so the mean must track the base rate.
     """
-    from calibre import RegularizedIsotonicCalibrator
+    from calibre import SplineCalibrator
 
     x, y = _dataset(12, n=2000)
     base = float(y.mean())
     for alpha in (0.0, 0.1, 1.0, 10.0, 1000.0):
-        f = RegularizedIsotonicCalibrator(alpha=alpha).fit_transform(x, y)
+        f = SplineCalibrator(alpha=alpha).fit_transform(x, y)
         assert abs(float(f.mean()) - base) < 0.05, (
             f"alpha={alpha}: E[beta]={f.mean():.4f} drifted from base rate {base:.4f}"
         )
@@ -551,9 +592,8 @@ def _same_params(a: dict, b: dict) -> bool:
 def test_fit_does_not_mutate_constructor_params(cls_name):
     """fit() must leave get_params() untouched, or clone/GridSearchCV break.
 
-    ``SmoothedIsotonicCalibrator`` used to coerce ``poly_order`` and
-    ``min_window`` onto the instance inside fit, so a cloned estimator did not
-    match the one it was cloned from.
+    Fitting must not rewrite constructor arguments, or a cloned estimator will
+    not match the one it was cloned from.
     """
     import calibre
 
@@ -595,15 +635,13 @@ def test_fit_does_not_mutate_out_of_range_params(cls_name):
     assert _same_params(before, clone(cal).get_params())
 
 
-@pytest.mark.parametrize(
-    "cls_name", ["SplineCalibrator", "RegularizedIsotonicCalibrator"]
-)
+@pytest.mark.parametrize("cls_name", ["SplineCalibrator"])
 def test_transform_before_fit_raises(cls_name):
     """Predicting before fitting must fail clearly."""
     import calibre
 
     cls = getattr(calibre, cls_name)
-    with pytest.raises(AttributeError, match="not fitted"):
+    with pytest.raises(AttributeError, match="must be fitted before transform"):
         cls().transform(np.array([0.1, 0.5]))
 
 
@@ -611,11 +649,15 @@ def test_transform_before_fit_raises(cls_name):
     "kwargs",
     [
         {"n_knots": 2},
+        {"n_knots": 5.5},
         {"degree": 0},
+        {"degree": "3"},
         {"alpha": -1.0},
         {"link": "probit"},
         {"knots": "spaced"},
         {"cv": 1},
+        {"cv": 2.5},
+        {"max_cv_samples": 100.5},
     ],
 )
 def test_invalid_params_rejected_by_fit(kwargs):
@@ -642,15 +684,12 @@ def test_spline_calibrator_rejects_malformed_sample_weights(sample_weight, match
 
     x, y = _dataset(16, n=200)
     with pytest.raises(ValueError, match=match):
-        SplineCalibrator(alpha=None, cv=4).fit(x, y, sample_weight=sample_weight)
+        SplineCalibrator(alpha="auto", cv=4).fit(x, y, sample_weight=sample_weight)
 
 
 @pytest.mark.parametrize(
     "cls_name",
-    [
-        "SplineCalibrator",
-        "RegularizedIsotonicCalibrator",
-    ],
+    ["SplineCalibrator"],
 )
 def test_weighted_knot_placement_ignores_zero_mass_and_stays_monotone(cls_name):
     """Zero-weight rows and concentrated mass must not degenerate the I-spline."""
@@ -706,8 +745,9 @@ def test_weighted_spline_basis_ignores_zero_mass_and_stays_monotone():
     assert np.all(np.diff(weighted.design(grid), axis=0) >= -1e-12)
 
 
-def test_constant_weight_scale_does_not_move_spline_knots():
-    """Equal observation weights cannot change quantile knot placement."""
+@pytest.mark.parametrize("alpha", [0.0, 0.1, 10.0])
+def test_constant_weight_scale_does_not_change_spline_fit(alpha):
+    """Weight units cannot alter knot placement or regularization strength."""
     from calibre._core import monotone_spline_basis
 
     x = np.array([0.0025, 0.1225, 0.4225, 0.9025])
@@ -720,12 +760,12 @@ def test_constant_weight_scale_does_not_move_spline_knots():
     )
     np.testing.assert_allclose(scaled_basis.design(grid), unit_basis.design(grid))
 
-    for cls_name in ("SplineCalibrator", "RegularizedIsotonicCalibrator"):
+    for cls_name in ("SplineCalibrator",):
         import calibre
 
         cls = getattr(calibre, cls_name)
         kwargs = {
-            "alpha": 0.0,
+            "alpha": alpha,
             "n_knots": 3,
             "link": "identity",
             "clip_output": False,
@@ -737,9 +777,7 @@ def test_constant_weight_scale_does_not_move_spline_knots():
         np.testing.assert_allclose(scaled, unit, atol=1e-8)
 
 
-@pytest.mark.parametrize(
-    "cls_name", ["SplineCalibrator", "RegularizedIsotonicCalibrator"]
-)
+@pytest.mark.parametrize("cls_name", ["SplineCalibrator"])
 def test_zero_weight_out_of_domain_target_is_ignored(cls_name):
     """A target carrying no mass cannot invalidate a Bernoulli fit."""
     import calibre
@@ -798,10 +836,8 @@ def test_monotone_under_tied_scores(cls_name, decimals):
     """Tied input scores must not break monotonicity.
 
     Tied scores are the ordinary case in calibration -- tree ensembles and any
-    rounded or binned score produce them. ``SmoothedIsotonicCalibrator`` built
-    its interpolant directly on the training scores with duplicates present,
-    which silently discarded all but one observation per tie group and produced
-    34 violations on this data in its default configuration.
+    rounded or binned score produce them. Every interpolation-based calibrator
+    must pool them before constructing its curve.
 
     Zero violations, not a tolerance: every calibrator here is monotone by
     construction.
@@ -826,14 +862,9 @@ def test_monotone_under_tied_scores(cls_name, decimals):
     "cls_name",
     # Calibrators that select hyperparameters by cross-validation are excluded:
     # KFold assigns folds by row position, so shuffling legitimately changes
-    # which candidate wins. That is CV behaviour, not tie handling.
-    # RegularizedIsotonicCalibrator joined this list in 0.8.0, when alpha
-    # stopped being a fixed guess.
-    [
-        c
-        for c in MONOTONE_CALIBRATORS
-        if c not in {"SplineCalibrator", "RegularizedIsotonicCalibrator"}
-    ],
+    # which candidate wins. That is CV behavior, not tie handling.
+    # Automatic spline selection depends on the CV row partition.
+    [c for c in MONOTONE_CALIBRATORS if c != "SplineCalibrator"],
 )
 def test_ties_do_not_depend_on_input_order(cls_name):
     """Shuffling the training rows must not change the fit.

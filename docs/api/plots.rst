@@ -96,14 +96,14 @@ Styling
 
 .. data:: calibre.plots.PALETTE
 
-   The Okabe-Ito qualitative palette, which is colourblind-safe. matplotlib's
+   The Okabe-Ito qualitative palette, which is colorblind-safe. matplotlib's
    default ``tab10`` is not: its red and green are indistinguishable under
-   deuteranopia, and a figure that compares calibration methods by colour has to
+   deuteranopia, and a figure that compares calibration methods by color has to
    survive that.
 
 .. data:: calibre.plots.SEMANTIC
 
-   Role-to-colour mapping, so that a given quantity keeps the same colour in
+   Role-to-color mapping, so that a given quantity keeps the same color in
    every figure. ``MCB`` is the same red in a decomposition panel, a benchmark
    scatter and a notebook.
 

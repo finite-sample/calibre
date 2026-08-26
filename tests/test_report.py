@@ -300,7 +300,7 @@ def test_in_sample_mcb_is_zero_but_out_of_fold_is_not():
     """The trap the report's docstring warns about, asserted.
 
     PAV is idempotent, so scoring an isotonic fit on its own training data gives
-    MCB of exactly zero however badly the model generalises.
+    MCB of exactly zero however badly the model generalizes.
     """
     rng = np.random.default_rng(0)
     scores = rng.uniform(0, 1, 1500)

@@ -225,7 +225,7 @@ def test_uncertainty_ignores_the_forecast(score):
 def test_decomposition_survives_heavy_ties(score):
     """Tied forecasts must not break the identity.
 
-    Ties are what broke SmoothedIsotonicCalibrator before 0.7.1, so anything
+    Ties have broken interpolation-based calibrators before, so anything
     built on interpolation gets checked against them.
     """
     x, y = _tied(8, decimals=1)

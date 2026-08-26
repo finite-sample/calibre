@@ -85,7 +85,7 @@ def _number(value: str) -> float:
 
 
 def check_completeness(rows: list[dict[str, str]], expected_seeds: int) -> None:
-    """Refuse to summarise a cell that is missing seeds.
+    """Refuse to summarize a cell that is missing seeds.
 
     A dataset that errored on half its seeds would otherwise be averaged over
     whatever survived and reported alongside the rest, which is how a benchmark
@@ -115,7 +115,7 @@ def check_completeness(rows: list[dict[str, str]], expected_seeds: int) -> None:
         )
 
 
-def summarise(rows: list[dict[str, str]]) -> list[dict[str, object]]:
+def summarize(rows: list[dict[str, str]]) -> list[dict[str, object]]:
     """Mean each level column over seeds, per dataset/model/method.
 
     Args:
@@ -247,7 +247,7 @@ def _write(path: Path, rows: list[dict[str, object]]) -> None:
     if not rows:
         return
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     print(f"wrote {path} ({len(rows)} rows)")
@@ -269,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skip-completeness",
         action="store_true",
-        help="summarise a partial grid; for exploration only",
+        help="summarize a partial grid; for exploration only",
     )
     args = parser.parse_args(argv)
 
@@ -282,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
         expected = len({r["seed"] for r in rows})
         check_completeness(rows, expected)
 
-    _write(RESULTS / "summary.csv", summarise(rows))
+    _write(RESULTS / "summary.csv", summarize(rows))
     _write(
         RESULTS / "paired.csv",
         pair_against_baseline(rows, config.BASELINE, config.N_BOOTSTRAP),

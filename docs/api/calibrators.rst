@@ -26,9 +26,9 @@ to tune, and preserves score ordering between pooled isotonic blocks.
      - :class:`~calibre.SplineCalibrator`
      - Monotone spline; picks its own smoothing by link-appropriate prediction loss.
    * - A smooth curve with smoothing you control
-     - :class:`~calibre.RegularizedIsotonicCalibrator`
-     - Same model, you set ``alpha`` instead of tuning it. Fast.
-   * - Exactly scikit-learn's isotonic behaviour
+     - :class:`~calibre.SplineCalibrator`
+     - Set ``alpha``; also set ``n_knots`` to skip cross-validation.
+   * - Exactly scikit-learn's isotonic behavior
      - :class:`~calibre.IsotonicCalibrator`
      - Thin wrapper, plus optional plateau diagnostics.
    * - Strict increase without output clipping
@@ -88,14 +88,6 @@ Spline Calibrator
    :undoc-members:
    :show-inheritance:
 
-Regularized Isotonic Calibrator
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: calibre.RegularizedIsotonicCalibrator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. note::
    This is a monotone spline with a second-difference (curvature) penalty. It is
    **not** ridge regression, and ``alpha=0`` is not isotonic regression.
@@ -121,22 +113,7 @@ Nearly Isotonic Calibrator
    :show-inheritance:
 
 .. note::
-   Penalises rather than forbids monotonicity violations. Two exact solvers:
-   ``method="path"`` (default, pure NumPy) and ``method="cvx"`` (CVXPY). Note
-   that ``lam`` is twice the source paper's lambda.
-
-Smoothed Isotonic Calibrator
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: calibre.SmoothedIsotonicCalibrator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. note::
-   Savitzky-Golay smoothing of an isotonic fit. Retained for compatibility;
-   prefer :class:`~calibre.SplineCalibrator` or
-   :class:`~calibre.RegularizedIsotonicCalibrator` for a smooth curve.
+   Penalizes rather than forbids monotonicity violations.
 
 Research
 --------
@@ -192,9 +169,8 @@ Comparing Methods
    from calibre import (
        CenteredIsotonicCalibrator,
        IsotonicCalibrator,
-       RegularizedIsotonicCalibrator,
-       RelaxedPAVACalibrator,
        SplineCalibrator,
+       RelaxedPAVACalibrator,
        unique_value_counts,
    )
 
@@ -203,7 +179,7 @@ Comparing Methods
        "Centered": CenteredIsotonicCalibrator(),
        "Spline": SplineCalibrator(),
        "Relaxed PAVA": RelaxedPAVACalibrator(min_slope=1e-5),
-       "Regularized": RegularizedIsotonicCalibrator(alpha=0.1),
+       "Spline (fixed alpha)": SplineCalibrator(alpha=0.1),
    }
 
    for name, cal in calibrators.items():

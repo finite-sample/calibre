@@ -133,7 +133,7 @@ def plot_resolution_loss(
 
     axes = get_axes(ax, figsize=(8.0, 0.75 * len(names) + 1.4))
 
-    # One ink colour for every row, deliberately. The message of this plot is
+    # One ink color for every row, deliberately. The message of this plot is
     # carried by ink density, and density is read as lightness: a black strip
     # looks denser than a sky-blue one holding exactly the same number of ticks.
     # Colouring the rows by method would make two calibrators with identical
@@ -201,7 +201,7 @@ def plot_resolution_frontier(
         errorbars: Optional mapping from method name to ``(low, high)``
             absolute score bounds, for instance a bootstrap interval.
         score_label: Label for the y-axis.
-        highlight: Names to draw in the accent colour.
+        highlight: Names to draw in the accent color.
 
     Returns:
         Axes: The axes drawn on.
@@ -285,7 +285,7 @@ def plot_resolution_frontier(
         if not side:
             continue
         # Pack upward from the lowest label, then shift the whole stack back down
-        # by half of whatever it grew, so a crowded side stays centred on its
+        # by half of whatever it grew, so a crowded side stays centered on its
         # points instead of drifting off the top of the axes.
         packed: list[float] = []
         for _, _, score in side:

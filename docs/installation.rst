@@ -18,7 +18,6 @@ This installs Calibre along with its runtime dependencies:
 - numpy >= 1.20.0
 - scipy >= 1.7.0
 - scikit-learn >= 1.6.0
-- cvxpy >= 1.2.0
 
 That is the whole list. pandas and matplotlib were runtime dependencies before
 0.7.0 and are not any more — nothing in the package imported them.
@@ -88,22 +87,6 @@ Verifying Installation
 
 Troubleshooting
 ---------------
-
-**ImportError: No module named 'cvxpy'**
-
-CVXPY is a hard runtime dependency because ``nearly_isotonic.py`` imports it at
-module level. If it failed to install, try it on its own:
-
-.. code-block:: bash
-
-   pip install cvxpy
-
-On macOS, conda is often easier:
-
-.. code-block:: bash
-
-   conda install -c conda-forge cvxpy
-   pip install calibre
 
 **Memory errors during installation**
 
