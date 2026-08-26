@@ -109,7 +109,7 @@ benchmark.
   already close to calibrated there and the test half is only about 228 rows, so
   pooling costs more than it buys.
 - **``NearlyIsotonicCalibrator``** at its defaults is close to plain isotonic on
-  these designs — 54 distinct values against 49. Its resolution frontier is
+  these designs — 52 distinct values against 49. Its resolution frontier is
   dominated by centered isotonic regression, which reaches more distinct values at
   a better score, so no default was invented to hide this. See the class docstring.
 

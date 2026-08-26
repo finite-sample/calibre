@@ -120,8 +120,8 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         Because the objective fits one value per observation to the labels, a small
         ``lam`` approaches the raw outcomes and overfits. Increasing ``lam`` buys
         proper-score performance back by pooling more values. In the committed
-        ``overconfident`` benchmark, the automatically selected fit retains 54
-        distinct values with a held-out Brier score of 0.1532; centered isotonic
+        ``overconfident`` benchmark, the automatically selected fit retains 52
+        distinct values with a held-out Brier score of 0.1531; centered isotonic
         regression retains 1,514 at 0.1527. Use nearly-isotonic regression when
         bounded monotonicity violations are the feature you need. Use centered
         isotonic regression or the spline calibrator when you need resolution.

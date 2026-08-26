@@ -1089,15 +1089,15 @@ z
     </g>
    </g>
    <g id="line2d_16">
-    <path d="M 445.055685 257.224099
-L 454.399162 257.224099
+    <path d="M 450.948666 257.224099
+L 454.864398 257.224099
 " clip-path="url(#p3cc1628f0d)" style="fill: none; stroke: #666666; stroke-width: 2; stroke-linecap: square"/>
    </g>
    <g id="line2d_17">
-    <path d="M 450.212044 257.224099
+    <path d="M 453.236074 257.224099
 " clip-path="url(#p3cc1628f0d)" style="fill: none; stroke: #666666; stroke-width: 1.5; stroke-linecap: square"/>
     <g clip-path="url(#p3cc1628f0d)">
-     <use xlink:href="#me62a14843f" x="450.212044" y="257.224099" style="fill: #666666; stroke: #666666"/>
+     <use xlink:href="#me62a14843f" x="453.236074" y="257.224099" style="fill: #666666; stroke: #666666"/>
     </g>
    </g>
    <g id="line2d_18">

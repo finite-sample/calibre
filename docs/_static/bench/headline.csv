@@ -6,5 +6,5 @@ calibre_centered,0.1527,+0.0076,0.0284,1514,0.0205,25/30
 calibre_relaxed_pava,0.1530,+0.0073,0.0270,1356,0.0254,28/30
 calibre_isotonic,0.1530,+0.0073,0.0270,49,0.0255,0/30
 sklearn_isotonic,0.1530,+0.0073,0.0270,49,0.0255,baseline
-calibre_nearly_isotonic,0.1532,+0.0072,0.0271,54,0.0264,7/30
+calibre_nearly_isotonic,0.1531,+0.0073,0.0270,52,0.0259,7/30
 uncalibrated,0.1604,--,0.0835,1594,0.0808,0/30

@@ -97,7 +97,7 @@ seeds, scored on a held-out half that nothing was tuned on. Lower Brier is bette
 |---|---|---|---|---|---|
 | Uncalibrated | 0.1604 | — | 0.0835 | 1594 | — |
 | `IsotonicCalibrator` | 0.1530 | +0.0073 | 0.0270 | **49** | baseline |
-| `NearlyIsotonicCalibrator` | 0.1532 | +0.0072 | 0.0271 | 54 | 7/30 |
+| `NearlyIsotonicCalibrator` | 0.1531 | +0.0073 | 0.0270 | 52 | 7/30 |
 | `RelaxedPAVACalibrator` | 0.1530 | +0.0073 | 0.0270 | 1356 | 28/30 |
 | `CenteredIsotonicCalibrator` | 0.1527 | +0.0076 | 0.0284 | 1514 | 25/30 |
 | `SplineCalibrator` | 0.1524 | +0.0080 | 0.0263 | 1595 | 28/30 |
