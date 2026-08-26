@@ -20,7 +20,7 @@ def test_notebooks_do_not_present_removed_or_unvalidated_calibrators():
     }
 
     for path in sorted(NOTEBOOKS.glob("*.ipynb")):
-        notebook = json.loads(path.read_text())
+        notebook = json.loads(path.read_text(encoding="utf-8"))
         source = "\n".join(
             "".join(cell.get("source", [])) for cell in notebook["cells"]
         )
