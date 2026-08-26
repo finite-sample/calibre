@@ -138,6 +138,31 @@ def test_out_of_fold_calibration_rejects_column_weights():
         )
 
 
+def test_zero_weight_label_does_not_change_out_of_fold_fit():
+    """A zero-mass class must not affect folds, fits, or positive-mass outputs."""
+    x = np.linspace(0.0, 1.0, 21)
+    y = np.r_[np.zeros(20), 1.0]
+    weights = np.r_[np.ones(20), 0.0]
+
+    baseline = cross_val_calibrate(IsotonicCalibrator(), x[:-1], y[:-1], cv=5)
+    weighted = cross_val_calibrate(
+        IsotonicCalibrator(), x, y, sample_weight=weights, cv=5
+    )
+
+    np.testing.assert_allclose(weighted[:-1], baseline, rtol=0, atol=0)
+    assert np.isfinite(weighted[-1])
+
+
+def test_weighted_out_of_fold_requires_two_positive_mass_rows():
+    """One effective observation cannot define train and validation folds."""
+    x = np.linspace(0.0, 1.0, 5)
+    y = np.array([0.0, 1.0, 0.0, 1.0, 0.0])
+    weights = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
+
+    with pytest.raises(ValueError, match="at least two positive-weight observations"):
+        cross_val_calibrate(IsotonicCalibrator(), x, y, sample_weight=weights, cv=2)
+
+
 def test_out_of_fold_covers_every_observation():
     """No NaN survives; folds partition the data."""
     x, y = _data(4, n=300)

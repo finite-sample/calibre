@@ -351,7 +351,8 @@ def cross_val_calibrate(
         y: Targets.
         sample_weight: Non-negative per-observation weights used to fit each
             training fold. Validation rows retain their original positions,
-            including rows with zero weight.
+            including rows with zero weight. Zero-weight rows do not affect fold
+            stratification or fitting.
         cv: Number of folds.
         random_state: Seed for the folds.
 
@@ -360,6 +361,7 @@ def cross_val_calibrate(
             in the input's order.
 
     Raises:
+        ValueError: If fewer than two observations have positive weight.
         RuntimeError: If the folds did not cover every observation, which would
             leave some rows with no out-of-fold prediction at all.
 
@@ -383,7 +385,27 @@ def cross_val_calibrate(
 
     X, y = check_arrays(X, y)
     w = _sample_weight_or_ones(y, sample_weight)
-    folds = make_folds(X, y, cv=cv, random_state=random_state)
+    if sample_weight is None:
+        folds = make_folds(X, y, cv=cv, random_state=random_state)
+    else:
+        positive_idx = np.flatnonzero(w > 0.0)
+        if positive_idx.size < 2:
+            raise ValueError(
+                "cross-validation requires at least two positive-weight observations"
+            )
+        effective_folds = make_folds(
+            X[positive_idx], y[positive_idx], cv=cv, random_state=random_state
+        )
+        zero_chunks = np.array_split(np.flatnonzero(w == 0.0), len(effective_folds))
+        folds = [
+            (
+                positive_idx[train_idx],
+                np.concatenate((positive_idx[val_idx], zero_idx)),
+            )
+            for (train_idx, val_idx), zero_idx in zip(
+                effective_folds, zero_chunks, strict=True
+            )
+        ]
 
     out = np.full(y.shape, np.nan, dtype=float)
     for train_idx, val_idx in folds:
