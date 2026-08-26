@@ -61,6 +61,7 @@ ci-docker:
 		--workdir /workspace \
 		--env UV_PROJECT_ENVIRONMENT=/tmp/calibre-venv \
 		--env UV_CACHE_DIR=/tmp/uv-cache \
+		--env RUFF_CACHE_DIR=/tmp/ruff-cache \
 		--env COVERAGE_FILE=/tmp/.coverage \
 		ghcr.io/astral-sh/uv:0.12.5-python3.12-trixie \
 		sh -c 'uv sync --locked --all-groups && \
