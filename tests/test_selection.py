@@ -291,6 +291,54 @@ def test_auto_selection_forwards_sample_weight(monkeypatch, cls, name):
     np.testing.assert_allclose(captured["sample_weight"], weights)
 
 
+@pytest.mark.parametrize("weighted", [False, True])
+def test_nearly_isotonic_auto_cv_preserves_penalty_per_unit_weight(
+    monkeypatch, weighted
+):
+    """Each fold must evaluate the full fit's effective regularization."""
+    import calibre.calibrators.nearly_isotonic as nearly_module
+    from calibre._core import aggregate_ties, weighted_pava
+
+    x = np.linspace(0.0, 1.0, 80)
+    y = (np.arange(80) % 3 == 0).astype(float)
+    sample_weight = np.linspace(0.5, 3.0, y.size) if weighted else None
+    explicit_weight = (
+        np.ones_like(y) if sample_weight is None else np.asarray(sample_weight)
+    )
+    full_mass = float(np.sum(explicit_weight))
+
+    _, y_mean, pooled_weight = aggregate_ties(x, y, sample_weight)
+    isotonic = weighted_pava(y_mean, pooled_weight)
+    residual = np.cumsum(pooled_weight * (y_mean - isotonic))[:-1]
+    lam_max = max(0.0, float(np.max(residual, initial=0.0)))
+    candidates = np.linspace(0.0, lam_max, NearlyIsotonicCalibrator.N_AUTO_LAMBDAS)
+    folds = make_folds(x, y, cv=5, random_state=0)
+
+    calls = []
+    original = nearly_module.nearly_isotonic_path
+
+    def recording_path(y, lam, sample_weight=None, return_path=False):
+        weight = np.ones_like(y) if sample_weight is None else sample_weight
+        calls.append((float(lam), float(np.sum(weight))))
+        return original(y, lam, sample_weight, return_path)
+
+    monkeypatch.setattr(nearly_module, "nearly_isotonic_path", recording_path)
+    NearlyIsotonicCalibrator(cv=5, random_state=0).fit(
+        x, y, sample_weight=sample_weight
+    )
+
+    n_cv_fits = len(candidates) * len(folds)
+    assert len(calls) == n_cv_fits + 1
+    for candidate_index, candidate in enumerate(candidates):
+        for fold_index, (train, _) in enumerate(folds):
+            observed_lam, observed_mass = calls[
+                candidate_index * len(folds) + fold_index
+            ]
+            expected_mass = float(np.sum(explicit_weight[train]))
+            assert observed_mass == pytest.approx(expected_mass)
+            assert observed_lam / observed_mass == pytest.approx(candidate / full_mass)
+
+
 @pytest.mark.parametrize(
     ("sample_weight", "match"),
     [

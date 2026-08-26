@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Nearly-isotonic regression now uses the penalty scale defined in the source paper
   and matches the authors' R implementation, including weighted fits.
+- Nearly-isotonic automatic selection scales each fold's candidate by its share of
+  total observation weight, preserving the final fit's effective penalty.
 - Penalized I-spline loss is normalized by total observation weight, and failed
   numerical optimizers now raise instead of returning an invalid fitted model.
 - Calibration fitting and transformation reject multidimensional and non-finite

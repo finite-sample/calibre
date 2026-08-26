@@ -18,6 +18,57 @@ from ..base import BaseCalibrator
 from ..utils import check_array_1d, check_arrays, check_fitted
 
 
+class _MassScaledNearlyIsotonic:
+    """Fit a CV candidate at the full sample's penalty per unit weight."""
+
+    def __init__(self, lam: float, full_mass: float, clip_output: bool):
+        """Store the full-sample candidate and mass.
+
+        Args:
+            lam: Absolute lambda candidate for the final full-data fit.
+            full_mass: Total observation weight in the full calibration sample.
+            clip_output: Whether the candidate clips outputs to ``[0, 1]``.
+        """
+        self.lam = lam
+        self.full_mass = full_mass
+        self.clip_output = clip_output
+
+    def fit(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        sample_weight: np.ndarray | None = None,
+    ) -> _MassScaledNearlyIsotonic:
+        """Fit the candidate after converting lambda to the fold's mass.
+
+        Args:
+            X: Training-fold scores.
+            y: Training-fold targets.
+            sample_weight: Non-negative per-observation weights.
+
+        Returns:
+            self: The fitted adapter.
+        """
+        fold_mass = float(len(y) if sample_weight is None else np.sum(sample_weight))
+        fold_lam = self.lam * fold_mass / self.full_mass
+        self.model_ = NearlyIsotonicCalibrator(
+            lam=fold_lam,
+            clip_output=self.clip_output,
+        ).fit(X, y, sample_weight=sample_weight)
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Transform scores with the fitted fold model.
+
+        Args:
+            X: Scores to transform.
+
+        Returns:
+            ndarray: Calibrated scores.
+        """
+        return self.model_.transform(X)
+
+
 class NearlyIsotonicCalibrator(BaseCalibrator):
     r"""Nearly-isotonic regression for flexible monotonic calibration.
 
@@ -79,6 +130,10 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         Tibshirani, Hoefling & Tibshirani (2011, *Technometrics* 53(1), 54-61).
         Cross-language fixtures in ``tests/test_r_reference.py`` compare the
         implementation with the authors' R package, ``neariso``.
+
+        Automatic selection keeps :math:`\lambda / \sum_i w_i` fixed between
+        each training fold and the final full-data fit. Numeric ``lam`` values
+        remain absolute penalties on the paper's scale.
 
     Examples:
         >>> import numpy as np
@@ -187,7 +242,11 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
             self.lam,
             "lam",
             grid,
-            lambda **kw: type(self)(clip_output=self.clip_output, **kw),
+            lambda **kw: _MassScaledNearlyIsotonic(
+                lam=float(kw["lam"]),
+                full_mass=float(np.sum(weight)),
+                clip_output=self.clip_output,
+            ),
             X,
             y,
             cv=self.cv,
