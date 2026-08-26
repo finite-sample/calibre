@@ -68,6 +68,25 @@ def test_fit_rejects_multidimensional_sample_weight(factory, calibration_data):
 
 
 @pytest.mark.parametrize("factory", FACTORIES.values(), ids=FACTORIES)
+@pytest.mark.parametrize(
+    ("sample_weight", "match"),
+    [
+        (lambda n: np.r_[np.ones(n - 1), -1.0], "non-?negative"),
+        (lambda n: np.r_[np.ones(n - 1), np.nan], "finite"),
+        (lambda n: np.zeros(n), "positive"),
+    ],
+    ids=["negative", "nonfinite", "zero-mass"],
+)
+def test_fit_rejects_invalid_sample_weight(
+    factory, calibration_data, sample_weight, match
+):
+    """Every calibrator enforces the documented observation-weight domain."""
+    x, y = calibration_data
+    with pytest.raises(ValueError, match=match):
+        factory().fit(x, y, sample_weight=sample_weight(y.size))
+
+
+@pytest.mark.parametrize("factory", FACTORIES.values(), ids=FACTORIES)
 def test_transform_uses_the_same_input_contract(factory, calibration_data):
     """Prediction must not flatten dimensions or pass non-finite scores onward."""
     x, y = calibration_data

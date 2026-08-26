@@ -81,23 +81,34 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             BaseCalibrator: Returns self for method chaining.
 
         Raises:
-            ValueError: If ``sample_weight`` is not one-dimensional.
+            ValueError: If ``sample_weight`` is not one-dimensional, contains a
+                non-finite or negative value, or has no positive mass.
         """
         self._reset_fit_state()
         succeeded = False
         try:
-            if sample_weight is not None and np.asarray(sample_weight).ndim != 1:
-                raise ValueError("sample_weight must be 1-dimensional")
-            self._fit_impl(X, y, sample_weight)
+            weight = None
+            if sample_weight is not None:
+                raw_weight = np.asarray(sample_weight)
+                if raw_weight.ndim != 1:
+                    raise ValueError("sample_weight must be 1-dimensional")
+                weight = np.asarray(sample_weight, dtype=float)
+                if not np.all(np.isfinite(weight)) or np.any(weight < 0.0):
+                    raise ValueError(
+                        "sample_weight must contain finite non-negative values"
+                    )
+                if not np.any(weight > 0.0):
+                    raise ValueError(
+                        "sample_weight must contain at least one positive weight"
+                    )
+            self._fit_impl(X, y, weight)
             # Retain the same one-dimensional numeric representation accepted by the
             # concrete calibrators. Keeping the caller's raw list here made fitting
             # succeed and diagnostics fail later when they used NumPy index arrays.
             self._fit_data_X = np.asarray(X, dtype=float).ravel()
             self._fit_data_y = np.asarray(y, dtype=float).ravel()
             self._fit_data_weight = (
-                None
-                if sample_weight is None
-                else np.asarray(sample_weight, dtype=float).ravel()
+                None if weight is None else np.asarray(weight, dtype=float).ravel()
             )
             self._is_fitted = True
             self._run_diagnostics()
