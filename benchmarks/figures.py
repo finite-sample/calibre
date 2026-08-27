@@ -14,10 +14,14 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from . import config
+
+if TYPE_CHECKING:  # matplotlib is imported lazily inside the functions
+    from matplotlib.figure import Figure
 
 RESULTS = Path(__file__).resolve().parent / "results"
 FIGURES = Path(__file__).resolve().parents[1] / "docs" / "_static" / "bench"
@@ -59,7 +63,7 @@ def _float(value: str) -> float:
         return float("nan")
 
 
-def _save(figure, stem: str) -> None:
+def _save(figure: Figure, stem: str) -> None:
     """Write one figure as both SVG and PNG.
 
     The docs use the SVG. The README needs the PNG: it is rendered by GitHub and

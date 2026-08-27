@@ -106,7 +106,9 @@ def _build(name: str) -> Any:
     return builders[name]()
 
 
-def _sklearn_isotonic(fit_scores, fit_labels, test_scores):
+def _sklearn_isotonic(
+    fit_scores: np.ndarray, fit_labels: np.ndarray, test_scores: np.ndarray
+) -> np.ndarray:
     """scikit-learn's isotonic regression, the baseline everything answers to.
 
     Args:
@@ -124,7 +126,9 @@ def _sklearn_isotonic(fit_scores, fit_labels, test_scores):
     return np.asarray(model.predict(test_scores), dtype=float)
 
 
-def _sklearn_platt(fit_scores, fit_labels, test_scores):
+def _sklearn_platt(
+    fit_scores: np.ndarray, fit_labels: np.ndarray, test_scores: np.ndarray
+) -> np.ndarray:
     """Platt scaling: a logistic fit on the log-odds of the score.
 
     Fitted on the logit rather than the raw probability, which is what
@@ -154,7 +158,9 @@ def _sklearn_platt(fit_scores, fit_labels, test_scores):
     )
 
 
-def _sklearn_temperature(fit_scores, fit_labels, test_scores):
+def _sklearn_temperature(
+    fit_scores: np.ndarray, fit_labels: np.ndarray, test_scores: np.ndarray
+) -> np.ndarray:
     """One-parameter temperature scaling on the log-odds.
 
     scikit-learn 1.8 added ``method="temperature"`` to
@@ -196,7 +202,12 @@ def _sklearn_temperature(fit_scores, fit_labels, test_scores):
     )
 
 
-def _netcal(name: str, fit_scores, fit_labels, test_scores):
+def _netcal(
+    name: str,
+    fit_scores: np.ndarray,
+    fit_labels: np.ndarray,
+    test_scores: np.ndarray,
+) -> np.ndarray:
     """A netcal comparator, imported only when actually used.
 
     Args:
@@ -222,7 +233,12 @@ def _netcal(name: str, fit_scores, fit_labels, test_scores):
     )
 
 
-def calibrate(name: str, fit_scores, fit_labels, test_scores):
+def calibrate(
+    name: str,
+    fit_scores: np.ndarray,
+    fit_labels: np.ndarray,
+    test_scores: np.ndarray,
+) -> np.ndarray:
     """Fit one method on the out-of-fold scores and apply it to the test scores.
 
     Args:

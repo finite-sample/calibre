@@ -24,7 +24,12 @@ it -- hence the gap is worst exactly when the model is well calibrated.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 from scipy.stats import norm
 
 from calibre.evaluation import score_decomposition
@@ -43,14 +48,10 @@ RESULTS: list[tuple[str, str, bool]] = []
 def record(name: str, detail: str, passed: bool) -> None:
     """Record and print one prediction's outcome.
 
-    Parameters
-    ----------
-    name
-        Experiment label.
-    detail
-        What was measured.
-    passed
-        Whether the prediction held.
+    Args:
+        name: Experiment label.
+        detail: What was measured.
+        passed: Whether the prediction held.
     """
     RESULTS.append((name, detail, passed))
     print(f"    {'PASS' if passed else 'FAIL'}  {detail}")
@@ -59,17 +60,12 @@ def record(name: str, detail: str, passed: bool) -> None:
 def calibrated(n: int, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
     """Perfectly calibrated forecasts: the true calibration error is exactly 0.
 
-    Parameters
-    ----------
-    n
-        Sample size.
-    rng
-        Random generator.
+    Args:
+        n: Sample size.
+        rng: Random generator.
 
     Returns:
-    -------
-    tuple of ndarray
-        ``(y_true, y_pred)``.
+        tuple of ndarray: ``(y_true, y_pred)``.
     """
     p = rng.uniform(0, 1, n)
     return rng.binomial(1, p).astype(float), p
@@ -80,45 +76,37 @@ def distorted(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Forecasts stretched about 0.5 by ``a``; ``a = 1`` is calibrated.
 
-    Parameters
-    ----------
-    n
-        Sample size.
-    a
-        Distortion strength.
-    rng
-        Random generator.
+    Args:
+        n: Sample size.
+        a: Distortion strength.
+        rng: Random generator.
 
     Returns:
-    -------
-    tuple of ndarray
-        ``(y_true, y_pred)``.
+        tuple of ndarray: ``(y_true, y_pred)``.
     """
     p = rng.uniform(0, 1, n)
     y = rng.binomial(1, p).astype(float)
     return y, np.clip(a * (p - 0.5) + 0.5, 0.0, 1.0)
 
 
-def boot_draws(metric, y, p, n_resamples, rng):
+def boot_draws(
+    metric: Callable[[np.ndarray, np.ndarray], float],
+    y: np.ndarray,
+    p: np.ndarray,
+    n_resamples: int,
+    rng: np.random.Generator,
+) -> np.ndarray:
     """Bootstrap draws of ``metric`` by resampling observations.
 
-    Parameters
-    ----------
-    metric
-        Callable of ``(y_true, y_pred)``.
-    y
-        Labels.
-    p
-        Predictions.
-    n_resamples
-        Number of resamples.
-    rng
-        Random generator.
+    Args:
+        metric: Callable of ``(y_true, y_pred)``.
+        y: Labels.
+        p: Predictions.
+        n_resamples: Number of resamples.
+        rng: Random generator.
 
     Returns:
-    -------
-    ndarray
-        The draws.
+        ndarray: The draws.
     """
     n = y.size
     out = np.empty(n_resamples)
@@ -128,26 +116,24 @@ def boot_draws(metric, y, p, n_resamples, rng):
     return out
 
 
-def ratio(metric, y, p, n_resamples, rng) -> tuple[float, float]:
+def ratio(
+    metric: Callable[[np.ndarray, np.ndarray], float],
+    y: np.ndarray,
+    p: np.ndarray,
+    n_resamples: int,
+    rng: np.random.Generator,
+) -> tuple[float, float]:
     """Observed value and bootstrap mean.
 
-    Parameters
-    ----------
-    metric
-        Callable of ``(y_true, y_pred)``.
-    y
-        Labels.
-    p
-        Predictions.
-    n_resamples
-        Number of resamples.
-    rng
-        Random generator.
+    Args:
+        metric: Callable of ``(y_true, y_pred)``.
+        y: Labels.
+        p: Predictions.
+        n_resamples: Number of resamples.
+        rng: Random generator.
 
     Returns:
-    -------
-    tuple of float
-        ``(observed, bootstrap_mean)``.
+        tuple of float: ``(observed, bootstrap_mean)``.
     """
     return float(metric(y, p)), float(boot_draws(metric, y, p, n_resamples, rng).mean())
 
@@ -193,22 +179,18 @@ def e1_signed_versus_absolute() -> None:
             record("E1", f"convex functional shifted up (z={z:+.3f})", bool(z > 0.3))
 
 
-def _plugin_frozen(p_ref, n_bins, norm_p):
+def _plugin_frozen(
+    p_ref: np.ndarray, n_bins: int, norm_p: float
+) -> Callable[[np.ndarray, np.ndarray], float]:
     """Build a plugin estimator whose bin edges are frozen from a reference sample.
 
-    Parameters
-    ----------
-    p_ref
-        Reference predictions, whose bin edges are reused.
-    n_bins
-        Requested bin count.
-    norm_p
-        Norm.
+    Args:
+        p_ref: Reference predictions, whose bin edges are reused.
+        n_bins: Requested bin count.
+        norm_p: Norm.
 
     Returns:
-    -------
-    callable
-        A metric of ``(y_true, y_pred)`` using the frozen edges.
+        callable: A metric of ``(y_true, y_pred)`` using the frozen edges.
     """
     bin_id_ref, n_used = _equal_mass_bins(p_ref, n_bins)
     order = np.argsort(p_ref, kind="mergesort")
@@ -232,14 +214,10 @@ def e2_sqrt2(n_datasets: int = 200, n: int = 2000, n_resamples: int = 150) -> No
     sampling noise. The bootstrap statistic is ``||delta + eps||`` with ``eps`` of
     comparable variance, so the norm should grow by about ``sqrt(2)``.
 
-    Parameters
-    ----------
-    n_datasets
-        Independent datasets to average over.
-    n
-        Observations per dataset.
-    n_resamples
-        Bootstrap resamples per dataset.
+    Args:
+        n_datasets: Independent datasets to average over.
+        n: Observations per dataset.
+        n_resamples: Bootstrap resamples per dataset.
     """
     print(f"\nE2  plugin ECE inflation at true error 0 (n={n}, {n_datasets} datasets)")
     print(f"    prediction: ratio ~ sqrt(2) = {SQRT2:.3f}")
@@ -271,14 +249,10 @@ def e2b_frozen_edges(n_datasets: int = 150, n: int = 2000, n_resamples: int = 15
     ``_equal_mass_bins`` recomputes edges on every resample, so part of the
     inflation could be re-binning rather than the convexity of the norm.
 
-    Parameters
-    ----------
-    n_datasets
-        Independent datasets.
-    n
-        Observations per dataset.
-    n_resamples
-        Resamples per dataset.
+    Args:
+        n_datasets: Independent datasets.
+        n: Observations per dataset.
+        n_resamples: Resamples per dataset.
     """
     print("\nE2b frozen bin edges (isolates re-binning from convexity)")
     print("    prediction: still inflated; convexity is not an artifact of re-binning")
@@ -305,12 +279,9 @@ def e3_sample_size(n_resamples: int = 120, n_datasets: int = 80) -> None:
     ratio should be roughly constant. If instead it shrank with ``n``, the effect
     would be ordinary finite-sample noise rather than a structural property.
 
-    Parameters
-    ----------
-    n_resamples
-        Resamples per dataset.
-    n_datasets
-        Datasets per sample size.
+    Args:
+        n_resamples: Resamples per dataset.
+        n_datasets: Datasets per sample size.
     """
     print("\nE3  does the inflation shrink with n?")
     print("    prediction: ratio roughly constant in n")
@@ -346,14 +317,10 @@ def e4_curvature(n_datasets: int = 80, n: int = 4000, n_resamples: int = 120) ->
     This is the core of the explanation. If the ratio did not decay as the true
     error grows, the mechanism would not be Jensen at the kink of a norm.
 
-    Parameters
-    ----------
-    n_datasets
-        Datasets per distortion level.
-    n
-        Observations per dataset.
-    n_resamples
-        Resamples per dataset.
+    Args:
+        n_datasets: Datasets per distortion level.
+        n: Observations per dataset.
+        n_resamples: Resamples per dataset.
     """
     print("\nE4  does the inflation decay as true miscalibration grows?")
     print("    prediction: ratio falls from ~1.4 toward 1.0")
@@ -382,22 +349,16 @@ def e4_curvature(n_datasets: int = 80, n: int = 4000, n_resamples: int = 120) ->
     )
 
 
-def _debiased_total(y_true, y_pred, n_bins=15) -> float:
+def _debiased_total(y_true: np.ndarray, y_pred: np.ndarray, n_bins: int = 15) -> float:
     """The debiased sum *before* the square root and the floor.
 
-    Parameters
-    ----------
-    y_true
-        Labels.
-    y_pred
-        Predictions.
-    n_bins
-        Bin count.
+    Args:
+        y_true: Labels.
+        y_pred: Predictions.
+        n_bins: Bin count.
 
     Returns:
-    -------
-    float
-        The signed total.
+        float: The signed total.
     """
     n_bins = min(n_bins, len(y_true))
     bin_id, n_used = _equal_mass_bins(y_pred, n_bins)
@@ -423,12 +384,9 @@ def e5_debiased_floor(n: int = 2000, n_resamples: int = 400) -> None:
     come from its unbounded derivative at 0 and from the one-sided floor. Testing
     the raw ``total`` separates the two.
 
-    Parameters
-    ----------
-    n
-        Observations.
-    n_resamples
-        Resamples.
+    Args:
+        n: Observations.
+        n_resamples: Resamples.
     """
     print("\nE5  debiased ECE: is it the floor, the sqrt, or convexity?")
     print("    prediction: raw total ~1.0 would mean sqrt/floor, not convexity")
@@ -488,12 +446,9 @@ def e6_mcb(n: int = 2000, n_resamples: int = 300) -> None:
     Subsampling *without* replacement at smaller ``m`` separates them: the
     overfitting story predicts inflation that tracks ``m``.
 
-    Parameters
-    ----------
-    n
-        Observations.
-    n_resamples
-        Resamples.
+    Args:
+        n: Observations.
+        n_resamples: Resamples.
     """
     print("\nE6  MCB: convexity vs loss of effective sample size")
     rng = np.random.default_rng(60)
@@ -553,19 +508,13 @@ def e6_mcb(n: int = 2000, n_resamples: int = 300) -> None:
 def intervals(draws: np.ndarray, observed: float, level: float = 0.95) -> dict:
     """Percentile, basic and bias-corrected intervals from the same draws.
 
-    Parameters
-    ----------
-    draws
-        Bootstrap draws.
-    observed
-        The observed statistic.
-    level
-        Nominal coverage.
+    Args:
+        draws: Bootstrap draws.
+        observed: The observed statistic.
+        level: Nominal coverage.
 
     Returns:
-    -------
-    dict
-        Method name to ``(lower, upper)``.
+        dict: Method name to ``(lower, upper)``.
     """
     tail = (1.0 - level) / 2.0
     lo, hi = np.quantile(draws, [tail, 1.0 - tail])
@@ -593,12 +542,9 @@ def intervals(draws: np.ndarray, observed: float, level: float = 0.95) -> dict:
 def e7_intervals(n: int = 2000, n_resamples: int = 600) -> None:
     """What each interval method actually reports.
 
-    Parameters
-    ----------
-    n
-        Observations.
-    n_resamples
-        Resamples.
+    Args:
+        n: Observations.
+        n_resamples: Resamples.
     """
     print("\nE7  interval methods on calibrated data (true error 0)")
     rng = np.random.default_rng(70)
@@ -630,14 +576,10 @@ def e8_coverage(n_datasets: int = 200, n: int = 1500, n_resamples: int = 200) ->
     correctly. The debiased estimator targets the true error, which here is
     exactly zero, so its interval should cover zero.
 
-    Parameters
-    ----------
-    n_datasets
-        Datasets.
-    n
-        Observations per dataset.
-    n_resamples
-        Resamples per dataset.
+    Args:
+        n_datasets: Datasets.
+        n: Observations per dataset.
+        n_resamples: Resamples per dataset.
     """
     print(f"\nE8  coverage of the TRUE error (= 0), {n_datasets} datasets, n={n}")
     print("    note: plugin's estimand is not 0, so excluding 0 is correct for it")
@@ -681,12 +623,9 @@ def e8_coverage(n_datasets: int = 200, n: int = 1500, n_resamples: int = 200) ->
 def e9_smece_bandwidth(n: int = 2000, n_resamples: int = 250) -> None:
     """smECE re-selects its bandwidth per resample; does that drive the inflation?
 
-    Parameters
-    ----------
-    n
-        Observations.
-    n_resamples
-        Resamples.
+    Args:
+        n: Observations.
+        n_resamples: Resamples.
     """
     print("\nE9  smECE: convexity of |.| vs bandwidth re-selection")
     rng = np.random.default_rng(90)

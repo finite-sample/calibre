@@ -175,10 +175,13 @@ def run_cell(
                 )
             )
         )
-        assert gap <= ISOTONIC_AGREEMENT_TOLERANCE, (
-            f"calibre_isotonic and sklearn_isotonic differ by {gap:.3e} on "
-            f"{dataset_name}/{model_name}/seed={seed}; calibre's wrapper has "
-            "diverged from the baseline it is measured against"
-        )
+        if gap > ISOTONIC_AGREEMENT_TOLERANCE:
+            # Raised rather than asserted: `python -O` strips assert, and this
+            # is the check the benchmark's credibility rests on.
+            raise AssertionError(
+                f"calibre_isotonic and sklearn_isotonic differ by {gap:.3e} on "
+                f"{dataset_name}/{model_name}/seed={seed}; calibre's wrapper has "
+                "diverged from the baseline it is measured against"
+            )
 
     return rows
