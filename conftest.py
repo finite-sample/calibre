@@ -13,8 +13,12 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 # Headless, non-interactive, and deterministic. setdefault so an explicit
 # MPLBACKEND in the environment still wins.
@@ -22,7 +26,7 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 
 
 @pytest.fixture(autouse=True)
-def _close_figures():
+def _close_figures() -> Iterator[None]:
     """Close any figures a test or doctest opened.
 
     matplotlib warns once more than 20 figures are open, and the plotting
@@ -30,9 +34,7 @@ def _close_figures():
     which never touch matplotlib do not import it.
 
     Yields:
-    ------
-    None
-        Control returns to the test.
+        None: Control returns to the test.
     """
     yield
     if "matplotlib.pyplot" in sys.modules:

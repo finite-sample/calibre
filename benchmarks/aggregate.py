@@ -261,6 +261,9 @@ def main(argv: list[str] | None = None) -> int:
 
     Returns:
         int: Exit status.
+
+    Raises:
+        ValueError: If the raw results are missing required columns.
     """
     import argparse
 
