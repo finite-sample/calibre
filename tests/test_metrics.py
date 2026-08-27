@@ -7,13 +7,13 @@ import pytest
 
 import calibre.metrics
 from calibre.metrics import (
-    binned_calibration_error,
     brier_score,
     calibration_curve,
     correlation_metrics,
     expected_calibration_error,
     maximum_calibration_error,
     mean_calibration_error,
+    root_mean_squared_calibration_error,
     unique_value_counts,
 )
 
@@ -21,7 +21,7 @@ from calibre.metrics import (
 @pytest.mark.parametrize(
     "metric",
     [
-        binned_calibration_error,
+        root_mean_squared_calibration_error,
         expected_calibration_error,
         maximum_calibration_error,
         calibration_curve,
@@ -82,7 +82,7 @@ class TestMeanCalibrationError:
         y_true = np.array([0, 1, 0])
         y_pred = np.array([0.1, 0.9])  # Different length
 
-        with pytest.raises(ValueError, match="should have the same shape"):
+        with pytest.raises(ValueError, match="must have the same shape"):
             mean_calibration_error(y_true, y_pred)
 
     def test_edge_cases(self):
@@ -96,15 +96,17 @@ class TestMeanCalibrationError:
         assert error == 0.0
 
 
-class TestBinnedCalibrationError:
-    """Test binned_calibration_error function."""
+class TestRootMeanSquaredCalibrationError:
+    """Test root_mean_squared_calibration_error."""
 
     def test_uniform_strategy(self):
         """Test uniform binning strategy."""
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        error = binned_calibration_error(y_true, y_pred, n_bins=4, strategy="uniform")
+        error = root_mean_squared_calibration_error(
+            y_true, y_pred, n_bins=4, strategy="uniform"
+        )
         assert isinstance(error, float)
         assert error >= 0
 
@@ -113,7 +115,9 @@ class TestBinnedCalibrationError:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        error = binned_calibration_error(y_true, y_pred, n_bins=4, strategy="quantile")
+        error = root_mean_squared_calibration_error(
+            y_true, y_pred, n_bins=4, strategy="quantile"
+        )
         assert isinstance(error, float)
         assert error >= 0
 
@@ -122,11 +126,13 @@ class TestBinnedCalibrationError:
         y_true = np.array([0, 0, 1, 1, 1, 1, 0, 0])
         y_pred = np.array([0.1, 0.2, 0.6, 0.7, 0.8, 0.9, 0.3, 0.4])
 
-        result = binned_calibration_error(y_true, y_pred, n_bins=4, return_details=True)
+        result = root_mean_squared_calibration_error(
+            y_true, y_pred, n_bins=4, return_details=True
+        )
         assert isinstance(result, dict)
-        assert "bce" in result
+        assert "root_mean_squared_calibration_error" in result
         assert "bin_counts" in result
-        assert "bin_centers" in result
+        assert "bin_weights" in result
 
     def test_invalid_strategy(self):
         """Test invalid strategy parameter."""
@@ -134,7 +140,7 @@ class TestBinnedCalibrationError:
         y_pred = np.array([0.1, 0.9])
 
         with pytest.raises(ValueError, match="Unknown binning strategy"):
-            binned_calibration_error(y_true, y_pred, strategy="invalid")
+            root_mean_squared_calibration_error(y_true, y_pred, strategy="invalid")
 
 
 class TestExpectedCalibrationError:
@@ -230,11 +236,10 @@ class TestCorrelationMetrics:
         """Test with original predictions provided."""
         y_true = np.array([0, 0, 1, 1, 1])
         y_pred = np.array([0.1, 0.2, 0.7, 0.8, 0.9])
-        y_orig = np.array([0.2, 0.3, 0.6, 0.7, 0.8])
+        original = np.array([0.2, 0.3, 0.6, 0.7, 0.8])
 
-        metrics = correlation_metrics(y_true, y_pred, y_orig=y_orig)
-        assert "spearman_corr_to_y_orig" in metrics
-        assert "spearman_corr_to_y_orig" in metrics
+        metrics = correlation_metrics(y_true, y_pred, original_predictions=original)
+        assert "spearman_corr_to_original_predictions" in metrics
 
     def test_perfect_correlation(self):
         """Test perfect correlation case."""
@@ -254,28 +259,26 @@ class TestUniqueValueCounts:
 
         counts = unique_value_counts(y_pred)
         assert isinstance(counts, dict)
-        assert "n_unique_y_pred" in counts
-        assert counts["n_unique_y_pred"] == 3
+        assert "n_unique_predictions" in counts
+        assert counts["n_unique_predictions"] == 3
 
     def test_with_original(self):
         """Test counting with original predictions."""
         y_pred = np.array([0.1, 0.2, 0.1, 0.3])
-        y_orig = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
+        original = np.array([0.1, 0.2, 0.3, 0.4])
 
-        counts = unique_value_counts(y_pred, y_orig)
-        assert "n_unique_y_orig" in counts
-        assert "unique_value_ratio" in counts
-        assert counts["n_unique_y_orig"] == 5
+        counts = unique_value_counts(y_pred, original_predictions=original)
+        assert "n_unique_original_predictions" in counts
+        assert "unique_prediction_ratio" in counts
+        assert counts["n_unique_original_predictions"] == 4
 
-    def test_precision_rounding(self):
-        """Test precision rounding."""
+    def test_exact_floating_point_counting(self):
+        """Nearby but unequal floating-point values remain distinct."""
         y_pred = np.array([0.123456789, 0.123456780])
 
-        counts_low_precision = unique_value_counts(y_pred, precision=6)
-        counts_high_precision = unique_value_counts(y_pred, precision=9)
+        counts = unique_value_counts(y_pred)
 
-        assert counts_low_precision["n_unique_y_pred"] == 1
-        assert counts_high_precision["n_unique_y_pred"] == 2
+        assert counts["n_unique_predictions"] == 2
 
 
 class TestCalibrationCurve:
@@ -350,7 +353,7 @@ class TestEdgeCases:
         assert error == pytest.approx(0.1)
 
         counts = unique_value_counts(y_pred)
-        assert counts["n_unique_y_pred"] == 1
+        assert counts["n_unique_predictions"] == 1
 
     def test_nan_handling(self):
         """Test behavior with NaN values."""
@@ -448,7 +451,7 @@ def test_debiased_error_is_never_negative():
 
 def test_debiased_error_rejects_mismatched_lengths():
     """Length mismatch is an error, not a broadcast."""
-    with pytest.raises(ValueError, match="same length"):
+    with pytest.raises(ValueError, match="same shape"):
         calibre.metrics.debiased_calibration_error(
             np.array([0.0, 1.0]), np.array([0.5])
         )
@@ -480,17 +483,17 @@ def test_sweep_is_order_invariant():
 
 
 def test_sweep_handles_degenerate_input():
-    """One observation supports no binning at all."""
+    """One observation supports one bin and still has an observable gap."""
     assert (
-        calibre.metrics.sweep_calibration_error(np.array([1.0]), np.array([0.5])) == 0.0
+        calibre.metrics.sweep_calibration_error(np.array([1.0]), np.array([0.5])) == 0.5
     )
 
 
 def test_sweep_rejects_a_norm_below_one():
-    """p < 1 is not a norm."""
+    """A norm below one is invalid."""
     p, y = _calibrated_sample(5, 100)
-    with pytest.raises(ValueError, match="p must be at least 1"):
-        calibre.metrics.sweep_calibration_error(y, p, p=0)
+    with pytest.raises(ValueError, match="norm must be at least 1"):
+        calibre.metrics.sweep_calibration_error(y, p, norm=0)
 
 
 def test_all_names_are_defined():

@@ -17,7 +17,7 @@ jobs:
     uses: gojiplus/py-canon/.github/workflows/reusable-docs.yml@v1
     permissions:
       contents: read
-      pages: write
-      id-token: write
+      pages: write  # Deploy the built site to GitHub Pages.
+      id-token: write  # Authenticate the Pages deployment.
     with:
       deploy: ${{ github.event_name == 'push' }}

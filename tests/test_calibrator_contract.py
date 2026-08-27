@@ -21,11 +21,11 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 FACTORIES: dict[str, Callable[[], object]] = {
-    "cdi": CDIIsotonicCalibrator,
+    "cdi": lambda: CDIIsotonicCalibrator(thresholds=[0.5]),
     "centered": CenteredIsotonicCalibrator,
     "isotonic": IsotonicCalibrator,
     "nearly": lambda: NearlyIsotonicCalibrator(lam=5.0),
-    "relaxed": lambda: RelaxedPAVACalibrator(epsilon=0.02),
+    "relaxed": lambda: RelaxedPAVACalibrator(min_increment=-0.02),
     "spline": lambda: SplineCalibrator(alpha=0.1),
 }
 
@@ -65,6 +65,14 @@ def test_fit_rejects_multidimensional_sample_weight(factory, calibration_data):
     x, y = calibration_data
     with pytest.raises(ValueError, match="sample_weight must be 1-dimensional"):
         factory().fit(x, y, sample_weight=np.ones_like(y).reshape(-1, 1))
+
+
+@pytest.mark.parametrize("factory", FACTORIES.values(), ids=FACTORIES)
+def test_fit_rejects_mismatched_sample_weight(factory, calibration_data):
+    """Every calibrator reports the shared weight-shape contract."""
+    x, y = calibration_data
+    with pytest.raises(ValueError, match="sample_weight must have the same shape as y"):
+        factory().fit(x, y, sample_weight=np.ones(y.size - 1))
 
 
 @pytest.mark.parametrize("factory", FACTORIES.values(), ids=FACTORIES)

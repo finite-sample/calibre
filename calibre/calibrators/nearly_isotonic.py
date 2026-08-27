@@ -157,6 +157,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
 
     def __init__(
         self,
+        *,
         lam: float | str = "auto",
         cv: int = 5,
         scoring: str = "auto",

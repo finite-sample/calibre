@@ -130,7 +130,10 @@ def _check_matrix(P: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]
 
 
 def classwise_decomposition(
-    P: np.ndarray, y: np.ndarray, score: str = "brier"
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    score: str = "brier",
 ) -> list[dict[str, float]]:
     """Decompose the score of each class one-vs-rest.
 
@@ -141,13 +144,14 @@ def classwise_decomposition(
     non-negative.
 
     Args:
-        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
-        y: Integer class labels.
+        y_true: Integer class labels.
+        y_pred: Predicted probabilities, shape ``(n_samples, n_classes)``.
         score: Proper scoring rule: ``"brier"`` (default) or ``"log"``.
 
     Returns:
         list of dict: One decomposition per class, in class order. Each has
-            ``mean_score``, ``MCB``, ``DSC``, ``UNC``.
+            ``mean_score``, ``miscalibration``, ``discrimination``, and
+            ``uncertainty``.
 
     Notes:
         This is *class-wise* calibration, the standard relaxation of the multiclass
@@ -160,14 +164,22 @@ def classwise_decomposition(
         >>> rng = np.random.default_rng(0)
         >>> truth = rng.dirichlet(np.ones(3), size=1500)
         >>> y = np.array([rng.choice(3, p=t) for t in truth])
-        >>> parts = classwise_decomposition(truth, y)
+        >>> parts = classwise_decomposition(y, truth)
         >>> len(parts)
         3
 
         The identity holds for every class:
 
         >>> all(
-        ...     abs(d["mean_score"] - (d["MCB"] - d["DSC"] + d["UNC"])) < 1e-12
+        ...     abs(
+        ...         d["mean_score"]
+        ...         - (
+        ...             d["miscalibration"]
+        ...             - d["discrimination"]
+        ...             + d["uncertainty"]
+        ...         )
+        ...     )
+        ...     < 1e-12
         ...     for d in parts
         ... )
         True
@@ -175,14 +187,14 @@ def classwise_decomposition(
     See Also:
         miscalibration_profile : Reads these to say which calibration method to use.
     """
-    P, y = _check_matrix(P, y)
+    y_pred, y_true = _check_matrix(y_pred, y_true)
     return [
-        score_decomposition(P[:, k], (y == k).astype(float), score=score)
-        for k in range(P.shape[1])
+        score_decomposition((y_true == k).astype(float), y_pred[:, k], score=score)
+        for k in range(y_pred.shape[1])
     ]
 
 
-def miscalibration_profile(P: np.ndarray, y: np.ndarray) -> dict:
+def miscalibration_profile(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     """Report how miscalibration is distributed across classes.
 
     This is the diagnostic worth running before choosing a multiclass method. If
@@ -192,14 +204,14 @@ def miscalibration_profile(P: np.ndarray, y: np.ndarray) -> dict:
     the fix and per-class calibration is needed.
 
     Args:
-        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
-        y: Integer class labels.
+        y_true: Integer class labels.
+        y_pred: Predicted probabilities, shape ``(n_samples, n_classes)``.
 
     Returns:
-        dict: ``mcb`` (per-class miscalibration), ``spread`` (coefficient of
-            variation of ``mcb``), ``worst_classes`` (indices ordered by
-            descending ``mcb``), and ``reading`` (a plain-language
-            interpretation).
+        dict: ``classwise_miscalibration`` (one value per class),
+            ``relative_miscalibration_spread`` (its coefficient of variation),
+            ``worst_classes`` (indices ordered by descending miscalibration), and
+            ``interpretation`` (a plain-language reading).
 
     Notes:
         Calibrated on synthetic data where the true regime is known, ``spread`` is
@@ -222,18 +234,18 @@ def miscalibration_profile(P: np.ndarray, y: np.ndarray) -> dict:
         Distort each class differently -- no single temperature can undo this:
 
         >>> skewed = truth ** np.array([0.6, 1.2, 1.8, 2.4])
-        >>> P = skewed / skewed.sum(axis=1, keepdims=True)
-        >>> profile = miscalibration_profile(P, y)
-        >>> bool(profile["spread"] > 0.25)
+        >>> y_pred = skewed / skewed.sum(axis=1, keepdims=True)
+        >>> profile = miscalibration_profile(y, y_pred)
+        >>> bool(profile["relative_miscalibration_spread"] > 0.25)
         True
-        >>> "per-class" in profile["reading"]
+        >>> "per-class" in profile["interpretation"]
         True
 
     See Also:
         TemperatureScaler : The method to reach for when the spread is small.
     """
-    parts = classwise_decomposition(P, y)
-    mcb = np.array([d["MCB"] for d in parts], dtype=float)
+    parts = classwise_decomposition(y_true, y_pred)
+    mcb = np.array([d["miscalibration"] for d in parts], dtype=float)
 
     mean = float(mcb.mean())
     spread = float(mcb.std() / mean) if mean > _EPS else 0.0
@@ -260,21 +272,25 @@ def miscalibration_profile(P: np.ndarray, y: np.ndarray) -> dict:
         )
 
     return {
-        "mcb": mcb,
-        "spread": spread,
+        "classwise_miscalibration": mcb,
+        "relative_miscalibration_spread": spread,
         "worst_classes": worst,
-        "reading": reading,
+        "interpretation": reading,
     }
 
 
 def classwise_ece(
-    P: np.ndarray, y: np.ndarray, n_bins: int = 15, estimator: str = "debiased"
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    n_bins: int = 15,
+    estimator: str = "debiased",
 ) -> float:
     """Average one-vs-rest calibration error across classes.
 
     Args:
-        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
-        y: Integer class labels.
+        y_true: Integer class labels.
+        y_pred: Predicted probabilities, shape ``(n_samples, n_classes)``.
         n_bins: Bins per class, used by the ``"debiased"`` estimator.
         estimator: ``"debiased"`` (default) subtracts the per-bin Bernoulli
             variance; ``"sweep"`` chooses the bin count by monotonicity
@@ -297,19 +313,21 @@ def classwise_ece(
         >>> rng = np.random.default_rng(0)
         >>> truth = rng.dirichlet(np.ones(3), size=2000)
         >>> y = np.array([rng.choice(3, p=t) for t in truth])
-        >>> bool(classwise_ece(truth, y) < 0.05)
+        >>> bool(classwise_ece(y, truth) < 0.05)
         True
     """
-    P, y = _check_matrix(P, y)
+    y_pred, y_true = _check_matrix(y_pred, y_true)
     if estimator == "debiased":
         per_class = [
-            debiased_calibration_error((y == k).astype(float), P[:, k], n_bins=n_bins)
-            for k in range(P.shape[1])
+            debiased_calibration_error(
+                (y_true == k).astype(float), y_pred[:, k], n_bins=n_bins
+            )
+            for k in range(y_pred.shape[1])
         ]
     elif estimator == "sweep":
         per_class = [
-            sweep_calibration_error((y == k).astype(float), P[:, k])
-            for k in range(P.shape[1])
+            sweep_calibration_error((y_true == k).astype(float), y_pred[:, k])
+            for k in range(y_pred.shape[1])
         ]
     else:
         raise ValueError(f'estimator must be "debiased" or "sweep", got {estimator!r}')
@@ -317,7 +335,11 @@ def classwise_ece(
 
 
 def top_label_ece(
-    P: np.ndarray, y: np.ndarray, n_bins: int = 15, estimator: str = "debiased"
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    n_bins: int = 15,
+    estimator: str = "debiased",
 ) -> float:
     """Calibration error of the predicted class's confidence.
 
@@ -327,8 +349,8 @@ def top_label_ece(
     being badly miscalibrated on every non-predicted class.
 
     Args:
-        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
-        y: Integer class labels.
+        y_true: Integer class labels.
+        y_pred: Predicted probabilities, shape ``(n_samples, n_classes)``.
         n_bins: Bins, used by the ``"debiased"`` estimator.
         estimator: ``"debiased"`` (default) or ``"sweep"``.
 
@@ -344,15 +366,15 @@ def top_label_ece(
         >>> rng = np.random.default_rng(0)
         >>> truth = rng.dirichlet(np.ones(3), size=2000)
         >>> y = np.array([rng.choice(3, p=t) for t in truth])
-        >>> bool(top_label_ece(truth, y) < 0.05)
+        >>> bool(top_label_ece(y, truth) < 0.05)
         True
 
     See Also:
         classwise_ece : The stronger notion, averaging over every class.
     """
-    P, y = _check_matrix(P, y)
-    confidence = P.max(axis=1)
-    correct = (P.argmax(axis=1) == y).astype(float)
+    y_pred, y_true = _check_matrix(y_pred, y_true)
+    confidence = y_pred.max(axis=1)
+    correct = (y_pred.argmax(axis=1) == y_true).astype(float)
     if estimator == "debiased":
         return debiased_calibration_error(correct, confidence, n_bins=n_bins)
     if estimator == "sweep":
@@ -360,12 +382,14 @@ def top_label_ece(
     raise ValueError(f'estimator must be "debiased" or "sweep", got {estimator!r}')
 
 
-def classwise_reliability(P: np.ndarray, y: np.ndarray) -> list[ReliabilityDiagram]:
+def classwise_reliability(
+    y_true: np.ndarray, y_pred: np.ndarray
+) -> list[ReliabilityDiagram]:
     """Build a CORP reliability diagram for each class, one-vs-rest.
 
     Args:
-        P: Predicted probabilities, shape ``(n_samples, n_classes)``.
-        y: Integer class labels.
+        y_true: Integer class labels.
+        y_pred: Predicted probabilities, shape ``(n_samples, n_classes)``.
 
     Returns:
         list of ReliabilityDiagram: One diagram per class, in class order. No
@@ -377,15 +401,16 @@ def classwise_reliability(P: np.ndarray, y: np.ndarray) -> list[ReliabilityDiagr
         >>> rng = np.random.default_rng(0)
         >>> truth = rng.dirichlet(np.ones(3), size=1000)
         >>> y = np.array([rng.choice(3, p=t) for t in truth])
-        >>> diagrams = classwise_reliability(truth, y)
+        >>> diagrams = classwise_reliability(y, truth)
         >>> len(diagrams)
         3
-        >>> all(np.all(np.diff(d.cep) >= -1e-12) for d in diagrams)
+        >>> all(np.all(np.diff(d.event_probabilities) >= -1e-12) for d in diagrams)
         True
     """
-    P, y = _check_matrix(P, y)
+    y_pred, y_true = _check_matrix(y_pred, y_true)
     return [
-        corp_reliability(P[:, k], (y == k).astype(float)) for k in range(P.shape[1])
+        corp_reliability((y_true == k).astype(float), y_pred[:, k])
+        for k in range(y_pred.shape[1])
     ]
 
 
@@ -430,8 +455,8 @@ class TemperatureScaler:
         An overconfident model, sharpened globally:
 
         >>> sharp = truth ** 2.2
-        >>> P = sharp / sharp.sum(axis=1, keepdims=True)
-        >>> scaler = TemperatureScaler().fit(P, y)
+        >>> X = sharp / sharp.sum(axis=1, keepdims=True)
+        >>> scaler = TemperatureScaler().fit(X, y)
 
         It recovers a temperature above 1, softening the predictions back:
 
@@ -440,15 +465,15 @@ class TemperatureScaler:
 
         And the predicted class is untouched, by construction:
 
-        >>> Q = scaler.transform(P)
-        >>> bool(np.all(Q.argmax(axis=1) == P.argmax(axis=1)))
+        >>> calibrated = scaler.transform(X)
+        >>> bool(np.all(calibrated.argmax(axis=1) == X.argmax(axis=1)))
         True
 
     See Also:
         miscalibration_profile : Tells you whether this method suits your data.
     """
 
-    def __init__(self, max_log_temperature: float = 3.0) -> None:
+    def __init__(self, *, max_log_temperature: float = 3.0) -> None:
         self.max_log_temperature = max_log_temperature
 
     def _logits(self, P: np.ndarray) -> np.ndarray:
@@ -477,11 +502,11 @@ class TemperatureScaler:
         p = np.exp(z)
         return p / p.sum(axis=1, keepdims=True)
 
-    def fit(self, P: np.ndarray, y: np.ndarray) -> TemperatureScaler:
+    def fit(self, X: np.ndarray, y: np.ndarray) -> TemperatureScaler:
         """Fit the temperature by minimising negative log-likelihood.
 
         Args:
-            P: Predicted probabilities from a held-out calibration set.
+            X: Predicted probabilities from a held-out calibration set.
             y: Integer class labels.
 
         Returns:
@@ -497,8 +522,8 @@ class TemperatureScaler:
             raise ValueError(
                 f"max_log_temperature must be positive, got {self.max_log_temperature}"
             )
-        P, y = _check_matrix(P, y)
-        logits = self._logits(P)
+        X, y = _check_matrix(X, y)
+        logits = self._logits(X)
         rows = np.arange(y.size)
 
         def nll(log_temperature: float) -> float:
@@ -508,14 +533,14 @@ class TemperatureScaler:
         bound = float(self.max_log_temperature)
         best = minimize_scalar(nll, bounds=(-bound, bound), method="bounded")
         self.temperature_ = float(np.exp(best.x))
-        self.n_features_in_ = P.shape[1]
+        self.n_features_in_ = X.shape[1]
         return self
 
-    def transform(self, P: np.ndarray) -> np.ndarray:
+    def transform(self, X: np.ndarray) -> np.ndarray:
         """Apply the fitted temperature.
 
         Args:
-            P: Predicted probabilities.
+            X: Predicted probabilities.
 
         Returns:
             ndarray: Calibrated probabilities, rows summing to 1. Every row's
@@ -528,20 +553,20 @@ class TemperatureScaler:
             raise AttributeError(
                 f"{type(self).__name__} is not fitted yet. Call fit() first."
             )
-        P = _check_probability_matrix(P, n_classes=self.n_features_in_)
-        return self._softmax(self._logits(P), self.temperature_)
+        X = _check_probability_matrix(X, n_classes=self.n_features_in_)
+        return self._softmax(self._logits(X), self.temperature_)
 
-    def fit_transform(self, P: np.ndarray, y: np.ndarray) -> np.ndarray:
-        """Fit on ``(P, y)`` and return the calibrated probabilities.
+    def fit_transform(self, X: np.ndarray, y: np.ndarray) -> np.ndarray:
+        """Fit on ``(X, y)`` and return the calibrated probabilities.
 
         Args:
-            P: Predicted probabilities.
+            X: Predicted probabilities.
             y: Integer class labels.
 
         Returns:
             ndarray: Calibrated probabilities.
         """
-        return self.fit(P, y).transform(P)
+        return self.fit(X, y).transform(X)
 
     def __repr__(self) -> str:
         """Return a short description, including the fitted temperature."""

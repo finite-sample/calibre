@@ -74,9 +74,10 @@ def _classwise_distortion(truth):
 def test_identity_holds_for_every_class(score, seed):
     """mean_score == MCB - DSC + UNC, exactly, in each class."""
     truth, y = _truth_and_labels(seed)
-    for part in classwise_decomposition(truth, y, score=score):
+    for part in classwise_decomposition(y, truth, score=score):
         assert part["mean_score"] == pytest.approx(
-            part["MCB"] - part["DSC"] + part["UNC"], abs=1e-12
+            part["miscalibration"] - part["discrimination"] + part["uncertainty"],
+            abs=1e-12,
         )
 
 
@@ -84,17 +85,17 @@ def test_identity_holds_for_every_class(score, seed):
 def test_components_are_non_negative_in_every_class(score):
     """PAV optimality gives MCB, DSC >= 0 per class, as in the binary case."""
     truth, y = _truth_and_labels(1)
-    for part in classwise_decomposition(truth, y, score=score):
-        assert part["MCB"] >= -1e-12
-        assert part["DSC"] >= -1e-12
+    for part in classwise_decomposition(y, truth, score=score):
+        assert part["miscalibration"] >= -1e-12
+        assert part["discrimination"] >= -1e-12
 
 
 def test_two_class_case_matches_the_binary_function_exactly():
     """The multiclass path must reuse the binary one, not reimplement it."""
     truth, y = _truth_and_labels(2, J=2)
-    parts = classwise_decomposition(truth, y)
+    parts = classwise_decomposition(y, truth)
     for k, part in enumerate(parts):
-        direct = score_decomposition(truth[:, k], (y == k).astype(float))
+        direct = score_decomposition((y == k).astype(float), truth[:, k])
         for key in direct:
             assert part[key] == pytest.approx(direct[key], abs=1e-15)
 
@@ -102,7 +103,7 @@ def test_two_class_case_matches_the_binary_function_exactly():
 def test_decomposition_returns_one_entry_per_class():
     """Shape contract."""
     truth, y = _truth_and_labels(3, J=5)
-    assert len(classwise_decomposition(truth, y)) == 5
+    assert len(classwise_decomposition(y, truth)) == 5
 
 
 # --------------------------------------------------------------------------- #
@@ -121,10 +122,14 @@ def test_profile_separates_the_two_regimes():
     for seed in range(6):
         truth, y = _truth_and_labels(seed, n=3000, J=5)
         global_spread.append(
-            miscalibration_profile(_global_distortion(truth), y)["spread"]
+            miscalibration_profile(y, _global_distortion(truth))[
+                "relative_miscalibration_spread"
+            ]
         )
         classwise_spread.append(
-            miscalibration_profile(_classwise_distortion(truth), y)["spread"]
+            miscalibration_profile(y, _classwise_distortion(truth))[
+                "relative_miscalibration_spread"
+            ]
         )
 
     assert max(global_spread) < min(classwise_spread), (
@@ -137,28 +142,28 @@ def test_profile_reading_matches_the_spread():
     """The prose must agree with the number it is derived from."""
     truth, y = _truth_and_labels(0, n=3000, J=5)
 
-    uniform = miscalibration_profile(_global_distortion(truth), y)
-    assert uniform["spread"] <= 0.25
-    assert "evenly" in uniform["reading"]
+    uniform = miscalibration_profile(y, _global_distortion(truth))
+    assert uniform["relative_miscalibration_spread"] <= 0.25
+    assert "evenly" in uniform["interpretation"]
 
-    uneven = miscalibration_profile(_classwise_distortion(truth), y)
-    assert uneven["spread"] > 0.25
-    assert "per-class" in uneven["reading"]
+    uneven = miscalibration_profile(y, _classwise_distortion(truth))
+    assert uneven["relative_miscalibration_spread"] > 0.25
+    assert "per-class" in uneven["interpretation"]
 
 
 def test_profile_names_the_worst_classes_in_order():
     """worst_classes must be ordered by descending miscalibration."""
     truth, y = _truth_and_labels(1, n=3000, J=5)
-    profile = miscalibration_profile(_classwise_distortion(truth), y)
-    ordered = profile["mcb"][profile["worst_classes"]]
+    profile = miscalibration_profile(y, _classwise_distortion(truth))
+    ordered = profile["classwise_miscalibration"][profile["worst_classes"]]
     assert np.all(np.diff(ordered) <= 1e-12)
 
 
 def test_profile_reports_no_miscalibration_when_there_is_none():
     """Perfectly calibrated input should not be talked into a method."""
     truth, y = _truth_and_labels(2, n=4000, J=3)
-    profile = miscalibration_profile(truth, y)
-    assert profile["mcb"].max() < 0.01
+    profile = miscalibration_profile(y, truth)
+    assert profile["classwise_miscalibration"].max() < 0.01
 
 
 # --------------------------------------------------------------------------- #
@@ -170,16 +175,16 @@ def test_profile_reports_no_miscalibration_when_there_is_none():
 def test_calibrated_input_scores_low(estimator):
     """Both estimators should be near zero on calibrated predictions."""
     truth, y = _truth_and_labels(4, n=4000, J=3)
-    assert classwise_ece(truth, y, estimator=estimator) < 0.05
-    assert top_label_ece(truth, y, estimator=estimator) < 0.05
+    assert classwise_ece(y, truth, estimator=estimator) < 0.05
+    assert top_label_ece(y, truth, estimator=estimator) < 0.05
 
 
 @pytest.mark.parametrize("estimator", ["debiased", "sweep"])
 def test_distortion_raises_classwise_error(estimator):
     """A distorted model must score worse than the honest one."""
     truth, y = _truth_and_labels(5, n=4000, J=4)
-    honest = classwise_ece(truth, y, estimator=estimator)
-    distorted = classwise_ece(_classwise_distortion(truth), y, estimator=estimator)
+    honest = classwise_ece(y, truth, estimator=estimator)
+    distorted = classwise_ece(y, _classwise_distortion(truth), estimator=estimator)
     assert distorted > honest
 
 
@@ -188,16 +193,16 @@ def test_unknown_estimator_is_rejected(fn):
     """Only the two bias-aware estimators are offered."""
     truth, y = _truth_and_labels(6, n=200, J=3)
     with pytest.raises(ValueError, match="debiased"):
-        fn(truth, y, estimator="plugin")
+        fn(y, truth, estimator="plugin")
 
 
 def test_classwise_reliability_is_monotone_per_class():
     """Each per-class diagram is a PAV fit, so it cannot decrease."""
     truth, y = _truth_and_labels(7, n=1500, J=4)
-    diagrams = classwise_reliability(truth, y)
+    diagrams = classwise_reliability(y, truth)
     assert len(diagrams) == 4
     for d in diagrams:
-        assert np.all(np.diff(d.cep) >= -1e-12)
+        assert np.all(np.diff(d.event_probabilities) >= -1e-12)
 
 
 # --------------------------------------------------------------------------- #
@@ -306,7 +311,7 @@ def test_invalid_bound_is_rejected():
 def test_malformed_input_is_rejected(P, y, match):
     """Bad probabilities and labels raise rather than produce a number."""
     with pytest.raises(ValueError, match=match):
-        classwise_decomposition(P, y)
+        classwise_decomposition(y, P)
 
 
 def test_temperature_transform_rejects_malformed_probability_rows():

@@ -82,7 +82,7 @@ def diagram(sample):
         The fitted diagram.
     """
     x, y = sample
-    return corp_reliability(x, y)
+    return corp_reliability(y, x)
 
 
 @pytest.fixture(autouse=True)
@@ -126,8 +126,8 @@ def test_the_drawn_curve_is_the_estimate(diagram):
     """The plotted line must be the CEP itself, not a smoothed cousin."""
     ax = plot_reliability_diagram(diagram, density="none")
     drawn = find_artist(ax, "_calibre:cep").get_xydata()
-    np.testing.assert_allclose(drawn[:, 0], diagram.x)
-    np.testing.assert_allclose(drawn[:, 1], diagram.cep)
+    np.testing.assert_allclose(drawn[:, 0], diagram.prediction_values)
+    np.testing.assert_allclose(drawn[:, 1], diagram.event_probabilities)
 
 
 def test_diagonal_is_the_unit_line(diagram):
@@ -156,7 +156,10 @@ def test_axes_are_square_and_unit(diagram):
 def test_band_polygon_spans_the_supplied_band(sample, diagram, maker):
     """The filled region must reach the band's own lower and upper edges."""
     x, y = sample
-    band = maker(x, y, n_resamples=20, random_state=0)
+    if maker is consistency_bands:
+        band = maker(x, n_resamples=20, random_state=0)
+    else:
+        band = maker(y, x, n_resamples=20, random_state=0)
     ax = plot_reliability_diagram(diagram, bands=band, density="none")
     vertices = find_artist(ax, "_calibre:band").get_paths()[0].vertices
     assert vertices[:, 1].min() == pytest.approx(band["lower"].min())
@@ -165,9 +168,9 @@ def test_band_polygon_spans_the_supplied_band(sample, diagram, maker):
 
 def test_several_bands_can_be_nested(sample, diagram):
     """A sequence of bands draws one polygon each."""
-    x, y = sample
+    x, _ = sample
     bands = [
-        consistency_bands(x, y, level=level, n_resamples=20, random_state=0)
+        consistency_bands(x, level=level, n_resamples=20, random_state=0)
         for level in (0.5, 0.9)
     ]
     ax = plot_reliability_diagram(diagram, bands=bands, density="none")
@@ -180,7 +183,10 @@ def test_malformed_band_is_rejected(diagram):
     with pytest.raises(ValueError, match=r"missing \['upper'\]"):
         plot_reliability_diagram(
             diagram,
-            bands={"x": np.array([0.0, 1.0]), "lower": np.array([0.0, 1.0])},
+            bands={
+                "prediction_values": np.array([0.0, 1.0]),
+                "lower": np.array([0.0, 1.0]),
+            },
             density="none",
         )
 
@@ -191,7 +197,7 @@ def test_band_with_mismatched_lengths_is_rejected(diagram):
         plot_reliability_diagram(
             diagram,
             bands={
-                "x": np.array([0.0, 0.5, 1.0]),
+                "prediction_values": np.array([0.0, 0.5, 1.0]),
                 "lower": np.array([0.0, 1.0]),
                 "upper": np.array([0.0, 1.0]),
             },
@@ -225,7 +231,7 @@ def test_step_style_matches_the_pav_blocks(diagram):
     """``style="step"`` still draws the estimate, as a step function."""
     ax = plot_reliability_diagram(diagram, density="none", style="step")
     drawn = find_artist(ax, "_calibre:cep").get_xydata()
-    np.testing.assert_allclose(drawn[:, 1], diagram.cep)
+    np.testing.assert_allclose(drawn[:, 1], diagram.event_probabilities)
 
 
 def test_label_becomes_a_legend_entry(diagram):
@@ -259,5 +265,6 @@ def test_diagram_method_matches_the_function(diagram):
     """``ReliabilityDiagram.plot`` is a delegate, not a second implementation."""
     ax = diagram.plot(density="none")
     np.testing.assert_allclose(
-        find_artist(ax, "_calibre:cep").get_xydata()[:, 1], diagram.cep
+        find_artist(ax, "_calibre:cep").get_xydata()[:, 1],
+        diagram.event_probabilities,
     )

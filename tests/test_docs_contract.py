@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-NOTEBOOKS = Path(__file__).resolve().parent.parent / "docs" / "notebooks"
+TUTORIALS = Path(__file__).resolve().parent.parent / "docs" / "notebooks"
 
 
-def test_notebooks_do_not_present_removed_or_unvalidated_calibrators():
-    """Current notebooks must not recommend deleted or imaginary methods."""
+def test_tutorials_do_not_present_removed_or_unvalidated_calibrators():
+    """Current tutorials must not recommend deleted or imaginary methods."""
     forbidden = {
         "CALIBRATOR PERFORMANCE RANKING",
         "PROOF OF CORRECTNESS",
@@ -19,10 +18,11 @@ def test_notebooks_do_not_present_removed_or_unvalidated_calibrators():
         "SmoothedIsotonicCalibrator",
     }
 
-    for path in sorted(NOTEBOOKS.glob("*.ipynb")):
-        notebook = json.loads(path.read_text(encoding="utf-8"))
-        source = "\n".join(
-            "".join(cell.get("source", [])) for cell in notebook["cells"]
-        )
+    paths = sorted(TUTORIALS.glob("*.md"))
+    assert len(paths) == 6
+    assert not list(TUTORIALS.glob("*.ipynb"))
+
+    for path in paths:
+        source = path.read_text(encoding="utf-8")
         found = sorted(term for term in forbidden if term in source)
         assert not found, f"{path.name} contains stale claims: {found}"

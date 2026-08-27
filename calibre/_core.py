@@ -223,8 +223,8 @@ def shift_to_pava(
     One parameter spans three estimators:
 
     - ``L = 0``   standard isotonic regression
-    - ``L < 0``   epsilon-monotone: bounded decreases permitted
-    - ``L > 0``   minimum slope: strictly increasing, so no plateaus at all
+    - ``L < 0``   bounded decreases permitted
+    - ``L > 0``   minimum increment: strictly increasing, so no plateaus at all
 
     Args:
         y: Target values in constraint order.

@@ -1,9 +1,8 @@
 """Pin ``smooth_calibration_error`` against Apple's ``relplot``.
 
 calibre reimplements smECE rather than depending on ``relplot``, which pulls in
-seaborn and matplotlib. A reimplementation is only worth having if it is exact,
-so it is checked against committed reference values the same way the isotonic
-machinery is checked against R.
+seaborn and matplotlib. The implementation is checked against committed reference
+values the same way the isotonic machinery is checked against R.
 
 Regenerate with ``experiments/relplot_reference/gen_fixtures.py``.
 """
@@ -26,8 +25,7 @@ with FIXTURE.open() as handle:
 CASES = _REFERENCE["cases"]
 NAMES = sorted(CASES)
 
-# Machine precision. These are the same arithmetic in the same order, so anything
-# looser would be hiding a real divergence.
+# Tight floating-point tolerance across supported NumPy versions.
 TOLERANCE = 1e-12
 
 
@@ -64,7 +62,7 @@ def test_smece_matches_relplot(name):
 def test_selected_bandwidth_matches_relplot(name):
     """The bandwidth is chosen by bisection, so it must land in the same place."""
     y_true, y_pred = _arrays(name)
-    _, sigma = smooth_calibration_error(y_true, y_pred, return_sigma=True)
+    _, sigma = smooth_calibration_error(y_true, y_pred, return_bandwidth=True)
     assert sigma == pytest.approx(CASES[name]["sigma"], abs=TOLERANCE)
 
 
@@ -73,7 +71,7 @@ def test_smece_at_fixed_bandwidths_matches_relplot(name):
     """Fixing the bandwidth isolates the kernel from the bandwidth search."""
     y_true, y_pred = _arrays(name)
     for sigma, expected in CASES[name]["smece_at_sigma"].items():
-        got = smooth_calibration_error(y_true, y_pred, sigma=float(sigma))
+        got = smooth_calibration_error(y_true, y_pred, bandwidth=float(sigma))
         assert got == pytest.approx(expected, abs=TOLERANCE), f"{name} at sigma={sigma}"
 
 

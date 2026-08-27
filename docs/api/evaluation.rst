@@ -7,16 +7,15 @@ changes with the choice. The CORP approach of Dimitriadis, Gneiting & Jordan
 by isotonic regression via PAV, so the algorithm determines the number and
 position of the flat segments and there is nothing left to tune in your favor.
 
-These numbers are pinned against R's ``reliabilitydiag`` on five datasets
-(calibrated, overconfident, squashed, heavily tied, rare-event) to 1e-16 or
-better.
+The diagram and score decomposition match R's ``reliabilitydiag`` on calibrated,
+overconfident, squashed, heavily tied, and rare-event datasets within a tight
+floating-point tolerance.
 
 Reliability Diagram
 -------------------
 
 .. autoclass:: calibre.evaluation.ReliabilityDiagram
    :members:
-   :exclude-members: x, cep, weight
 
 .. autofunction:: calibre.corp_reliability
 
@@ -55,10 +54,11 @@ non-negative by construction:
    overconfident = np.clip(1.6 * (scores - 0.5) + 0.5, 0, 1)
 
    for name, x in (("honest", scores), ("overconfident", overconfident)):
-       d = score_decomposition(x, labels)
+       d = score_decomposition(labels, x)
        print(
            f"{name:14s} Brier {d['mean_score']:.4f} = "
-           f"MCB {d['MCB']:.4f} - DSC {d['DSC']:.4f} + UNC {d['UNC']:.4f}"
+           f"MCB {d['miscalibration']:.4f} - "
+           f"DSC {d['discrimination']:.4f} + UNC {d['uncertainty']:.4f}"
        )
 
 ``MCB`` is what recalibration would save you, ``DSC`` is what your scores buy
@@ -87,8 +87,14 @@ projection and PAV is idempotent:
    in_sample = IsotonicCalibrator().fit(scores, labels).transform(scores)
    out_of_fold = cross_val_calibrate(IsotonicCalibrator(), scores, labels, cv=5)
 
-   print(f"MCB in-sample    {score_decomposition(in_sample, labels)['MCB']:.4f}")
-   print(f"MCB out-of-fold  {score_decomposition(out_of_fold, labels)['MCB']:.4f}")
+   print(
+       f"MCB in-sample    "
+       f"{score_decomposition(labels, in_sample)['miscalibration']:.4f}"
+   )
+   print(
+       f"MCB out-of-fold  "
+       f"{score_decomposition(labels, out_of_fold)['miscalibration']:.4f}"
+   )
 
 The in-sample number is zero no matter how badly the model generalizes. Use
 :func:`~calibre.cross_val_calibrate` for any number you intend to believe.

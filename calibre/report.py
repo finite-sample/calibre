@@ -1,18 +1,20 @@
-"""One call that says whether a model is calibrated, and how much it cost.
+"""A compact summary of held-out calibration diagnostics and proper scores.
 
 Everything here is assembled from the estimators in :mod:`calibre.metrics` and
-:mod:`calibre.evaluation`; nothing new is computed. It exists because the answer
-to "is my model calibrated?" needs more than one number, and gathering them by
-hand invites the two mistakes this package keeps warning about: quoting a binned
-ECE without its bin count, and scoring a calibrator on the data it was fit to.
+:mod:`calibre.evaluation`; nothing new is computed. The report does not perform a
+hypothesis test or turn several diagnostics into a calibration verdict.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass, field, fields
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 from .evaluation import bootstrap_ci, score_decomposition
 from .metrics import (
@@ -32,52 +34,59 @@ _DEFAULT_BINS = 15
 
 @dataclass(frozen=True)
 class CalibrationReport:
-    """Everything worth knowing about one set of probabilities.
+    """Held-out diagnostics for one set of probability forecasts.
 
     Attributes:
-        n: Number of observations.
+        n_observations: Number of observations.
         base_rate: Observed event frequency.
-        mean_prediction: Mean forecast. Compare with ``base_rate``: the gap is ``bias``.
-        bias: Calibration in the large, ``|mean_prediction - base_rate|``.
-        brier: Brier score. The proper scoring rule to optimize.
-        mcb: Miscalibration, from the CORP decomposition. What recalibration recovers.
-        dsc: Discrimination. What the forecasts buy over predicting the base rate.
-        unc: Uncertainty. The difficulty of the problem; no forecaster changes it.
-        smece: Smooth calibration error, with no bin count and no bandwidth to choose.
-        smece_sigma: The bandwidth smECE selected.
-        debiased_ece: Bias-corrected binned error at ``n_bins``.
-        plugin_ece: Uncorrected binned error at ``n_bins``, on the same bins.
-            The gap between this and ``debiased_ece`` is the bias you would
-            have reported.
-        sweep_ece: Binned error at the bin count the monotone sweep selected.
-        sweep_bins: That bin count.
-        n_bins: The bin count used for ``debiased_ece`` and ``plugin_ece``.
-        n_distinct: Distinct forecast values. Isotonic regression collapses
-            this; the point of most of this package is not to.
-        distinct_ratio: ``n_distinct / n``.
-        intervals: Bootstrap confidence intervals, empty unless ``ci=True``
-            was passed. Each holds ``lower``, ``upper``, ``bias`` and
-            ``degenerate``.
+        mean_prediction: Mean forecast probability.
+        mean_calibration_error: Absolute gap between the mean forecast and base rate.
+        brier_score: Mean Brier score.
+        miscalibration: CORP miscalibration component (MCB).
+        discrimination: CORP discrimination component (DSC).
+        uncertainty: CORP uncertainty component (UNC).
+        smooth_calibration_error: Smooth calibration error (smECE).
+        smooth_calibration_bandwidth: Bandwidth selected for smECE.
+        debiased_calibration_error: Bias-corrected binned error at ``n_bins``.
+        plugin_calibration_error: Uncorrected binned error on the same bins.
+        sweep_calibration_error: Monotonic sweep calibration error. Its
+            interpretation assumes a non-decreasing population calibration curve.
+        sweep_n_bins: Bin count selected by the monotonic sweep.
+        n_bins: Bin count used for the debiased and plugin errors.
+        n_unique_predictions: Number of distinct forecast probabilities.
+        unique_prediction_ratio: ``n_unique_predictions / n``. This describes
+            prediction granularity, not calibration or statistical resolution.
+        intervals: Read-only bootstrap intervals, empty unless
+            ``include_brier_interval=True`` was passed. Only ``brier_score`` is
+            intervalled.
     """
 
-    n: int
+    n_observations: int
     base_rate: float
     mean_prediction: float
-    bias: float
-    brier: float
-    mcb: float
-    dsc: float
-    unc: float
-    smece: float
-    smece_sigma: float
-    debiased_ece: float
-    plugin_ece: float
-    sweep_ece: float
-    sweep_bins: int
+    mean_calibration_error: float
+    brier_score: float
+    miscalibration: float
+    discrimination: float
+    uncertainty: float
+    smooth_calibration_error: float
+    smooth_calibration_bandwidth: float
+    debiased_calibration_error: float
+    plugin_calibration_error: float
+    sweep_calibration_error: float
+    sweep_n_bins: int
     n_bins: int
-    n_distinct: int
-    distinct_ratio: float
-    intervals: dict[str, dict[str, float]] = field(default_factory=dict)
+    n_unique_predictions: int
+    unique_prediction_ratio: float
+    intervals: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Freeze the interval mapping and each nested interval result."""
+        frozen = {
+            name: MappingProxyType(dict(interval))
+            for name, interval in self.intervals.items()
+        }
+        object.__setattr__(self, "intervals", MappingProxyType(frozen))
 
     def _interval_text(self, key: str) -> str:
         """Format the interval for ``key``, or an empty string.
@@ -95,38 +104,40 @@ class CalibrationReport:
 
     def __str__(self) -> str:
         """Return the report as an aligned block of text."""
+        sweep_bin_label = "bin" if self.sweep_n_bins == 1 else "bins"
         lines = [
-            f"CalibrationReport  n={self.n:,}  base rate {self.base_rate:.4f}",
+            "CalibrationReport  "
+            f"n={self.n_observations:,}  base rate {self.base_rate:.4f}",
             "",
-            f"  Brier            {self.brier:.4f}{self._interval_text('brier')}",
-            f"    = MCB          {self.mcb:.4f}{self._interval_text('mcb')}"
+            f"  Brier            {self.brier_score:.4f}"
+            f"{self._interval_text('brier_score')}",
+            f"    = MCB          {self.miscalibration:.4f}"
             "   (recalibration recovers this)",
-            f"    - DSC          {self.dsc:.4f}   (earned by the forecasts)",
-            f"    + UNC          {self.unc:.4f}   (irreducible)",
+            f"    - DSC          {self.discrimination:.4f}   (earned by the forecasts)",
+            f"    + UNC          {self.uncertainty:.4f}   (irreducible)",
             "",
-            f"  bias             {self.bias:.4f}   "
+            f"  mean cal. error  {self.mean_calibration_error:.4f}   "
             f"(mean forecast {self.mean_prediction:.4f})",
-            f"  smECE            {self.smece:.4f}{self._interval_text('smece')}"
-            f"   (bandwidth {self.smece_sigma:.4f}, chosen)",
-            f"  debiased ECE     {self.debiased_ece:.4f}"
-            f"{self._interval_text('debiased_ece')}   ({self.n_bins} bins)",
-            f"  plugin ECE       {self.plugin_ece:.4f}   "
+            f"  smECE            {self.smooth_calibration_error:.4f}"
+            f"   (bandwidth {self.smooth_calibration_bandwidth:.4f}, chosen)",
+            f"  debiased ECE     {self.debiased_calibration_error:.4f}   "
+            f"({self.n_bins} bins)",
+            f"  plugin ECE       {self.plugin_calibration_error:.4f}   "
             f"({self.n_bins} bins, uncorrected)",
-            f"  sweep ECE        {self.sweep_ece:.4f}   "
-            f"({self.sweep_bins} bins, chosen)",
+            f"  sweep ECE        {self.sweep_calibration_error:.4f}   "
+            f"({self.sweep_n_bins} {sweep_bin_label}; "
+            "assumes a monotone calibration curve)",
             "",
-            f"  distinct values  {self.n_distinct:,} of {self.n:,} "
-            f"({self.distinct_ratio:.1%})",
+            "  prediction granularity  "
+            f"{self.n_unique_predictions:,} of {self.n_observations:,} "
+            f"values unique ({self.unique_prediction_ratio:.1%})",
         ]
         if self.intervals:
             lines += [
                 "",
-                f"  Intervals: {self.intervals['brier']['level']:.0%} bootstrap, "
-                f"method '{self.intervals['brier']['method']}'. A calibration",
-                "  error is a convex functional, so resampling inflates it -- worst "
-                "when the model",
-                "  is well calibrated. See calibre.bootstrap_ci for why, and for "
-                "what that costs.",
+                f"  Intervals: {self.intervals['brier_score']['level']:.0%} "
+                f"bootstrap, method '{self.intervals['brier_score']['method']}', "
+                "Brier only.",
             ]
         return "\n".join(lines)
 
@@ -140,59 +151,67 @@ class CalibrationReport:
         Returns:
             dict: Every field, suitable for a DataFrame row or JSON.
         """
-        from dataclasses import asdict
-
-        return asdict(self)
+        result = {
+            item.name: getattr(self, item.name)
+            for item in fields(self)
+            if item.name != "intervals"
+        }
+        result["intervals"] = {
+            name: dict(interval) for name, interval in self.intervals.items()
+        }
+        return result
 
 
 def calibration_report(
     y_true: np.ndarray,
     y_pred: np.ndarray,
+    *,
     n_bins: int = _DEFAULT_BINS,
-    ci: bool = False,
-    level: float = 0.95,
-    n_resamples: int = 1000,
+    include_brier_interval: bool = False,
+    interval_level: float = 0.95,
+    interval_n_resamples: int = 1000,
     random_state: int | None = 0,
-    ci_method: str = "bc",
+    interval_method: str = "bca",
 ) -> CalibrationReport:
     """Summarize the calibration of one set of probabilities.
 
-    Gathers the CORP decomposition, three calibration-error estimators that
-    disagree in instructive ways, and the resolution the forecasts retain.
+    Gathers the CORP decomposition, four calibration-error estimators, and
+    prediction granularity. It does not perform a hypothesis test or issue a
+    calibrated/not-calibrated verdict.
 
     Args:
         y_true: Ground truth values (0 or 1).
         y_pred: Predicted probabilities.
         n_bins: Bin count for the two fixed-bin estimators. The sweep chooses
             its own and smECE needs none.
-        ci: Whether to bootstrap confidence intervals for ``brier``, ``smece``
-            and ``debiased_ece``. Off by default because it costs
-            ``n_resamples`` recomputations of each. ``MCB`` and ``DSC`` are
-            excluded on purpose: the naive bootstrap is inconsistent for
-            functionals of an isotonic fit, and would report an interval that
-            can sit above the estimate. Use
-            :func:`~calibre.consistency_bands` or
-            :func:`~calibre.confidence_bands` for those.
-        level: Nominal coverage for those intervals.
-        n_resamples: Bootstrap resamples.
-        random_state: Seed.
-        ci_method: Interval method, passed to :func:`~calibre.bootstrap_ci`.
-            Defaults to ``"bc"``, which is bias-corrected; the plain
-            percentile interval under-covers badly here, for reasons that
-            function documents.
+        include_brier_interval: Whether to bootstrap an interval for the mean
+            Brier score. Calibration-error and CORP-component intervals are
+            omitted because the ordinary row bootstrap is not generally valid
+            for those non-smooth estimators.
+        interval_level: Nominal coverage for the Brier interval.
+        interval_n_resamples: Number of bootstrap resamples.
+        random_state: Bootstrap random seed.
+        interval_method: Method passed to :func:`~calibre.bootstrap_ci`.
+            Defaults to ``"bca"``.
 
     Returns:
         CalibrationReport: The summary. Print it, or read fields off it.
 
     Raises:
-        ValueError: If the arrays disagree in length or ``n_bins`` is below 1.
+        ValueError: If the evaluation data or ``n_bins`` are invalid.
+        TypeError: If ``include_brier_interval`` is not boolean.
 
     Warnings:
-        Run this on **held-out** predictions. On the data a calibrator was fitted to,
-        any isotonic-family method reports ``MCB`` of exactly zero by construction --
-        the calibrator and this diagnostic are the same PAV projection, and PAV is
-        idempotent -- no matter how badly the model generalizes. Use
-        :func:`~calibre.cross_val_calibrate` for out-of-fold probabilities.
+        Run this on independent, **held-out** predictions. On the data a calibrator
+        was fitted to, any isotonic-family method reports ``MCB`` of exactly zero by
+        construction -- the calibrator and this diagnostic are the same PAV
+        projection, and PAV is idempotent -- no matter how badly the model
+        generalizes. Use :func:`~calibre.cross_val_calibrate` for out-of-fold
+        probabilities.
+
+        Sweep calibration error assumes a non-decreasing population calibration
+        curve. It can be near zero for strongly nonmonotone miscalibration; compare
+        it with the other diagnostics rather than treating it as a general verdict.
 
     Examples:
         >>> import numpy as np
@@ -201,72 +220,74 @@ def calibration_report(
         >>> p = rng.uniform(0, 1, 2000)
         >>> y = rng.binomial(1, p).astype(float)
         >>> report = calibration_report(y, p)
-        >>> report.n
+        >>> report.n_observations
         2000
 
         These are calibrated by construction, so miscalibration is small next to the
         discrimination the forecasts earn:
 
-        >>> bool(report.mcb < 0.1 * report.dsc)
+        >>> bool(report.miscalibration < 0.1 * report.discrimination)
         True
 
         And the uncorrected estimator reports more error than the corrected one:
 
-        >>> bool(report.plugin_ece >= report.debiased_ece)
+        >>> bool(
+        ...     report.plugin_calibration_error
+        ...     >= report.debiased_calibration_error
+        ... )
         True
     """
+    if isinstance(n_bins, (bool, np.bool_)) or not isinstance(
+        n_bins, (int, np.integer)
+    ):
+        raise ValueError("n_bins must be a positive integer")
     if n_bins < 1:
         raise ValueError(f"n_bins must be at least 1, got {n_bins}")
+    if not isinstance(include_brier_interval, (bool, np.bool_)):
+        raise TypeError("include_brier_interval must be boolean")
     y_true, y_pred = check_arrays(y_true, y_pred)
 
-    decomposition = score_decomposition(y_pred, y_true)
-    smece, sigma = smooth_calibration_error(y_true, y_pred, return_sigma=True)
+    decomposition = score_decomposition(y_true, y_pred)
+    smece, bandwidth = smooth_calibration_error(y_true, y_pred, return_bandwidth=True)
     sweep, sweep_bins = sweep_calibration_error(y_true, y_pred, return_n_bins=True)
-    n_distinct = int(np.unique(y_pred).size)
-    n = int(y_true.size)
+    n_unique_predictions = int(np.unique(y_pred).size)
+    n_observations = int(y_true.size)
 
-    intervals: dict[str, dict[str, float]] = {}
-    if ci:
-        # MCB and DSC are absent. They are functionals of an isotonic fit, for
-        # which the naive n-out-of-n bootstrap is inconsistent: a resample keeps
-        # only ~63% of rows distinct and PAV overfits the duplicates, so the
-        # inflation tracks effective sample size rather than sampling error. In
-        # practice that produced an interval both degenerate and sitting *above*
-        # its own estimate, which is worse than no interval. consistency_bands
-        # and confidence_bands resample outcomes instead and are correct there.
-        targets = {
-            "brier": brier_score,
-            "smece": lambda t, p: smooth_calibration_error(t, p),
-            "debiased_ece": lambda t, p: debiased_calibration_error(t, p, n_bins),
-        }
-        for key, metric in targets.items():
-            intervals[key] = bootstrap_ci(
-                metric,
-                y_true,
-                y_pred,
-                level=level,
-                n_resamples=n_resamples,
-                random_state=random_state,
-                method=ci_method,
-            )
+    intervals: dict[str, dict[str, Any]] = {}
+    if include_brier_interval:
+        intervals["brier_score"] = bootstrap_ci(
+            brier_score,
+            y_true,
+            y_pred,
+            level=interval_level,
+            n_resamples=interval_n_resamples,
+            random_state=random_state,
+            method=interval_method,
+        )
 
     return CalibrationReport(
-        n=n,
+        n_observations=n_observations,
         base_rate=float(np.mean(y_true)),
         mean_prediction=float(np.mean(y_pred)),
-        bias=mean_calibration_error(y_true, y_pred),
-        brier=brier_score(y_true, y_pred),
-        mcb=float(decomposition["MCB"]),
-        dsc=float(decomposition["DSC"]),
-        unc=float(decomposition["UNC"]),
-        smece=float(smece),
-        smece_sigma=float(sigma),
-        debiased_ece=debiased_calibration_error(y_true, y_pred, n_bins),
-        plugin_ece=plugin_calibration_error(y_true, y_pred, n_bins, 2),
-        sweep_ece=float(sweep),
-        sweep_bins=int(sweep_bins),
+        mean_calibration_error=mean_calibration_error(y_true, y_pred),
+        brier_score=brier_score(y_true, y_pred),
+        miscalibration=float(decomposition["miscalibration"]),
+        discrimination=float(decomposition["discrimination"]),
+        uncertainty=float(decomposition["uncertainty"]),
+        smooth_calibration_error=float(smece),
+        smooth_calibration_bandwidth=float(bandwidth),
+        debiased_calibration_error=debiased_calibration_error(
+            y_true, y_pred, n_bins=n_bins
+        ),
+        plugin_calibration_error=plugin_calibration_error(
+            y_true, y_pred, n_bins=n_bins, norm=2
+        ),
+        sweep_calibration_error=float(sweep),
+        sweep_n_bins=int(sweep_bins),
         n_bins=int(n_bins),
-        n_distinct=n_distinct,
-        distinct_ratio=float(n_distinct / n) if n else 0.0,
+        n_unique_predictions=n_unique_predictions,
+        unique_prediction_ratio=(
+            float(n_unique_predictions / n_observations) if n_observations else 0.0
+        ),
         intervals=intervals,
     )

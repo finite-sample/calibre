@@ -46,7 +46,7 @@ def _check_fitted(name: str, calibrator: Any) -> None:
 
 def plot_calibrator_comparison(
     calibrators: Mapping[str, Any],
-    x: np.ndarray,
+    input_scores: np.ndarray,
     *,
     ax: Axes | None = None,
     reference: ReliabilityDiagram | None = None,
@@ -56,7 +56,8 @@ def plot_calibrator_comparison(
 ) -> Axes:
     """Overlay the calibration maps that several fitted calibrators learned.
 
-    Each calibrator is evaluated on a fine grid spanning the range of ``x``, so
+    Each calibrator is evaluated on a fine grid spanning the range of
+    ``input_scores``, so
     what is drawn is the function itself rather than a scatter of its outputs.
     With ``annotate_distinct`` on, each legend entry also carries how many
     distinct values that calibrator produced on ``x`` -- so the comparison and
@@ -65,7 +66,7 @@ def plot_calibrator_comparison(
     Args:
         calibrators: Mapping from name to an **already fitted** calibrator
             exposing ``.transform``.
-        x: Input scores, used both for the grid's range and for the
+        input_scores: Scores used both for the grid's range and for the
             distinct-value counts.
         ax: Axes to draw on. A new figure is created when omitted.
         reference: Optional CORP diagram of the raw scores, drawn behind in
@@ -79,7 +80,7 @@ def plot_calibrator_comparison(
         Axes: The axes drawn on.
 
     Raises:
-        ValueError: If ``calibrators`` is empty, ``x`` is empty, or any
+        ValueError: If ``calibrators`` is empty, ``input_scores`` is empty, or any
             calibrator is unfitted.
 
     Examples:
@@ -103,9 +104,9 @@ def plot_calibrator_comparison(
     if not calibrators:
         raise ValueError("calibrators is empty; nothing to plot")
 
-    scores = np.asarray(x, dtype=float).ravel()
+    scores = np.asarray(input_scores, dtype=float).ravel()
     if scores.size == 0:
-        raise ValueError("x is empty; nothing to plot")
+        raise ValueError("input_scores is empty; nothing to plot")
 
     for name, calibrator in calibrators.items():
         _check_fitted(name, calibrator)
@@ -118,8 +119,8 @@ def plot_calibrator_comparison(
 
     if reference is not None:
         axes.plot(
-            np.asarray(reference.x, dtype=float),
-            np.asarray(reference.cep, dtype=float),
+            np.asarray(reference.prediction_values, dtype=float),
+            np.asarray(reference.event_probabilities, dtype=float),
             color=SEMANTIC["reference"],
             linewidth=1.2,
             alpha=0.8,

@@ -141,7 +141,7 @@ def test_uncertainty_matches_its_exact_finite_sample_expectation(name):
     design = DESIGNS[name]
     values = np.array(
         [
-            score_decomposition(x, y)["UNC"]
+            score_decomposition(y, x)["uncertainty"]
             for y, x, _ in replicate(design, N_FAST, R_FAST)
         ]
     )
@@ -164,7 +164,7 @@ def test_discrimination_converges_to_the_variance_of_the_truth(name):
     for n in (400, 6400):
         values = np.array(
             [
-                score_decomposition(x, y)["DSC"]
+                score_decomposition(y, x)["discrimination"]
                 for y, x, _ in replicate(design, n, 80, seed=n)
             ]
         )
@@ -188,7 +188,7 @@ def test_miscalibration_converges_to_its_population_value(name):
     for n in (400, 6400):
         values = np.array(
             [
-                score_decomposition(x, y)["MCB"]
+                score_decomposition(y, x)["miscalibration"]
                 for y, x, _ in replicate(design, n, 80, seed=n)
             ]
         )
@@ -230,7 +230,7 @@ def test_the_debiased_correction_is_unbiased_on_the_squared_scale():
     design = DESIGNS["calibrated"]
     values = np.array(
         [
-            debiased_calibration_error(y, x, 15, squared=True)
+            debiased_calibration_error(y, x, n_bins=15, squared=True)
             for y, x, _ in replicate(design, N_FAST, R_FAST)
         ]
     )
@@ -246,7 +246,7 @@ def test_the_unbiased_squared_estimate_is_negative_about_half_the_time():
     design = DESIGNS["calibrated"]
     values = np.array(
         [
-            debiased_calibration_error(y, x, 15, squared=True)
+            debiased_calibration_error(y, x, n_bins=15, squared=True)
             for y, x, _ in replicate(design, N_FAST, R_FAST)
         ]
     )
@@ -269,7 +269,7 @@ def test_the_floor_makes_the_reported_error_biased_upward():
     design = DESIGNS["calibrated"]
     reported = np.array(
         [
-            debiased_calibration_error(y, x, 15)
+            debiased_calibration_error(y, x, n_bins=15)
             for y, x, _ in replicate(design, N_FAST, R_FAST)
         ]
     )
@@ -288,7 +288,7 @@ def test_plugin_error_is_detectably_biased_where_the_truth_is_zero():
     design = DESIGNS["calibrated"]
     values = np.array(
         [
-            plugin_calibration_error(y, x, 15, 2)
+            plugin_calibration_error(y, x, n_bins=15, norm=2)
             for y, x, _ in replicate(design, N_FAST, R_FAST)
         ]
     )
@@ -305,7 +305,7 @@ def test_the_plugin_bias_grows_with_the_bin_count():
     for n_bins in (5, 50):
         values = np.array(
             [
-                plugin_calibration_error(y, x, n_bins, 2)
+                plugin_calibration_error(y, x, n_bins=n_bins, norm=2)
                 for y, x, _ in replicate(design, N_FAST, 100, seed=n_bins)
             ]
         )
@@ -339,8 +339,8 @@ def test_the_two_routes_to_the_l2_error_agree(name):
     for n in (500, 8000):
         pairs = [
             (
-                np.sqrt(score_decomposition(x, y)["MCB"]),
-                debiased_calibration_error(y, x, 15),
+                np.sqrt(score_decomposition(y, x)["miscalibration"]),
+                debiased_calibration_error(y, x, n_bins=15),
             )
             for y, x, _ in replicate(design, n, 60, seed=n)
         ]
@@ -361,7 +361,7 @@ def test_sqrt_mcb_converges_to_the_true_l2_error(name):
     for n in (500, 8000):
         values = np.array(
             [
-                np.sqrt(score_decomposition(x, y)["MCB"])
+                np.sqrt(score_decomposition(y, x)["miscalibration"])
                 for y, x, _ in replicate(design, n, 60, seed=n)
             ]
         )
@@ -425,7 +425,7 @@ def test_smece_orders_designs_by_their_true_error():
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.parametrize("method", ["percentile", "basic", "bc"])
+@pytest.mark.parametrize("method", ["percentile", "basic", "bca"])
 def test_bootstrap_intervals_cover_the_brier_score(method):
     """The control for interval coverage: a linear, unbiased statistic.
 
@@ -436,8 +436,16 @@ def test_bootstrap_intervals_cover_the_brier_score(method):
     design = DESIGNS["overconfident"]
     hits = 0
     replications = 120
-    for y, x, _ in replicate(design, 800, replications, seed=500):
-        ci = bootstrap_ci(brier_score, y, x, level=0.9, n_resamples=120, method=method)
+    for index, (y, x, _) in enumerate(replicate(design, 800, replications, seed=500)):
+        ci = bootstrap_ci(
+            brier_score,
+            y,
+            x,
+            level=0.9,
+            n_resamples=120,
+            random_state=index,
+            method=method,
+        )
         hits += int(ci["lower"] <= design.brier <= ci["upper"])
     assert_coverage(
         hits, replications, 0.9, label=f"Brier interval, method={method}", n_se=3.5
@@ -482,11 +490,11 @@ def _band_coverage(design, n, replications, level, kind, seed):
     simultaneous = []
     for i, (y, x, _) in enumerate(replicate(design, n, replications, seed=seed)):
         if kind == "consistency":
-            band = consistency_bands(x, y, level=level, n_resamples=100, random_state=i)
-            target = corp_reliability(x, y).cep
+            band = consistency_bands(x, level=level, n_resamples=100, random_state=i)
+            target = corp_reliability(y, x).event_probabilities
         else:
-            band = confidence_bands(x, y, level=level, n_resamples=100, random_state=i)
-            target = design.true_cep(band["x"])
+            band = confidence_bands(y, x, level=level, n_resamples=100, random_state=i)
+            target = design.true_cep(band["prediction_values"])
         inside = (band["lower"] <= target) & (target <= band["upper"])
         pointwise.append(float(inside.mean()))
         simultaneous.append(bool(inside.all()))
@@ -503,12 +511,10 @@ def test_consistency_bands_have_nominal_pointwise_coverage():
     pointwise, _ = _band_coverage(
         DESIGNS["calibrated"], 400, 60, level, "consistency", seed=2000
     )
-    se = float(pointwise.std(ddof=1) / np.sqrt(pointwise.size))
-    deviation = abs(float(pointwise.mean()) - level) / se
-    assert deviation <= 3.0, (
-        f"consistency bands: pointwise coverage {pointwise.mean():.1%} vs nominal "
-        f"{level:.0%} is {deviation:.1f} MC standard errors away "
-        f"(se {se:.4f}, R {pointwise.size})"
+    assert_unbiased(
+        pointwise,
+        level,
+        label="consistency-band pointwise coverage",
     )
 
 
@@ -615,7 +621,7 @@ def test_power_grows_with_sample_size():
 CALIBRATORS = {
     "isotonic": IsotonicCalibrator,
     "centered": CenteredIsotonicCalibrator,
-    "relaxed_pava": RelaxedPAVACalibrator,
+    "relaxed_pava": lambda: RelaxedPAVACalibrator(min_increment=-0.001),
 }
 
 

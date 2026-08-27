@@ -17,7 +17,7 @@ from calibre import (
     RelaxedPAVACalibrator,
     SplineCalibrator,
 )
-from calibre.metrics import binned_calibration_error, brier_score
+from calibre.metrics import brier_score, root_mean_squared_calibration_error
 
 
 @pytest.fixture
@@ -108,20 +108,18 @@ class PredictsTheBaseRate:
 
 
 def _calibration_error(predictions, y):
-    """Binned calibration error of ``predictions`` against outcomes ``y``.
+    """Root mean squared calibration error against outcomes ``y``.
 
     Args:
         predictions: Predicted probabilities.
         y: Binary outcomes.
 
     Returns:
-        float: Binned calibration error over ten equal-width bins.
+        float: Mass-weighted RMS calibration error over ten equal-width bins.
     """
-    error = binned_calibration_error(y, np.clip(predictions, 0.0, 1.0), n_bins=10)
-    # The signature is `float | dict`; the dict is the `return_details=True`
-    # branch, which is not taken here.
-    assert not isinstance(error, dict)
-    return float(error)
+    return root_mean_squared_calibration_error(
+        y, np.clip(predictions, 0.0, 1.0), n_bins=10
+    )
 
 
 def assert_calibrates(calibrator, miscalibrated_data, factor=2.0):
@@ -394,46 +392,42 @@ class TestRelaxedPAVACalibrator:
     def test_basic_functionality(self, calibration_data, miscalibrated_data):
         """Test RelaxedPAVACalibrator basic operations."""
         x, y_observed, _y_true = calibration_data
-        cal = RelaxedPAVACalibrator(epsilon=0.02)
+        cal = RelaxedPAVACalibrator(min_increment=-0.02)
         cal.fit(x, y_observed)
         y_calib = cal.transform(x)
 
         assert len(y_calib) == len(x)
         assert np.all((y_calib >= 0) & (y_calib <= 1))
-        # A lower bar than the other calibrators get, and deliberately so:
-        # epsilon buys granularity by permitting small decreases, and pays for
-        # it in calibration. Measured on this fixture, reduction against the
-        # uncalibrated score falls monotonically with epsilon --
-        # 0.0 exact, 0.005 5.4x, 0.02 2.7x, 0.05 1.6x. The 0.02 asked for here
-        # cannot clear 3x, and pretending otherwise would mean either lowering
-        # the bar for everyone or quietly testing a different epsilon.
         assert_calibrates(
-            RelaxedPAVACalibrator(epsilon=0.02), miscalibrated_data, factor=2.0
+            RelaxedPAVACalibrator(min_increment=-0.02),
+            miscalibrated_data,
+            factor=2.0,
         )
 
-    def test_epsilon_relaxes_monotonicity_monotonically(self, calibration_data):
-        """A larger epsilon must permit at least as much total decrease.
+    def test_negative_bound_relaxes_monotonicity_monotonically(self, calibration_data):
+        """A more negative bound must permit at least as much total decrease.
 
-        `epsilon` bounds the decrease allowed between adjacent unique scores, so
-        the total decrease in the fit is non-decreasing in epsilon, and epsilon=0
-        must reproduce plain isotonic regression exactly.
+        ``min_increment`` bounds changes between adjacent unique scores. Zero
+        reproduces isotonic regression; moving the bound downward enlarges the
+        feasible set.
         """
         x, y_observed, _ = calibration_data
         grid = np.unique(x)
 
         totals = []
-        for epsilon in [0.0, 0.01, 0.05, 0.2]:
-            cal = RelaxedPAVACalibrator(epsilon=epsilon, clip_output=False)
+        for bound in [0.0, -0.01, -0.05, -0.2]:
+            cal = RelaxedPAVACalibrator(min_increment=bound, clip_output=False)
             fitted = cal.fit(x, y_observed).transform(grid)
             assert len(cal.transform(x)) == len(x)
+            assert np.all(np.diff(fitted) >= bound - 1e-12)
             totals.append(float(np.sum(np.maximum(0.0, -np.diff(fitted)))))
 
-        assert totals[0] == 0.0, "epsilon=0 must be exactly monotone"
+        assert totals[0] == 0.0, "a zero bound must be exactly monotone"
         for lo, hi in itertools.pairwise(totals):
-            assert hi >= lo - 1e-12, f"total decrease fell as epsilon rose: {totals}"
+            assert hi >= lo - 1e-12, f"total decrease fell as bound relaxed: {totals}"
 
-    def test_epsilon_zero_equals_isotonic(self, calibration_data):
-        """epsilon=0 is standard isotonic regression, so it must match sklearn."""
+    def test_zero_bound_equals_isotonic(self, calibration_data):
+        """A zero bound is standard isotonic regression and must match sklearn."""
         from sklearn.isotonic import IsotonicRegression
 
         x, y_observed, _ = calibration_data
@@ -442,7 +436,7 @@ class TestRelaxedPAVACalibrator:
         # clip_output=False so the comparison is against the same estimator:
         # sklearn does not clip, and this fixture's targets dip below 0.
         got = (
-            RelaxedPAVACalibrator(epsilon=0.0, clip_output=False)
+            RelaxedPAVACalibrator(min_increment=0.0, clip_output=False)
             .fit(x, y_observed)
             .transform(grid)
         )
@@ -451,94 +445,44 @@ class TestRelaxedPAVACalibrator:
         )
         np.testing.assert_allclose(got, expected, rtol=0, atol=1e-10)
 
-    def test_min_slope_removes_plateaus(self, calibration_data):
-        """A positive min_slope must leave no plateau on the fitted grid."""
+    def test_positive_bound_removes_plateaus(self, calibration_data):
+        """A positive increment bound must leave no plateau on the fitted grid."""
         x, y_observed, _ = calibration_data
         grid = np.unique(x)
 
-        # min_slope=0.0 explicitly, not the default: the default now applies an
-        # automatic slope on the untouched path, so leaving it out would make the
-        # baseline depend on what the epsilon search happened to pick.
-        plain = RelaxedPAVACalibrator(min_slope=0.0).fit(x, y_observed).transform(grid)
-        sloped = (
-            RelaxedPAVACalibrator(min_slope=1e-4, clip_output=False)
+        plain = (
+            RelaxedPAVACalibrator(min_increment=0.0).fit(x, y_observed).transform(grid)
+        )
+        separated = (
+            RelaxedPAVACalibrator(min_increment=1e-4, clip_output=False)
             .fit(x, y_observed)
             .transform(grid)
         )
 
         assert np.any(np.diff(plain) == 0), "fixture should produce plateaus"
-        assert np.all(np.diff(sloped) > 0), "min_slope must eliminate plateaus"
+        assert np.all(np.diff(separated) >= 1e-4 - 1e-12)
 
-    def test_the_default_breaks_plateaus_apart(self):
-        """The 0.10.0 default must deliver resolution, not reproduce PAVA.
+    def test_clipping_can_flatten_a_positive_bound(self):
+        """Probability clipping must not be advertised as strictly increasing."""
+        x = np.linspace(0.0, 1.0, 20)
+        y = np.r_[np.zeros(10), np.ones(10)]
 
-        This is the whole point of ``min_slope="auto"``. If the automatic slope
-        stopped being reached on the default path -- because the epsilon search
-        changed, or the interaction rule below were loosened -- the headline
-        behavior would revert to isotonic's handful of distinct values while
-        every other test still passed.
+        fitted = RelaxedPAVACalibrator(min_increment=0.1).fit(x, y)
+        knots = fitted.calibration_curve_.y
 
-        The data is built here rather than taken from the shared fixture because
-        the automatic slope is conditional on the epsilon search selecting zero,
-        which is a property of the data. A monotone truth is the case the default
-        is aimed at; across the benchmark's designs the slope is reached in 14 of
-        15 cells, the exception being one where the input's own tie structure
-        already caps the achievable resolution.
-        """
-        rng = np.random.default_rng(0)
-        x = rng.uniform(0.0, 1.0, 1000)
-        p = 1.0 / (1.0 + np.exp(-1.8 * np.log(x / (1.0 - x))))
-        y_observed = rng.binomial(1, p).astype(float)
-        grid = np.unique(x)
+        assert np.all((knots >= 0.0) & (knots <= 1.0))
+        assert np.any(np.diff(knots) == 0.0)
 
-        default = RelaxedPAVACalibrator().fit(x, y_observed)
-        flat = RelaxedPAVACalibrator(min_slope=0.0).fit(x, y_observed)
+    def test_bound_is_required_and_must_be_finite(self):
+        """The estimator must not invent an application-specific constraint."""
+        with pytest.raises(TypeError, match="min_increment"):
+            RelaxedPAVACalibrator()
 
-        assert default.epsilon_ == 0.0, "precondition: the search must select zero"
-        assert default.min_slope_ > 0.0
-
-        # Strict increase holds on the unclipped fit. With clipping on -- the
-        # default -- a fit that saturates 0 and 1, as this design's does, flattens
-        # at the two ends, which is why the retained fraction below is high rather
-        # than total.
-        unclipped = RelaxedPAVACalibrator(clip_output=False).fit(x, y_observed)
-        assert np.all(np.diff(unclipped.transform(grid)) > 0)
-
-        distinct = len(np.unique(np.round(default.transform(grid), 9)))
-        pooled = len(np.unique(np.round(flat.transform(grid), 9)))
-        assert distinct > 20 * pooled, f"{distinct} distinct against {pooled} pooled"
-        assert distinct > 0.8 * grid.size, f"only {distinct} of {grid.size} retained"
-
-        # The resolution has to be nearly free, or it is not worth a default.
-        assert (
-            brier_score(y_observed, default.transform(x))
-            < brier_score(y_observed, flat.transform(x)) + 1e-3
-        )
-
-    def test_naming_epsilon_stands_the_automatic_slope_down(self, calibration_data):
-        """``epsilon=0`` must keep meaning plain isotonic regression.
-
-        The automatic slope applies only when neither parameter was named. A
-        caller who writes ``epsilon=0`` is asking for PAVA exactly, and tilting
-        that fit would both break the documented epsilon sensitivity and make the
-        two parameters impossible to reason about together.
-        """
-        x, y_observed, _ = calibration_data
-        grid = np.unique(x)
-
-        pinned = RelaxedPAVACalibrator(epsilon=0.0, clip_output=False).fit(
-            x, y_observed
-        )
-        assert pinned.min_slope_ == 0.0
-
-        isotonic = IsotonicCalibrator().fit(x, y_observed)
-        np.testing.assert_allclose(
-            pinned.transform(grid), isotonic.transform(grid), rtol=0, atol=1e-10
-        )
-
-        # And a non-zero epsilon must not collide with the automatic default,
-        # which is what a naive non-zero min_slope default would have done.
-        assert RelaxedPAVACalibrator(epsilon=0.02).fit(x, y_observed).min_slope_ == 0.0
+        x = np.linspace(0.0, 1.0, 10)
+        y = (x > 0.5).astype(float)
+        for invalid in (np.nan, np.inf, -np.inf, "auto"):
+            with pytest.raises(ValueError, match="min_increment must be finite"):
+                RelaxedPAVACalibrator(min_increment=invalid).fit(x, y)
 
 
 class TestSplineCalibrator:
@@ -582,7 +526,7 @@ class TestCalibratorErrorHandling:
         calibrators = [
             NearlyIsotonicCalibrator(lam=0.5),
             SplineCalibrator(n_knots=5),
-            RelaxedPAVACalibrator(epsilon=0.02),
+            RelaxedPAVACalibrator(min_increment=-0.02),
             SplineCalibrator(alpha=0.1),
         ]
 
@@ -630,7 +574,7 @@ class TestCalibratorErrorHandling:
     def test_cdi_rejects_weights_that_cannot_define_a_fit(self, sample_weight):
         """Invalid weights must not silently produce zeros or NaNs."""
         with pytest.raises(ValueError, match="sample_weight"):
-            CDIIsotonicCalibrator().fit(
+            CDIIsotonicCalibrator(thresholds=[0.5]).fit(
                 np.array([0.1, 0.5, 0.9]),
                 np.array([0.0, 1.0, 1.0]),
                 sample_weight=sample_weight,
@@ -646,7 +590,7 @@ class TestCalibratorErrorHandling:
     def test_cdi_rejects_nonfinite_positive_mass_data(self, scores, targets):
         """Positive-mass scores and targets must be finite."""
         with pytest.raises(ValueError, match="finite"):
-            CDIIsotonicCalibrator().fit(scores, targets)
+            CDIIsotonicCalibrator(thresholds=[0.5]).fit(scores, targets)
 
 
 class TestCalibratorCommonInterface:
@@ -659,7 +603,7 @@ class TestCalibratorCommonInterface:
             IsotonicCalibrator(),
             NearlyIsotonicCalibrator(lam=0.5),
             SplineCalibrator(n_knots=8, cv=3),
-            RelaxedPAVACalibrator(epsilon=0.02),
+            RelaxedPAVACalibrator(min_increment=-0.02),
             SplineCalibrator(alpha=0.1),
         ]
 

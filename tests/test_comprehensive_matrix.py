@@ -68,10 +68,10 @@ class TestMatrix:
             # Epsilon-monotone / minimum-slope variants. The old adaptive-vs-block
             # split is gone (there is one exact algorithm now), so these cover the
             # two directions of the signed increment bound instead.
-            "rpava_strict_adaptive": lambda: RelaxedPAVACalibrator(epsilon=0.01),
-            "rpava_loose_adaptive": lambda: RelaxedPAVACalibrator(epsilon=0.05),
-            "rpava_strict_block": lambda: RelaxedPAVACalibrator(min_slope=0.001),
-            "rpava_loose_block": lambda: RelaxedPAVACalibrator(min_slope=0.01),
+            "rpava_strict_adaptive": lambda: RelaxedPAVACalibrator(min_increment=-0.01),
+            "rpava_loose_adaptive": lambda: RelaxedPAVACalibrator(min_increment=-0.05),
+            "rpava_strict_block": lambda: RelaxedPAVACalibrator(min_increment=0.001),
+            "rpava_loose_block": lambda: RelaxedPAVACalibrator(min_increment=0.01),
             # Pinned spline penalty variants
             "spline_penalty_weak": lambda: SplineCalibrator(alpha=0.01, n_knots=10),
             "spline_penalty_medium": lambda: SplineCalibrator(alpha=0.1, n_knots=10),
@@ -588,7 +588,7 @@ class TestMatrixAnalysis:
                     elif cal_name == "ispline_medium":
                         calibrator = SplineCalibrator(n_knots=10, degree=3, cv=3)
                     elif cal_name == "rpava_strict_adaptive":
-                        calibrator = RelaxedPAVACalibrator(epsilon=0.01)
+                        calibrator = RelaxedPAVACalibrator(min_increment=-0.01)
                     elif cal_name == "spline_penalty_medium":
                         calibrator = SplineCalibrator(alpha=0.1)
 

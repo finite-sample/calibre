@@ -73,9 +73,9 @@ Choosing a method
    skewed = truth ** np.linspace(0.6, 2.4, 5)
    scores = skewed / skewed.sum(axis=1, keepdims=True)
 
-   profile = miscalibration_profile(scores, labels)
-   print(f"spread {profile['spread']:.2f}")
-   print(profile["reading"])
+   profile = miscalibration_profile(labels, scores)
+   print(f"spread {profile['relative_miscalibration_spread']:.2f}")
+   print(profile["interpretation"])
 
 A spread near 0.13 means the miscalibration is even across classes and
 :class:`~calibre.TemperatureScaler` will likely capture it. A spread of 0.4 and

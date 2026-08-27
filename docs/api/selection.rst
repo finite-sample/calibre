@@ -5,6 +5,10 @@ Shared cross-validation machinery. Every calibrator with an ``"auto"``
 hyperparameter resolves it through :func:`~calibre.select_by_cv`, so the
 selection rule is the same everywhere and is implemented once.
 
+The default shuffled folds assume independent, exchangeable observations. They
+are not valid partitions for grouped, repeated-measures, spatial, or temporal
+data.
+
 Selection is always on a **proper scoring rule** — log loss or Brier. Calibrators
 default to ``scoring="auto"``: log loss for probability targets and Brier (squared
 error) for unbounded identity-scale targets. Naming log loss for an unbounded target

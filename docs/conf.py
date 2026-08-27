@@ -7,17 +7,16 @@ from py_canon.sphinx import configure
 config = globals()
 configure(config)
 
-# Tutorial notebooks. myst-nb executes them at build time (they are committed
-# without outputs, deliberately — the rendered results always come from the
-# current library) and parses their markdown itself, so the docs build needs no
-# pandoc binary, which py-canon's reusable docs job does not install.
+# MyST tutorials are executed at build time, so rendered results always come from
+# the current library. myst-nb parses the Markdown without requiring pandoc.
 config["extensions"].remove("myst_parser")  # bundled by myst_nb; listing both errors
 config["extensions"] += ["myst_nb", "sphinx.ext.mathjax"]
+config["source_suffix"][".md"] = "myst-nb"
 nb_execution_mode = "force"
 nb_execution_timeout = 300
 nb_execution_raise_on_error = True
 
-# The notebooks write math as $...$ / $$...$$.
+# The tutorials write math as $...$ / $$...$$.
 config["myst_enable_extensions"].append("dollarmath")
 
 html_static_path = ["_static"]

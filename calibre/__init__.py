@@ -46,7 +46,6 @@ from .evaluation import (
 
 # Import all metrics functions directly for convenient access
 from .metrics import (
-    binned_calibration_error,
     brier_score,
     calibration_curve,
     correlation_metrics,
@@ -55,6 +54,7 @@ from .metrics import (
     maximum_calibration_error,
     mean_calibration_error,
     plugin_calibration_error,
+    root_mean_squared_calibration_error,
     smooth_calibration_error,
     sweep_calibration_error,
     tie_preservation_score,
@@ -93,7 +93,6 @@ __all__ = [
     "SplineCalibrator",
     "TemperatureScaler",
     # Metrics functions
-    "binned_calibration_error",
     "bootstrap_ci",
     "brier_score",
     "calibration_curve",
@@ -120,6 +119,7 @@ __all__ = [
     # Plotting (optional: needs `pip install 'calibre[plots]'`)
     "plots",
     "plugin_calibration_error",
+    "root_mean_squared_calibration_error",
     # Diagnostic functions
     "run_plateau_diagnostics",
     "score_decomposition",

@@ -134,8 +134,8 @@ The CI pipeline uses `uv sync --locked` to ensure:
   Uses the exact modified-PAVA path and the source paper's lambda scale.
 - `SplineCalibrator`: Monotone I-spline fit; CV picks `(n_knots, alpha)` using
   log loss for the logit link and squared error for the identity link
-- `RelaxedPAVACalibrator`: Bounds each adjacent increment — `epsilon` permits small
-  decreases, `min_slope` forbids plateaus. Solved by shift-to-PAVA in O(n).
+- `RelaxedPAVACalibrator`: `min_increment` is a signed lower bound on each adjacent
+  fitted-value change. Solved by shift-to-PAVA in O(n).
 - `CDIIsotonicCalibrator`: Cost- and data-informed isotonic (research)
 
 **calibre/_core.py**: Shared numerical primitives. Every calibrator is built from
@@ -153,17 +153,18 @@ All are pinned against R reference implementations by `tests/test_r_reference.py
 **calibre/diagnostics.py**: Standalone plateau diagnostic functions:
 - `run_plateau_diagnostics()`: Returns a dict with `n_plateaus`, `plateaus`, `warnings`
 - `detect_plateaus()`: Detect flat regions in calibration curves
-- `analyze_plateau_simple()`: Describe one plateau (`x_range`, `value`, `n_samples`,
-  `sample_density`)
+- `analyze_plateau_simple()`: Describe one plateau (`input_score_range`,
+  `calibrated_value`, `n_observations`, `support`)
 
 Note: this module is a stub relative to what earlier CHANGELOGs promised. Bootstrap
 tie stability, conditional AUC among tied pairs, minimum detectable difference, and the
 supported/limited-data/inconclusive classifier do not exist.
 
 **calibre/metrics.py**: Evaluation metrics for calibration quality:
-- `mean_calibration_error()`: Bias, |E[p] - E[y]|. Changed in 0.7.0; it used to
-  return mean absolute error, which is not a calibration error.
-- `binned_calibration_error()`: Binned approach with uniform/quantile strategies
+- `mean_calibration_error()`: Weighted or unweighted calibration-in-the-large error,
+  |E[p] - E[y]|. Opposing probability errors can cancel, so pair it with a proper
+  score and calibration curve.
+- `root_mean_squared_calibration_error()`: Mass-weighted L2 error with uniform/quantile bins
 - `plugin_calibration_error()`: The uncorrected ℓp estimator on equal-mass bins.
   Exists so plugin, debiased and sweep can be compared at one norm and one binning
   rule; the other three public estimators differ in both, which makes any plot of
@@ -173,6 +174,12 @@ supported/limited-data/inconclusive classifier do not exist.
 - `maximum_calibration_error()`: Maximum calibration error (MCE)
 - `brier_score()`: Brier score computation
 - `calibration_curve()`: Calibration curve generation
+
+**calibre/selection.py**: Shared shuffled cross-validation for independent,
+exchangeable calibration observations. Estimator-facing functions use scikit-learn's
+standard `X`, `y` names; optional controls are keyword-only where the public API has
+been audited. `make_folds()` strictly requires an integer fold count and delegates to
+scikit-learn's stratified splitter for binary targets and ordinary K-fold otherwise.
 - `correlation_metrics()`: Spearman correlations
 - `unique_value_counts()`: Granularity preservation metrics
 - `tie_preservation_score()`: Measures how well ties are preserved during calibration
@@ -269,7 +276,7 @@ diagnostics = run_plateau_diagnostics(X, y_calibrated)
   - `tests/test_report.py`: The text report
   - `tests/test_utils.py`: Utility function testing
   - `tests/test_monotone_spline.py`: Monotonicity guarantees for the spline calibrators
-  - `tests/test_bootstrap_bias.py`: Bias of the bootstrap intervals
+  - `tests/test_bootstrap_ci.py`: Bootstrap reference equivalence and contracts
   - `tests/test_r_reference.py`: Cross-language checks against committed R fixtures
   - `tests/test_relplot_reference.py`: Checks against relplot's published numbers
   - `tests/test_readme.py`: Executes every README code block and checks claimed output
@@ -313,7 +320,7 @@ hold there:
 
 - **Never a bare `assert` in a gate.** `python -O` deletes `assert` statements, so
   a module whose whole product is assertions passes everything under
-  optimisation. Raise `AssertionError` explicitly.
+  optimization. Raise `AssertionError` explicitly.
   `test_the_gates_still_fire_under_optimisation` runs the gates in a `python -O`
   subprocess and fails if any stays quiet.
 - **Every gate has a test that watches it fail.** A gate that cannot fail is worse
@@ -382,9 +389,9 @@ and those guards.
   does NOT work. Use `uv sync --all-groups`.
 
 ## Interactive Examples
-- **docs/notebooks/**: Jupyter notebooks with comprehensive examples and benchmarks
-- Six focused notebooks: getting started, validation, diagnostics, performance comparison, evaluating calibration, and multiclass
-- Executed at docs-build time via myst-nb (committed without outputs on purpose)
+- **docs/notebooks/**: Executable MyST tutorials with comprehensive examples and benchmarks
+- Six focused tutorials: getting started, validation, diagnostics, performance comparison, evaluating calibration, and multiclass
+- Executed at docs-build time via myst-nb
 - Located in `docs/notebooks/` (migrated from root examples/)
 
 ## CI/CD Configuration

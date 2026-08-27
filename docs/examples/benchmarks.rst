@@ -8,7 +8,7 @@ the docs build reads the committed CSVs rather than re-running anything.
 The design
 ----------
 
-Thirty seeds over nine methods and ten dataset/model cells. Within a cell the
+Thirty seeds over eight methods and ten dataset/model cells. Within a cell the
 calibrator is **the only thing that varies**: the out-of-fold scores and the test
 scores are computed once and shared, so a difference between two calibrators
 cannot be resampling noise. The test split is touched exactly once — nothing is
@@ -20,10 +20,10 @@ fitted there learns the wrong correction.
 
 Library defaults only. Tuning calibre's methods against an untuned isotonic
 baseline would settle the comparison by construction. One asymmetry is worth
-naming rather than hiding: :class:`~calibre.SplineCalibrator` and the ``"auto"``
-default of the relaxed calibrator choose their own hyperparameters by internal
-cross-validation. That is a real advantage over a fixed competitor, and it is
-paid for in the fit time the benchmark also records.
+naming rather than hiding: :class:`~calibre.SplineCalibrator` chooses its penalty
+by internal cross-validation. That is a real advantage over a fixed competitor,
+and it is paid for in the fit time the benchmark also records. Relaxed PAVA is
+excluded because its increment bound is deliberately required.
 
 Everything that could be tuned to flatter calibre — datasets, seeds, model and
 calibrator settings, the baseline, which metrics are primary — lives in
@@ -44,11 +44,9 @@ the method beat ``sklearn_isotonic`` on held-out Brier.
 
 Three things to read off it.
 
-**The Brier gains over isotonic are small.** The large win is the distinct-value
-column: around 1400–1600 values instead of 49, at a Brier difference in the fourth
-decimal. :class:`~calibre.RelaxedPAVACalibrator` is the cleanest case — it beats
-isotonic on 28 of 30 seeds by an average of 0.00001 in this design, while keeping
-1,356 distinct values on average instead of 49.
+**The Brier gains over isotonic are small.** Centered isotonic and the spline keep
+around 1,500 distinct values instead of 49, at a Brier difference in the fourth
+decimal.
 
 **scikit-learn's parametric methods win this design outright.** Both score better
 than anything in calibre and land four times closer to the known truth. That is
@@ -93,8 +91,8 @@ model fit and the split, leaving only the calibrator. The interval resamples
    :alt: Per-seed Brier improvement over sklearn_isotonic, with intervals
    :width: 100%
 
-An interval that spans zero is drawn spanning zero. Across the 80 non-baseline
-method-cells, 36 beat ``sklearn_isotonic`` with an interval clear of zero.
+An interval that spans zero is drawn spanning zero. Across the 70 non-baseline
+method-cells, 32 beat ``sklearn_isotonic`` with an interval clear of zero.
 
 Where calibre loses
 -------------------

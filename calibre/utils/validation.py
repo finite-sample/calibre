@@ -10,6 +10,70 @@ import numpy as np
 from sklearn.utils import check_array
 
 
+def _validate_probability_vector(y_pred: np.ndarray) -> np.ndarray:
+    """Validate one non-empty vector of finite forecast probabilities."""
+    raw = np.asarray(y_pred)
+    if raw.ndim != 1:
+        raise ValueError("y_pred must be one-dimensional")
+    if raw.size == 0:
+        raise ValueError("y_pred must not be empty")
+    try:
+        pred = raw.astype(float, copy=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError("y_pred must be numeric") from error
+    if not np.all(np.isfinite(pred)) or not np.all((pred >= 0.0) & (pred <= 1.0)):
+        raise ValueError("y_pred must contain finite probabilities in [0, 1]")
+    return pred
+
+
+def _validate_binary_probability_metric_inputs(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    sample_weight: np.ndarray | None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Validate binary outcomes, probabilities, and evaluation weights."""
+    true = np.asarray(y_true)
+    pred = np.asarray(y_pred)
+    if true.ndim != 1 or pred.ndim != 1:
+        raise ValueError("y_true and y_pred must be one-dimensional")
+    if true.shape != pred.shape:
+        raise ValueError("y_true and y_pred must have the same shape")
+    if true.size == 0:
+        raise ValueError("y_true and y_pred must not be empty")
+    try:
+        true = true.astype(float, copy=False)
+        pred = pred.astype(float, copy=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError("y_true and y_pred must be numeric") from error
+
+    if sample_weight is None:
+        weight = np.ones(true.size, dtype=float)
+    else:
+        raw_weight = np.asarray(sample_weight)
+        if raw_weight.ndim != 1:
+            raise ValueError("sample_weight must be one-dimensional")
+        if raw_weight.shape != true.shape:
+            raise ValueError("sample_weight must have the same shape as y_true")
+        try:
+            weight = raw_weight.astype(float, copy=False)
+        except (TypeError, ValueError) as error:
+            raise ValueError("sample_weight must be numeric") from error
+        if not np.all(np.isfinite(weight)) or np.any(weight < 0.0):
+            raise ValueError("sample_weight must contain finite non-negative values")
+        if not np.any(weight > 0.0):
+            raise ValueError("sample_weight must contain at least one positive weight")
+
+    active = weight > 0.0
+    true = true[active]
+    pred = pred[active]
+    weight = weight[active]
+    if not np.all(np.isfinite(true)) or not np.all((true == 0.0) | (true == 1.0)):
+        raise ValueError("y_true must contain binary outcomes in {0, 1}")
+    if not np.all(np.isfinite(pred)) or not np.all((pred >= 0.0) & (pred <= 1.0)):
+        raise ValueError("y_pred must contain finite probabilities in [0, 1]")
+    return true, pred, weight
+
+
 def _as_float_1d(a: np.ndarray, name: str) -> np.ndarray:
     """Validate an array and return it as a finite 1-D ``float64`` array.
 

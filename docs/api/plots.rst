@@ -124,8 +124,8 @@ Reading one calibrator honestly
    scores = rng.uniform(0, 1, 2000)
    labels = rng.binomial(1, np.clip(scores**1.4, 0, 1)).astype(float)
 
-   diagram = corp_reliability(scores, labels)
-   bands = consistency_bands(scores, labels, level=0.9)
+   diagram = corp_reliability(labels, scores)
+   bands = consistency_bands(scores, level=0.9)
 
    ax = diagram.plot(bands=bands)
    ax.set_title("where the forecasts went wrong")
@@ -140,8 +140,8 @@ Where the model's score actually went
    from calibre.plots import plot_score_decomposition
 
    plot_score_decomposition({
-       "uncalibrated": score_decomposition(scores, labels),
-       "calibrated": score_decomposition(calibrated, labels),
+       "uncalibrated": score_decomposition(labels, scores),
+       "calibrated": score_decomposition(labels, calibrated),
    })
 
 What calibration cost you
@@ -157,7 +157,7 @@ What calibration cost you
        "centered": (
            CenteredIsotonicCalibrator().fit(scores, labels).transform(scores)
        ),
-   }, scores)
+   }, input_scores=scores)
 
 One tick per distinct output value. Isotonic's strip is sparse enough to count
 by eye; the centered fit's is solid ink.

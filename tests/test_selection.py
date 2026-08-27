@@ -31,7 +31,6 @@ from calibre.selection import (
 AUTO_CALIBRATORS = [
     (NearlyIsotonicCalibrator, "lam"),
     (SplineCalibrator, "alpha"),
-    (RelaxedPAVACalibrator, "epsilon"),
 ]
 
 
@@ -194,8 +193,10 @@ def test_in_sample_miscalibration_is_structurally_zero():
     in_sample = IsotonicCalibrator().fit(x, y).transform(x)
     out_of_fold = cross_val_calibrate(IsotonicCalibrator(), x, y, cv=5)
 
-    assert score_decomposition(in_sample, y)["MCB"] == pytest.approx(0.0, abs=1e-12)
-    assert score_decomposition(out_of_fold, y)["MCB"] > 1e-4
+    assert score_decomposition(y, in_sample)["miscalibration"] == pytest.approx(
+        0.0, abs=1e-12
+    )
+    assert score_decomposition(y, out_of_fold)["miscalibration"] > 1e-4
 
 
 @pytest.mark.parametrize(
@@ -293,11 +294,7 @@ def test_select_by_cv_does_not_invent_weights_when_none_are_supplied():
     assert all(w is None for w in seen)
 
 
-@pytest.mark.parametrize(
-    ("cls", "name"),
-    [(SplineCalibrator, "alpha"), (RelaxedPAVACalibrator, "epsilon")],
-)
-def test_auto_selection_forwards_sample_weight(monkeypatch, cls, name):
+def test_auto_selection_forwards_sample_weight(monkeypatch):
     """Auto-parameter search must use the same weights as the final fit."""
     import calibre.selection as selection
 
@@ -311,7 +308,7 @@ def test_auto_selection_forwards_sample_weight(monkeypatch, cls, name):
 
     monkeypatch.setattr(selection, "select_by_cv", fake_select_by_cv)
 
-    cls().fit(x, y, sample_weight=weights)
+    SplineCalibrator().fit(x, y, sample_weight=weights)
 
     np.testing.assert_allclose(captured["sample_weight"], weights)
 
@@ -554,6 +551,13 @@ def test_a_negative_value_is_rejected(cls, name):
         cls(**{name: -1.0}).fit(x, y)
 
 
+def test_relaxed_pava_accepts_a_negative_increment_bound():
+    """A negative lower bound is the documented relaxation direction."""
+    x, y = _data(16, n=200)
+    cal = RelaxedPAVACalibrator(min_increment=-0.05).fit(x, y)
+    assert cal.min_increment_ == -0.05
+
+
 @pytest.mark.parametrize(("cls", "name"), AUTO_CALIBRATORS)
 def test_auto_fits_are_deterministic(cls, name):
     """The same data must select the same value twice."""
@@ -561,24 +565,6 @@ def test_auto_fits_are_deterministic(cls, name):
     first = getattr(cls().fit(x, y), f"{name}_")
     second = getattr(cls().fit(x, y), f"{name}_")
     assert first == second
-
-
-def test_min_slope_pins_epsilon_rather_than_searching_against_it():
-    """min_slope and epsilon conflict, so auto-epsilon defers to min_slope.
-
-    Searching epsilon while min_slope is set would let selection contradict the
-    caller's stated intent, and any non-zero choice would then raise.
-    """
-    x, y = _data(18, n=300)
-    cal = RelaxedPAVACalibrator(min_slope=0.01).fit(x, y)
-    assert cal.epsilon_ == 0.0
-
-
-def test_explicit_epsilon_and_min_slope_still_conflict():
-    """Setting both by hand remains an error."""
-    x, y = _data(19, n=200)
-    with pytest.raises(ValueError, match="opposite directions"):
-        RelaxedPAVACalibrator(epsilon=0.05, min_slope=0.01).fit(x, y)
 
 
 def test_resolve_auto_passes_numbers_through():

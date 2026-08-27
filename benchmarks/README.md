@@ -33,10 +33,11 @@ calibrator fitted there learns the wrong correction.
 
 **Library defaults only.** Tuning calibre's methods against an untuned isotonic
 baseline would settle the comparison by construction. One asymmetry is worth
-naming rather than hiding: `SplineCalibrator` and the `"auto"` default of the
-relaxed calibrator choose their own hyperparameters by internal cross-validation.
-That is a real advantage over a fixed competitor, and it is paid for in the fit
-time the benchmark also records.
+naming rather than hiding: `SplineCalibrator` chooses its penalty by internal
+cross-validation. That is a real advantage over a fixed competitor, and it is
+paid for in the fit time the benchmark also records. `RelaxedPAVACalibrator` is
+excluded because its increment bound is deliberately required; pinning one here
+would violate the defaults-only rule.
 
 **Paired differences, not means of levels.** Seed variance dwarfs the effect being
 measured, so `paired.csv` differences each method against the baseline *within*
@@ -71,29 +72,22 @@ Thirty seeds, held out, `overconfident` (logit inflated by 1.8):
 |---|---|---|---|
 | uncalibrated | 0.16037 | 1594 | 0.0808 |
 | `sklearn_isotonic` | 0.15305 | **49** | 0.0255 |
-| `calibre_relaxed_pava` | 0.15304 | **1356** | 0.0254 |
 | `calibre_centered` | 0.15272 | 1514 | 0.0205 |
 | `calibre_spline` | 0.15242 | 1595 | 0.0175 |
 | `sklearn_temperature` | 0.15216 | 1599 | **0.0040** |
 
-Two things to read off it. calibre's methods match or beat isotonic's score while
-keeping around thirty times the distinct values, which is the claim — and
-`calibre_relaxed_pava` is the cleanest demonstration, landing within 1e-5 of
-isotonic's Brier while keeping 28 times its resolution. And **on this design
+Two things to read off it. Centered isotonic and the spline match or beat isotonic's
+score while keeping around thirty times the distinct values. And **on this design
 scikit-learn's temperature scaling is four times more accurate against the known
 truth than calibre's best method** — because the distortion here *is* a pure
-temperature change, so a one-parameter model is exactly specified. That is a
-regime where calibre loses, and it is a real one.
-
-`heavy_tie` isolates the same effect without the confound: `calibre_relaxed_pava`
-scores 0.15319 against isotonic's 0.15317 — a difference in the fifth decimal —
-while keeping 101 distinct values against 22.
+temperature change, so a one-parameter model is exactly specified. That is a regime
+where calibre loses, and it is a real one.
 
 Meanwhile `nonmonotone`, built expecting calibre to lose, has calibre winning
 (0.21556 for the penalized spline against 0.22236 for Platt): the parametric
 methods cannot follow the dip either, and they give up more.
 
-Across the 80 non-baseline method-cells, 36 beat `sklearn_isotonic` with a
+Across the 70 non-baseline method-cells, 32 beat `sklearn_isotonic` with a
 bootstrap interval clear of zero. The honest details: `sklearn_platt` and
 `sklearn_temperature` are among the winners, and **`uncalibrated` beats the
 baseline in one cell**: `breast_cancer/logreg`, by 0.00129 Brier with an interval

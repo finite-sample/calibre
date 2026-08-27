@@ -17,7 +17,12 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 __all__ = ["plot_mcb_dsc_plane", "plot_score_decomposition"]
 
-_COMPONENTS = ("mean_score", "MCB", "DSC", "UNC")
+_COMPONENTS = (
+    "mean_score",
+    "miscalibration",
+    "discrimination",
+    "uncertainty",
+)
 
 
 def _as_mapping_of_decompositions(
@@ -35,9 +40,9 @@ def _as_mapping_of_decompositions(
     Raises:
         ValueError: If a decomposition is missing a component.
     """
-    # Unambiguous: a decomposition always has "MCB", and a name-to-decomposition
+    # Unambiguous: a decomposition always has "miscalibration", and a named
     # mapping never does, because the keys are forecaster names.
-    single = "MCB" in decompositions
+    single = "miscalibration" in decompositions
     named: dict[str, Mapping[str, float]] = (
         {"": decompositions} if single else dict(decompositions)  # type: ignore[dict-item, arg-type]
     )
@@ -108,7 +113,7 @@ def plot_score_decomposition(
         >>> rng = np.random.default_rng(0)
         >>> x = rng.uniform(0, 1, 500)
         >>> y = rng.binomial(1, x).astype(float)
-        >>> fig = plot_score_decomposition(score_decomposition(x, y))
+        >>> fig = plot_score_decomposition(score_decomposition(y, x))
         >>> len(fig.axes)
         3
     """
@@ -117,7 +122,7 @@ def plot_score_decomposition(
 
     names = list(named)
     positions = np.arange(len(names))[::-1]
-    uncertainties = {round(float(d["UNC"]), 12) for d in named.values()}
+    uncertainties = {round(float(d["uncertainty"]), 12) for d in named.values()}
 
     panels: Sequence[Axes]
     if axes is None:
@@ -134,12 +139,22 @@ def plot_score_decomposition(
         figure = root
 
     specs = (
-        ("MCB", SEMANTIC["mcb"], "MCB -- recalibration recovers this"),
-        ("DSC", SEMANTIC["dsc"], "DSC -- earned by the forecasts"),
-        ("mean_score", SEMANTIC["score"], score_label),
+        (
+            "miscalibration",
+            SEMANTIC["mcb"],
+            "MCB -- recalibration recovers this",
+            "mcb",
+        ),
+        (
+            "discrimination",
+            SEMANTIC["dsc"],
+            "DSC -- earned by the forecasts",
+            "dsc",
+        ),
+        ("mean_score", SEMANTIC["score"], score_label, "mean_score"),
     )
 
-    for panel, (key, color, title) in zip(panels, specs, strict=True):
+    for panel, (key, color, title, artist_name) in zip(panels, specs, strict=True):
         values = [float(named[name][key]) for name in names]
         panel.barh(
             positions,
@@ -147,7 +162,7 @@ def plot_score_decomposition(
             height=0.6,
             color=color,
             zorder=2,
-            label=f"_calibre:{key.lower()}",
+            label=f"_calibre:{artist_name}",
         )
         for position, value in zip(positions, values, strict=True):
             panel.annotate(
@@ -226,8 +241,8 @@ def plot_mcb_dsc_plane(
         >>> x = rng.uniform(0, 1, 500)
         >>> y = rng.binomial(1, x).astype(float)
         >>> ax = plot_mcb_dsc_plane({
-        ...     "honest": score_decomposition(x, y),
-        ...     "squashed": score_decomposition(0.25 + 0.5 * x, y),
+        ...     "honest": score_decomposition(y, x),
+        ...     "squashed": score_decomposition(y, 0.25 + 0.5 * x),
         ... })
         >>> ax.get_xlabel()
         'DSC (discrimination) -- more is better'
@@ -238,9 +253,9 @@ def plot_mcb_dsc_plane(
         raise ValueError("decompositions is empty; nothing to plot")
 
     axes = get_axes(ax, figsize=(5.5, 5.0))
-    dsc = np.array([float(named[n]["DSC"]) for n in named])
-    mcb = np.array([float(named[n]["MCB"]) for n in named])
-    unc = float(next(iter(named.values()))["UNC"])
+    dsc = np.array([float(named[n]["discrimination"]) for n in named])
+    mcb = np.array([float(named[n]["miscalibration"]) for n in named])
+    unc = float(next(iter(named.values()))["uncertainty"])
 
     pad_x = max(float(np.ptp(dsc)), 1e-3) * 0.25 + 1e-4
     pad_y = max(float(np.ptp(mcb)), 1e-3) * 0.25 + 1e-4

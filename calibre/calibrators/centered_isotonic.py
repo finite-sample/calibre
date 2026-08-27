@@ -93,6 +93,7 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
 
     def __init__(
         self,
+        *,
         clip_output: bool = True,
         enable_diagnostics: bool = False,
     ) -> None:

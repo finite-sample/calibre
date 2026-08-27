@@ -29,9 +29,9 @@ def _draw_bands(
 
     Args:
         ax: Axes to draw on.
-        bands: A mapping with ``x``, ``lower`` and ``upper``, or a sequence of
-            them. Later bands are drawn with the same color at lower opacity,
-            so nested levels read as nested.
+        bands: A mapping with forecast coordinates, ``lower`` and ``upper``, or a
+            sequence of them. Later bands are drawn with the same color at lower
+            opacity, so nested levels read as nested.
 
     Raises:
         ValueError: If a band is missing a key or its arrays disagree in length.
@@ -40,19 +40,20 @@ def _draw_bands(
     band_list = [bands] if isinstance(bands, Mapping) else list(bands)
 
     for depth, band in enumerate(band_list):
-        missing = {"x", "lower", "upper"} - set(band)
+        missing = {"prediction_values", "lower", "upper"} - set(band)
         if missing:
             raise ValueError(
                 f"band is missing {sorted(missing)}; expected the mapping returned "
                 "by calibre.consistency_bands or calibre.confidence_bands"
             )
-        grid = np.asarray(band["x"], dtype=float)
+        grid = np.asarray(band["prediction_values"], dtype=float)
         low = np.asarray(band["lower"], dtype=float)
         high = np.asarray(band["upper"], dtype=float)
         if not (grid.shape == low.shape == high.shape):
             raise ValueError(
-                f"band arrays must have equal length, got x={grid.shape}, "
-                f"lower={low.shape}, upper={high.shape}"
+                "band arrays must have equal length, got "
+                f"prediction_values={grid.shape}, lower={low.shape}, "
+                f"upper={high.shape}"
             )
         ax.fill_between(
             grid,
@@ -76,13 +77,14 @@ def _draw_density(
 
     A reliability diagram invites the question "is that excursion near 0.9 built
     on twelve points or twelve hundred?", and the curve alone cannot answer it.
-    ``diagram.weight`` is the exact mass carried by each distinct forecast value,
+    ``diagram.prediction_weights`` is the exact mass carried by each distinct
+    forecast value,
     so this is the density of the estimator's own support rather than of an
     arbitrary re-binning.
 
     Args:
         ax: Axes to draw on.
-        diagram: Fitted diagram, supplying ``x`` and ``weight``.
+        diagram: Fitted diagram, supplying prediction values and weights.
         density: ``"hist"`` for a marginal histogram in a panel below the
             axes, ``"rug"`` for ticks inside the axes, ``"none"`` to draw
             nothing.
@@ -91,8 +93,8 @@ def _draw_density(
     if density == "none":
         return
 
-    weight = np.asarray(diagram.weight, dtype=float)
-    values = np.asarray(diagram.x, dtype=float)
+    weight = np.asarray(diagram.prediction_weights, dtype=float)
+    values = np.asarray(diagram.prediction_values, dtype=float)
 
     if density == "rug":
         # Inside the main axes, so the caller's grid geometry is untouched.
@@ -189,7 +191,7 @@ def plot_reliability_diagram(
         >>> rng = np.random.default_rng(0)
         >>> x = rng.uniform(0, 1, 500)
         >>> y = rng.binomial(1, x).astype(float)
-        >>> ax = plot_reliability_diagram(corp_reliability(x, y), density="none")
+        >>> ax = plot_reliability_diagram(corp_reliability(y, x), density="none")
         >>> ax.get_ylabel()
         'observed event frequency'
     """
@@ -209,8 +211,8 @@ def plot_reliability_diagram(
     if bands is not None:
         _draw_bands(axes, bands)
 
-    x = np.asarray(diagram.x, dtype=float)
-    cep = np.asarray(diagram.cep, dtype=float)
+    x = np.asarray(diagram.prediction_values, dtype=float)
+    cep = np.asarray(diagram.event_probabilities, dtype=float)
     curve_color = SEMANTIC["calibre"] if color is None else color
 
     draw: Any = axes.step if style == "step" else axes.plot

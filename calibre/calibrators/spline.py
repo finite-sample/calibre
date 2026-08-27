@@ -138,6 +138,7 @@ class SplineCalibrator(BaseCalibrator):
 
     def __init__(
         self,
+        *,
         n_knots: int | str = "auto",
         degree: int = 3,
         knots: str = "quantile",

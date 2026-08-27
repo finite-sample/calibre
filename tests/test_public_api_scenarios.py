@@ -25,7 +25,6 @@ from calibre import (
     RelaxedPAVACalibrator,
     SplineCalibrator,
     TemperatureScaler,
-    binned_calibration_error,
     bootstrap_ci,
     brier_score,
     calibration_curve,
@@ -46,6 +45,7 @@ from calibre import (
     mean_calibration_error,
     miscalibration_profile,
     plugin_calibration_error,
+    root_mean_squared_calibration_error,
     run_plateau_diagnostics,
     score_decomposition,
     select_by_cv,
@@ -105,7 +105,7 @@ def test_public_namespace_is_fully_accounted_for():
         "SplineCalibrator",
         "RelaxedPAVACalibrator",
         "TemperatureScaler",
-        "binned_calibration_error",
+        "root_mean_squared_calibration_error",
         "bootstrap_ci",
         "brier_score",
         "calibration_curve",
@@ -242,9 +242,9 @@ def test_binary_metrics_recover_exact_groupwise_calibration(exact_binary_calibra
     )
 
     assert mean_calibration_error(outcomes, probabilities) == pytest.approx(0.0)
-    assert binned_calibration_error(outcomes, probabilities, n_bins=5) == pytest.approx(
-        0.0, abs=1e-12
-    )
+    assert root_mean_squared_calibration_error(
+        outcomes, probabilities, n_bins=5
+    ) == pytest.approx(0.0, abs=1e-12)
     assert expected_calibration_error(
         outcomes, probabilities, n_bins=5
     ) == pytest.approx(0.0, abs=1e-12)
@@ -268,10 +268,12 @@ def test_binary_metrics_recover_exact_groupwise_calibration(exact_binary_calibra
     np.testing.assert_allclose(prob_pred, prob_true)
     np.testing.assert_array_equal(counts, np.full(5, 100))
 
-    details = binned_calibration_error(
+    details = root_mean_squared_calibration_error(
         outcomes, probabilities, n_bins=5, return_details=True
     )
-    assert details["bce"] == pytest.approx(0.0, abs=1e-12)
+    assert details["root_mean_squared_calibration_error"] == pytest.approx(
+        0.0, abs=1e-12
+    )
     np.testing.assert_array_equal(details["bin_counts"], counts)
 
 
@@ -289,9 +291,9 @@ def test_binary_metrics_match_manual_errors_on_overconfidence(exact_binary_calib
     assert maximum_calibration_error(outcomes, reported, n_bins=5) == pytest.approx(
         np.max(group_errors)
     )
-    assert binned_calibration_error(outcomes, reported, n_bins=5) == pytest.approx(
-        np.sqrt(np.mean(group_errors**2))
-    )
+    assert root_mean_squared_calibration_error(
+        outcomes, reported, n_bins=5
+    ) == pytest.approx(np.sqrt(np.mean(group_errors**2)))
 
 
 def test_resolution_and_plateau_diagnostics_report_known_structure():
@@ -302,18 +304,21 @@ def test_resolution_and_plateau_diagnostics_report_known_structure():
     assert detect_plateaus(calibrated) == [(0, 2, 0.2), (3, 5, 0.8)]
     diagnostics = run_plateau_diagnostics(scores[::-1], calibrated[::-1])
     assert diagnostics["n_plateaus"] == 2
-    assert [plateau["x_range"] for plateau in diagnostics["plateaus"]] == [
+    assert [plateau["input_score_range"] for plateau in diagnostics["plateaus"]] == [
         (0.1, 0.3),
         (0.7, 0.9),
     ]
-    assert [plateau["n_samples"] for plateau in diagnostics["plateaus"]] == [3, 3]
+    assert [plateau["n_observations"] for plateau in diagnostics["plateaus"]] == [
+        3,
+        3,
+    ]
     assert analyze_plateau_simple(scores, 0, 2, 0.2, 0) == diagnostics["plateaus"][0]
 
-    counts = unique_value_counts(calibrated, scores)
+    counts = unique_value_counts(calibrated, original_predictions=scores)
     assert counts == {
-        "n_unique_y_pred": 2,
-        "n_unique_y_orig": 6,
-        "unique_value_ratio": 1 / 3,
+        "n_unique_predictions": 2,
+        "n_unique_original_predictions": 6,
+        "unique_prediction_ratio": 1 / 3,
     }
     assert tie_preservation_score(scores, scores) == 1.0
     assert tie_preservation_score(scores, np.full_like(scores, 0.5)) == 0.0
@@ -321,43 +326,45 @@ def test_resolution_and_plateau_diagnostics_report_known_structure():
     correlations = correlation_metrics(
         np.array([0, 0, 0, 1, 1, 1]),
         calibrated,
-        x=calibrated,
-        y_orig=calibrated,
+        input_scores=calibrated,
+        original_predictions=calibrated,
     )
-    assert correlations["spearman_corr_to_x"] == pytest.approx(1.0)
+    assert correlations["spearman_corr_to_input_scores"] == pytest.approx(1.0)
     assert correlations["spearman_corr_to_y_true"] == pytest.approx(1.0)
-    assert correlations["spearman_corr_to_y_orig"] == pytest.approx(1.0)
+    assert correlations["spearman_corr_to_original_predictions"] == pytest.approx(1.0)
 
 
-def test_corp_decomposition_and_bands_agree_on_exact_calibration(
+def test_corp_decomposition_and_bands_center_on_exact_calibration(
     exact_binary_calibration,
 ):
-    """CORP's diagram, decomposition, and two band constructors must agree."""
+    """CORP's diagram, decomposition, and bands share the known calibrated target."""
     probabilities, outcomes = exact_binary_calibration
     levels = np.array([0.1, 0.3, 0.5, 0.7, 0.9])
-    diagram = corp_reliability(probabilities, outcomes)
+    diagram = corp_reliability(outcomes, probabilities)
 
-    np.testing.assert_allclose(diagram.x, levels)
-    np.testing.assert_allclose(diagram.cep, levels)
-    np.testing.assert_array_equal(diagram.weight, np.full(5, 100))
+    np.testing.assert_allclose(diagram.prediction_values, levels)
+    np.testing.assert_allclose(diagram.event_probabilities, levels)
+    np.testing.assert_array_equal(diagram.prediction_weights, np.full(5, 100))
     np.testing.assert_allclose(diagram(levels), levels)
 
-    decomposition = score_decomposition(probabilities, outcomes)
-    assert decomposition["MCB"] == pytest.approx(0.0, abs=1e-12)
-    assert decomposition["DSC"] > 0.0
+    decomposition = score_decomposition(outcomes, probabilities)
+    assert decomposition["miscalibration"] == pytest.approx(0.0, abs=1e-12)
+    assert decomposition["discrimination"] > 0.0
     assert decomposition["mean_score"] == pytest.approx(
-        decomposition["MCB"] - decomposition["DSC"] + decomposition["UNC"]
+        decomposition["miscalibration"]
+        - decomposition["discrimination"]
+        + decomposition["uncertainty"]
     )
 
-    consistent = consistency_bands(
-        probabilities, outcomes, n_resamples=100, random_state=7
-    )
+    consistent = consistency_bands(probabilities, n_resamples=100, random_state=7)
     confident = confidence_bands(
-        probabilities, outcomes, n_resamples=100, random_state=7
+        outcomes, probabilities, n_resamples=100, random_state=7
     )
-    for key in ("x", "lower", "upper"):
+    for key in consistent:
         np.testing.assert_allclose(consistent[key], confident[key])
-    assert np.all(consistent["lower"] <= consistent["upper"])
+    for band in (consistent, confident):
+        assert np.all(band["lower"] <= levels)
+        assert np.all(levels <= band["upper"])
 
 
 def test_weighted_decomposition_equals_literal_frequency_replication():
@@ -365,9 +372,9 @@ def test_weighted_decomposition_equals_literal_frequency_replication():
     probabilities = np.array([0.1, 0.4, 0.8, 0.9])
     outcomes = np.array([0.0, 1.0, 0.0, 1.0])
     weights = np.array([1, 3, 2, 4])
-    weighted = score_decomposition(probabilities, outcomes, sample_weight=weights)
+    weighted = score_decomposition(outcomes, probabilities, sample_weight=weights)
     repeated = score_decomposition(
-        np.repeat(probabilities, weights), np.repeat(outcomes, weights)
+        np.repeat(outcomes, weights), np.repeat(probabilities, weights)
     )
     assert weighted == pytest.approx(repeated)
 
@@ -385,11 +392,11 @@ def test_bootstrap_and_report_reproduce_their_component_metrics(
 
     report = calibration_report(outcomes, probabilities, n_bins=5)
     assert isinstance(report, CalibrationReport)
-    assert report.brier == pytest.approx(brier_score(outcomes, probabilities))
-    assert report.mcb == pytest.approx(0.0, abs=1e-12)
-    assert report.debiased_ece == 0.0
-    assert report.n_distinct == 5
-    assert report.to_dict()["n"] == outcomes.size
+    assert report.brier_score == pytest.approx(brier_score(outcomes, probabilities))
+    assert report.miscalibration == pytest.approx(0.0, abs=1e-12)
+    assert report.debiased_calibration_error == 0.0
+    assert report.n_unique_predictions == 5
+    assert report.to_dict()["n_observations"] == outcomes.size
     assert "Brier" in str(report)
 
 
@@ -400,8 +407,7 @@ def test_bootstrap_and_report_reproduce_their_component_metrics(
         CenteredIsotonicCalibrator(),
         NearlyIsotonicCalibrator(),
         SplineCalibrator(),
-        RelaxedPAVACalibrator(),
-        CDIIsotonicCalibrator(),
+        CDIIsotonicCalibrator(thresholds=[0.5]),
     ],
     ids=lambda calibrator: type(calibrator).__name__,
 )
@@ -432,7 +438,7 @@ def test_default_calibrators_recover_a_known_monotone_distortion(
         CenteredIsotonicCalibrator(clip_output=False),
         NearlyIsotonicCalibrator(clip_output=False),
         SplineCalibrator(link="identity", clip_output=False),
-        RelaxedPAVACalibrator(clip_output=False),
+        RelaxedPAVACalibrator(min_increment=0.0, clip_output=False),
     ],
     ids=lambda calibrator: type(calibrator).__name__,
 )
@@ -458,14 +464,13 @@ def test_continuous_target_calibrators_preserve_an_unbounded_monotone_signal(
         CenteredIsotonicCalibrator,
         lambda: NearlyIsotonicCalibrator(lam=0.5),
         lambda: SplineCalibrator(alpha=0.01, n_knots=5),
-        RelaxedPAVACalibrator,
+        lambda: RelaxedPAVACalibrator(min_increment=0.0),
         lambda: SplineCalibrator(alpha=0.001, n_knots=5),
-        CDIIsotonicCalibrator,
+        lambda: CDIIsotonicCalibrator(thresholds=[0.5]),
         lambda: CDIIsotonicCalibrator(
             thresholds=[0.2, 0.5, 0.8],
             threshold_weights=[1.0, 3.0, 1.0],
             gamma=0.8,
-            window=3,
         ),
     ],
 )
@@ -493,7 +498,7 @@ def test_zero_weight_observation_has_no_effect(factory):
     "factory",
     [
         CenteredIsotonicCalibrator,
-        lambda: RelaxedPAVACalibrator(epsilon=0.0, min_slope=0.0),
+        lambda: RelaxedPAVACalibrator(min_increment=0.0),
     ],
 )
 def test_zero_weight_observation_cannot_create_an_interpolation_knot(factory):
@@ -606,16 +611,19 @@ def test_multiclass_apis_agree_and_temperature_scaling_recovers_global_distortio
         np.log(reported[rows, outcomes])
     )
 
-    decompositions = classwise_decomposition(reported, outcomes)
-    diagrams = classwise_reliability(reported, outcomes)
-    profile = miscalibration_profile(reported, outcomes)
+    decompositions = classwise_decomposition(outcomes, reported)
+    diagrams = classwise_reliability(outcomes, reported)
+    profile = miscalibration_profile(outcomes, reported)
     assert len(decompositions) == len(diagrams) == reported.shape[1]
-    np.testing.assert_allclose(profile["mcb"], [part["MCB"] for part in decompositions])
+    np.testing.assert_allclose(
+        profile["classwise_miscalibration"],
+        [part["miscalibration"] for part in decompositions],
+    )
     for part, diagram in zip(decompositions, diagrams, strict=True):
         assert part["mean_score"] == pytest.approx(
-            part["MCB"] - part["DSC"] + part["UNC"]
+            part["miscalibration"] - part["discrimination"] + part["uncertainty"]
         )
-        assert np.all(np.diff(diagram.cep) >= -1e-12)
+        assert np.all(np.diff(diagram.event_probabilities) >= -1e-12)
 
     manual_classwise = np.mean(
         [
@@ -625,15 +633,15 @@ def test_multiclass_apis_agree_and_temperature_scaling_recovers_global_distortio
             for column in range(reported.shape[1])
         ]
     )
-    assert classwise_ece(reported, outcomes, n_bins=10) == pytest.approx(
+    assert classwise_ece(outcomes, reported, n_bins=10) == pytest.approx(
         manual_classwise
     )
 
     confidence = reported.max(axis=1)
     correct = (reported.argmax(axis=1) == outcomes).astype(float)
-    assert top_label_ece(reported, outcomes, n_bins=10) == pytest.approx(
+    assert top_label_ece(outcomes, reported, n_bins=10) == pytest.approx(
         debiased_calibration_error(correct, confidence, n_bins=10)
     )
-    assert classwise_ece(truth, outcomes, n_bins=10) < classwise_ece(
-        reported, outcomes, n_bins=10
+    assert classwise_ece(outcomes, truth, n_bins=10) < classwise_ece(
+        outcomes, reported, n_bins=10
     )

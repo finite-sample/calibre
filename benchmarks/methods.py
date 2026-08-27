@@ -5,11 +5,10 @@ against an untuned scikit-learn isotonic baseline would decide the comparison by
 construction rather than by measurement, so ``config.CALIBRATOR_DEFAULTS_ONLY``
 records the rule and this module keeps it.
 
-The one asymmetry worth naming: :class:`~calibre.SplineCalibrator` and the
-``"auto"`` default of the relaxed calibrator select their own
-hyperparameters by internal cross-validation. That is a real advantage over a
-fixed-hyperparameter competitor, and it is paid for in the fit time this
-benchmark also records.
+The one asymmetry worth naming: :class:`~calibre.SplineCalibrator` selects its
+penalty by internal cross-validation. That is a real advantage over a fixed-
+hyperparameter competitor, and it is paid for in the fit time this benchmark
+also records.
 """
 
 from __future__ import annotations
@@ -30,7 +29,6 @@ METHODS: dict[str, str] = {
     "calibre_isotonic": "calibre",
     "calibre_centered": "calibre",
     "calibre_spline": "calibre",
-    "calibre_relaxed_pava": "calibre",
     "calibre_nearly_isotonic": "calibre",
     "netcal_beta": "netcal",
     "netcal_bbq": "netcal",
@@ -90,7 +88,6 @@ def _build(name: str) -> Any:
         CenteredIsotonicCalibrator,
         IsotonicCalibrator,
         NearlyIsotonicCalibrator,
-        RelaxedPAVACalibrator,
         SplineCalibrator,
     )
 
@@ -98,7 +95,6 @@ def _build(name: str) -> Any:
         "calibre_isotonic": IsotonicCalibrator,
         "calibre_centered": CenteredIsotonicCalibrator,
         "calibre_spline": SplineCalibrator,
-        "calibre_relaxed_pava": RelaxedPAVACalibrator,
         "calibre_nearly_isotonic": NearlyIsotonicCalibrator,
     }
     if name not in builders:

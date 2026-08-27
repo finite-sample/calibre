@@ -67,6 +67,7 @@ class IsotonicCalibrator(BaseCalibrator):
 
     def __init__(
         self,
+        *,
         y_min: float | None = None,
         y_max: float | None = None,
         increasing: bool = True,

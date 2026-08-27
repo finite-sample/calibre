@@ -20,9 +20,9 @@ Smooth Calibration Error (smECE)
 
 .. autofunction:: calibre.smooth_calibration_error
 
-Unlike everything below it, smECE has no bin count *and* no bandwidth to choose,
-and it is a consistent measure of distance from calibration. It is the one to
-reach for when the number will be quoted without qualification.
+Unlike everything below it, the default smECE has no bin count *and* selects its
+own bandwidth. It is a consistent measure of distance from calibration and is the
+one to reach for when the number will be quoted without qualification.
 
 Debiased Calibration Error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -47,10 +47,10 @@ Mean Calibration Error
 
 .. autofunction:: calibre.mean_calibration_error
 
-Binned Calibration Error
-~~~~~~~~~~~~~~~~~~~~~~~~
+Root Mean Squared Calibration Error
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autofunction:: calibre.binned_calibration_error
+.. autofunction:: calibre.root_mean_squared_calibration_error
 
 Expected Calibration Error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -64,12 +64,13 @@ Maximum Calibration Error
 
 .. note::
 
-   These estimators are not interchangeable, and their magnitudes are not
-   comparable. :func:`~calibre.expected_calibration_error` and
-   :func:`~calibre.sweep_calibration_error` are :math:`\ell_1`;
-   :func:`~calibre.debiased_calibration_error` is :math:`\ell_2`.
+   These estimators are not interchangeable. By default,
+   :func:`~calibre.expected_calibration_error` is :math:`\ell_1`, while
+   :func:`~calibre.debiased_calibration_error` and
+   :func:`~calibre.sweep_calibration_error` are :math:`\ell_2`.
    :func:`~calibre.expected_calibration_error` uses uniform-width bins, while the
-   two bias-aware estimators use equal-mass bins. Compare like with like.
+   two bias-aware estimators use equal-mass bins. Compare like with like by
+   setting the same norm where the APIs permit it.
 
 Scoring Metrics
 ---------------
@@ -134,7 +135,8 @@ Basic Evaluation
 
 ``brier_score`` is a proper scoring rule and the one to optimize.
 ``mean_calibration_error`` is calibration in the large, ``|mean(prediction) −
-base rate|``.
+base rate|``. It accepts ``sample_weight``; because opposing errors can cancel, pair
+it with a proper score and calibration curve.
 
 Reporting an honest calibration error
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -179,8 +181,8 @@ Measuring what calibration cost you in resolution
        ("centered", CenteredIsotonicCalibrator()),
    ):
        out = cal.fit(scores, labels).transform(scores)
-       counts = unique_value_counts(out, y_orig=scores)
-       print(f"{name:9s} {counts['n_unique_y_pred']:5d} distinct values")
+       counts = unique_value_counts(out, original_predictions=scores)
+       print(f"{name:9s} {counts['n_unique_predictions']:5d} distinct values")
 
 Both are well calibrated. Only one of them still tells you which of two cases
 is the riskier bet.

@@ -113,39 +113,6 @@ def test_bad_arguments_are_rejected(calibrated, kwargs, match):
         bootstrap_ci(brier_score, y, p, **kwargs)
 
 
-def test_the_naive_bootstrap_is_inconsistent_for_mcb(calibrated):
-    """Document the trap that keeps ``MCB`` out of ``calibration_report``.
-
-    Resampling rows with replacement leaves only about 63% of them distinct. PAV
-    pools the duplicates and overfits, so the bootstrap distribution of ``MCB``
-    sits well above the observed value -- the naive bootstrap is inconsistent for
-    functionals of an isotonic fit.
-
-    This test asserts the failure so that nobody "fixes" the report by adding MCB
-    back without also fixing the resampling scheme.
-    """
-    y, p = calibrated
-    observed = score_decomposition(p, y)["MCB"]
-    result = bootstrap_ci(
-        lambda t, q: score_decomposition(q, t)["MCB"], y, p, n_resamples=300
-    )
-    assert result["lower"] > observed, (
-        "the naive bootstrap no longer inflates MCB; if the resampling scheme "
-        "changed, revisit calibration_report's excluded targets"
-    )
-
-
-def test_the_same_bootstrap_is_unbiased_for_brier(calibrated):
-    """The contrast that shows the inflation is the estimator, not the code."""
-    y, p = calibrated
-    rng = np.random.default_rng(1)
-    n = y.size
-    draws = np.array(
-        [brier_score(y[i], p[i]) for i in (rng.integers(0, n, n) for _ in range(300))]
-    )
-    assert draws.mean() == pytest.approx(brier_score(y, p), rel=0.02)
-
-
 # --------------------------------------------------------------------------- #
 # calibration_report
 # --------------------------------------------------------------------------- #
@@ -155,25 +122,32 @@ def test_report_fields_match_the_underlying_estimators(calibrated):
     """The report must not recompute anything differently."""
     y, p = calibrated
     report = calibration_report(y, p)
-    decomposition = score_decomposition(p, y)
+    decomposition = score_decomposition(y, p)
 
-    assert report.n == y.size
-    assert report.brier == pytest.approx(brier_score(y, p))
-    assert report.mcb == pytest.approx(decomposition["MCB"])
-    assert report.dsc == pytest.approx(decomposition["DSC"])
-    assert report.unc == pytest.approx(decomposition["UNC"])
-    assert report.smece == pytest.approx(smooth_calibration_error(y, p))
-    assert report.debiased_ece == pytest.approx(debiased_calibration_error(y, p, 15))
+    assert report.n_observations == y.size
+    assert report.brier_score == pytest.approx(brier_score(y, p))
+    assert report.miscalibration == pytest.approx(decomposition["miscalibration"])
+    assert report.discrimination == pytest.approx(decomposition["discrimination"])
+    assert report.uncertainty == pytest.approx(decomposition["uncertainty"])
+    assert report.smooth_calibration_error == pytest.approx(
+        smooth_calibration_error(y, p)
+    )
+    assert report.debiased_calibration_error == pytest.approx(
+        debiased_calibration_error(y, p, n_bins=15)
+    )
     assert report.base_rate == pytest.approx(float(np.mean(y)))
-    assert report.n_distinct == int(np.unique(p).size)
+    assert report.n_unique_predictions == int(np.unique(p).size)
 
 
 def test_the_decomposition_identity_holds_in_the_report(calibrated):
     """``mean_score = MCB - DSC + UNC``, exactly."""
     y, p = calibrated
     report = calibration_report(y, p)
-    assert report.mcb - report.dsc + report.unc == pytest.approx(
-        report.brier, abs=1e-12
+    assert (
+        report.miscalibration - report.discrimination + report.uncertainty
+    ) == pytest.approx(
+        report.brier_score,
+        abs=1e-12,
     )
 
 
@@ -181,7 +155,7 @@ def test_plugin_is_never_below_debiased(calibrated):
     """The correction only ever subtracts."""
     y, p = calibrated
     report = calibration_report(y, p)
-    assert report.plugin_ece >= report.debiased_ece
+    assert report.plugin_calibration_error >= report.debiased_calibration_error
 
 
 def test_report_catches_an_overconfident_model(calibrated):
@@ -192,10 +166,10 @@ def test_report_catches_an_overconfident_model(calibrated):
     honest = calibration_report(y, p)
     bad = calibration_report(y, squashed)
 
-    assert bad.mcb > honest.mcb
-    assert bad.smece > honest.smece
-    assert bad.debiased_ece > honest.debiased_ece
-    assert bad.brier > honest.brier
+    assert bad.miscalibration > honest.miscalibration
+    assert bad.smooth_calibration_error > honest.smooth_calibration_error
+    assert bad.debiased_calibration_error > honest.debiased_calibration_error
+    assert bad.brier_score > honest.brier_score
 
 
 def test_intervals_are_absent_by_default(calibrated):
@@ -204,68 +178,44 @@ def test_intervals_are_absent_by_default(calibrated):
     assert calibration_report(y, p).intervals == {}
 
 
-def test_intervals_cover_the_reported_metrics(calibrated):
-    """The decomposition is excluded; the rest get intervals.
-
-    ``MCB`` and ``DSC`` are functionals of an isotonic fit, for which the naive
-    bootstrap is inconsistent -- see ``tests/test_bootstrap_bias.py``.
-    """
+def test_report_intervals_only_the_regular_proper_score(calibrated):
+    """Ordinary row bootstrap is not offered for non-smooth calibration errors."""
     y, p = calibrated
-    report = calibration_report(y, p, ci=True, n_resamples=100)
-    assert set(report.intervals) == {"brier", "smece", "debiased_ece"}
-    assert "mcb" not in report.intervals
-    assert "dsc" not in report.intervals
+    report = calibration_report(
+        y,
+        p,
+        include_brier_interval=True,
+        interval_n_resamples=100,
+    )
+    assert set(report.intervals) == {"brier_score"}
 
 
 def test_the_brier_interval_brackets_its_estimate(calibrated):
     """A proper scoring rule is a plain mean, so the bootstrap behaves."""
     y, p = calibrated
-    report = calibration_report(y, p, ci=True, n_resamples=200)
-    interval = report.intervals["brier"]
-    assert interval["lower"] <= report.brier <= interval["upper"]
-
-
-@pytest.mark.parametrize("key", ["smece", "debiased_ece"])
-def test_error_intervals_are_corrected_downward_on_calibrated_data(calibrated, key):
-    """Bias correction pulls the interval *below* the point estimate.
-
-    Surprising at first sight, and correct. A calibration error is a convex
-    functional, so on well-calibrated data the plug-in estimate is biased upward;
-    an interval for the true error therefore belongs below it. Before the default
-    changed to ``"bc"`` the interval sat *above* the estimate, which is the
-    failure this asserts against.
-
-    The bound must still respect the range of the quantity: a calibration error
-    cannot be negative.
-    """
-    y, p = calibrated
-    report = calibration_report(y, p, ci=True, n_resamples=300)
-    percentile = calibration_report(
-        y, p, ci=True, n_resamples=300, ci_method="percentile"
+    report = calibration_report(
+        y,
+        p,
+        include_brier_interval=True,
+        interval_n_resamples=200,
     )
-    assert report.intervals[key]["lower"] <= percentile.intervals[key]["lower"]
-    assert report.intervals[key]["lower"] >= 0.0
-    assert report.intervals[key]["bias"] > 0.0
+    interval = report.intervals["brier_score"]
+    assert interval["lower"] <= report.brier_score <= interval["upper"]
 
 
-def test_error_intervals_bracket_the_estimate_when_error_is_real(calibrated):
-    """Away from zero the same intervals behave normally."""
+def test_the_printed_report_names_the_interval_scope(calibrated):
+    """The text must not imply that every reported metric has an interval."""
     y, p = calibrated
-    squashed = np.clip(2.0 * (p - 0.5) + 0.5, 0, 1)
-    report = calibration_report(y, squashed, ci=True, n_resamples=200)
-    for key in ("smece", "debiased_ece"):
-        interval = report.intervals[key]
-        estimate = getattr(report, key)
-        assert interval["lower"] <= estimate <= interval["upper"], key
-
-
-def test_the_printed_report_flags_the_bootstrap_caveat(calibrated):
-    """A reader who never opens the docstring still has to see it."""
-    y, p = calibrated
-    text = str(calibration_report(y, p, ci=True, n_resamples=50))
-    assert "convex functional" in text
-    assert "well calibrated" in text
-    assert "bc" in text
+    text = str(
+        calibration_report(
+            y,
+            p,
+            include_brier_interval=True,
+            interval_n_resamples=50,
+        )
+    )
+    assert "Brier only" in text
+    assert "bca" in text
 
 
 def test_report_prints_its_numbers(calibrated):
@@ -273,9 +223,9 @@ def test_report_prints_its_numbers(calibrated):
     y, p = calibrated
     report = calibration_report(y, p)
     text = str(report)
-    assert f"{report.brier:.4f}" in text
-    assert f"{report.mcb:.4f}" in text
-    assert f"{report.smece:.4f}" in text
+    assert f"{report.brier_score:.4f}" in text
+    assert f"{report.miscalibration:.4f}" in text
+    assert f"{report.smooth_calibration_error:.4f}" in text
     assert "irreducible" in text
     assert repr(report) == text
 
@@ -285,15 +235,22 @@ def test_to_dict_round_trips(calibrated):
     y, p = calibrated
     report = calibration_report(y, p)
     as_dict = report.to_dict()
-    assert as_dict["brier"] == report.brier
-    assert set(as_dict) >= {"n", "brier", "mcb", "dsc", "unc", "smece"}
+    assert as_dict["brier_score"] == report.brier_score
+    assert set(as_dict) >= {
+        "n_observations",
+        "brier_score",
+        "miscalibration",
+        "discrimination",
+        "uncertainty",
+        "smooth_calibration_error",
+    }
 
 
 def test_report_is_immutable(calibrated):
     """A summary that can be edited after the fact is a liability."""
     y, p = calibrated
     with pytest.raises((AttributeError, TypeError)):
-        calibration_report(y, p).brier = 0.0  # type: ignore[misc]
+        calibration_report(y, p).brier_score = 0.0  # type: ignore[misc]
 
 
 def test_in_sample_mcb_is_zero_but_out_of_fold_is_not():
@@ -309,8 +266,10 @@ def test_in_sample_mcb_is_zero_but_out_of_fold_is_not():
     in_sample = IsotonicCalibrator().fit(scores, labels).transform(scores)
     out_of_fold = cross_val_calibrate(IsotonicCalibrator(), scores, labels, cv=5)
 
-    assert calibration_report(labels, in_sample).mcb == pytest.approx(0.0, abs=1e-12)
-    assert calibration_report(labels, out_of_fold).mcb > 0.0
+    assert calibration_report(labels, in_sample).miscalibration == pytest.approx(
+        0.0, abs=1e-12
+    )
+    assert calibration_report(labels, out_of_fold).miscalibration > 0.0
 
 
 def test_bad_bin_count_is_rejected(calibrated):

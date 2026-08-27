@@ -7,6 +7,83 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-08-27
+
+### Changed
+
+- `RelaxedPAVACalibrator` now requires one explicit signed `min_increment`.
+  The post-selection `0.01 / n_unique` adjustment, heuristic automatic grid, and
+  overlapping `epsilon`/`min_slope` API were removed.
+- `CDIIsotonicCalibrator` now implements the paper's adjacent-block formula
+  directly. Operating thresholds are required on the input probability-score
+  scale; the undocumented sliding window and min-max score normalization were
+  removed. Observation-weight uncertainty uses scale-invariant effective sample
+  sizes, parameters are validated rather than silently clipped, and learned
+  bounds are standard fitted attributes.
+- Replaced the nonstandard `binned_calibration_error` with
+  `root_mean_squared_calibration_error`. The metric now uses sample-mass weighting,
+  fixed `[0, 1]` uniform bins or tie-safe weighted quantile bins, strict binary
+  probability validation, and optional evaluation weights.
+- `expected_calibration_error` now enforces its binary probability contract,
+  supports evaluation weights, and documents fixed-bin cancellation and plugin
+  bias explicitly.
+- `maximum_calibration_error` now enforces the same binary probability contract,
+  supports evaluation weights, and documents its worst-bin sampling sensitivity.
+- `brier_score` now enforces its binary probability contract and supports
+  evaluation weights while continuing to delegate scoring to scikit-learn.
+- `correlation_metrics` is now documented and validated as a rank diagnostic,
+  not a calibration metric. Its optional comparison vectors have explicit,
+  keyword-only names, and constant inputs return `NaN` without leaking warnings.
+- `unique_value_counts` now compares aligned one-dimensional prediction vectors
+  exactly. The arbitrary six-decimal rounding rule was removed, and the vague
+  `y_orig` argument is now keyword-only `original_predictions`.
+- `calibration_curve` now omits empty bins, rejects invalid binary-probability
+  inputs, preserves ties in quantile bins, supports evaluation weights, and uses
+  keyword-only binning options.
+- `tie_preservation_score` now uses the standard Rand index on exact prediction
+  partitions. Its asymmetric custom formula, quadratic pair loop, tolerance, and
+  abbreviated parameter names were removed.
+- `smooth_calibration_error` now enforces its binary-probability contract, uses
+  keyword-only options, validates the fixed bandwidth and return mode, and rejects
+  manual bandwidths below the reference implementation's numerical floor.
+- `corp_reliability` now follows the package-wide ``(y_true, y_pred)`` argument
+  order, makes evaluation weights keyword-only, validates binary outcomes and
+  probabilities strictly, and exposes descriptive result fields instead of
+  ``x``, ``cep``, and ``weight``.
+- `score_decomposition` now follows the same strict, keyword-only weighted API,
+  accepts vectorized proper-score callables, and returns descriptive component
+  names instead of acronym keys.
+- `consistency_bands` now implements the CORP forecast-pair resampling procedure,
+  accepts only the forecast probabilities needed under the calibration null, and
+  returns a descriptive `prediction_values` grid. Resampled fits contribute only
+  on their observed forecast support, including singleton fits.
+- `confidence_bands` now follows the same argument and result conventions, uses
+  the reference forecast-pair bootstrap and boundary correction, and documents
+  its pointwise finite-sample interpretation. It applies the same support rule.
+- `bootstrap_ci` now delegates paired percentile, basic, and BCa intervals to
+  SciPy, with BCa as the default and bounded resampling batches. The custom
+  `"bc"` method was removed. The minimum SciPy version is now 1.15.
+  `calibration_report(..., include_brier_interval=True)` now limits ordinary
+  row-bootstrap intervals to the Brier score because calibration-error estimators
+  can be nonregular at perfect calibration.
+- `calibration_report` now exposes descriptive result attributes, uses keyword-only
+  options, uses the package-standard `random_state` name, validates its interval
+  switch strictly, and makes nested interval results read-only. Its output identifies
+  prediction granularity correctly and states the monotonicity assumption behind
+  sweep ECE.
+- `make_folds` now requires an integer fold count, rejects samples that cannot form
+  two folds at the public boundary, and makes splitting controls keyword-only. Its
+  documentation now states the independent, exchangeable-observation assumption and
+  correctly includes unbounded continuous calibration targets.
+- Standardized public names across the package: metric-style functions use
+  `y_true`/`y_pred`, estimator methods use `X`/`y`, calibration-error norms use
+  `norm`, smECE uses `bandwidth`, and public result fields describe their contents.
+  Optional estimator, selection, and plotting controls are keyword-only.
+- All calibrators now reject observation weights whose shape differs from the
+  target before entering implementation-specific fitting code.
+- Converted the six executable tutorials from binary notebooks to MyST Markdown
+  sources while retaining the Sphinx execution gate.
+
 ## [0.12.0] - 2026-08-25
 
 ### Fixed
@@ -97,7 +174,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   because `consistency_bands` is a thousand PAV refits. No function calls `plt.show()`,
   mutates `rcParams`, or reaches for the current figure, and each is tested for it.
 
-  Colours are Okabe-Ito rather than matplotlib's `tab10`, whose red and green are
+  Colors are Okabe-Ito rather than matplotlib's `tab10`, whose red and green are
   indistinguishable under deuteranopia.
 
   There are no baseline-image tests. The CI matrix spans three operating systems and
@@ -107,106 +184,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decomposition panels must reproduce `UNC + MCB - DSC = mean_score` to 1e-12, and the
   plugin ECE series must rise with bin count while the debiased one does not.
 
-- **`plugin_calibration_error(y_true, y_pred, n_bins=15, p=2)`** in `calibre.metrics`.
+- **`plugin_calibration_error(y_true, y_pred, n_bins=15, norm=2)`** in
+  `calibre.metrics`.
   The uncorrected estimator that `debiased_calibration_error` corrects, on the same
   equal-mass tie-safe bins and at a caller-chosen norm. Comparing the existing
   estimators was a trap: `expected_calibration_error` is ℓ1 on uniform-width bins,
-  `debiased_calibration_error` is ℓ2 on equal-mass bins, and `sweep_calibration_error`
-  is ℓ1 on equal-mass bins, so plotting them together showed three different
-  quantities disagreeing rather than one estimator being biased.
+  while `debiased_calibration_error` and `sweep_calibration_error` default to ℓ2 on
+  equal-mass bins. The new function permits matched comparisons at a caller-chosen
+  norm and bin count.
 
 - **`sweep_calibration_error(..., return_n_bins=True)`** now reports the bin count the
   sweep settled on, which is half of what the estimator has to say.
 
 - **`smooth_calibration_error`: smECE**, the smooth calibration error of Błasiok &
   Nakkiran (ICLR 2024). Replaces bins with a Gaussian kernel and chooses its own
-  bandwidth by fixed point, so there is no parameter at all — not a bin count, not a
-  bandwidth. It is a *consistent* calibration measure in the sense of Błasiok,
-  Gopalan, Hu & Nakkiran (2023): bounded above and below by polynomial functions of
-  the true distance to the nearest calibrated predictor. Binned ECE is not, which is
-  why it can report a large error for a nearly calibrated predictor.
+  bandwidth by fixed point by default, so there is no bin count or bandwidth to
+  select. It is a *consistent* calibration measure in the sense of Błasiok, Gopalan,
+  Hu & Nakkiran (2023): bounded above and below by polynomial functions of the true
+  distance to the nearest calibrated predictor. Binned ECE is not, which is why it
+  can report a large error for a nearly calibrated predictor.
 
   Pinned against Apple's `relplot` across ten regimes — calibrated, over- and
   under-confident, shifted, heavily tied, rare-event, small-n, mass sitting exactly on
   0 and 1, and exactly-backwards forecasts — at the auto-selected bandwidth and four
-  fixed ones. **Every value agrees to 1.1e-16.** relplot is not a dependency; the
-  fixtures are committed and the generator is at
+  fixed ones. The results match within a tight floating-point tolerance. relplot is
+  not a dependency; the fixtures are committed and the generator is at
   `experiments/relplot_reference/gen_fixtures.py`, mirroring the R reference setup.
 
-- **`bootstrap_ci(metric, y_true, y_pred, method="bc")`** — a bootstrap confidence
-  interval for any callable of `(y_true, y_pred)`, with `"percentile"`, `"basic"`,
-  `"bc"` and `"bca"` available and **bias correction as the default**.
+- **`bootstrap_ci(metric, y_true, y_pred)`** — a paired bootstrap confidence
+  interval for a scalar evaluation metric.
 
-  The default is not the percentile interval, and the reason is a property of what
-  calibration errors *are*. The bootstrap resamples from the empirical measure, so
-  `E[F*] = F`; a **linear** functional then satisfies `E[g(F*)] = g(F)` exactly, while
-  a **convex** one satisfies `E[g(F*)] > g(F)` strictly, by Jensen. Proper scoring
-  rules are plain means, hence linear. Every calibration error is a norm of a linear
-  functional, hence convex. The size of the gap is curvature at `F`, which is unbounded
-  at the kink `‖δ‖ = 0` and negligible far from it — so **the distortion is worst
-  exactly when the model is well calibrated**, which is the case users most want an
-  honest answer for.
-
-  Measured (`experiments/bootstrap_bias/investigate.py`), bootstrap mean ÷ observed:
-
-  | statistic | calibrated | miscalibrated |
-  |---|---|---|
-  | Brier score (linear) | 1.00x | 1.00x |
-  | plugin ECE (convex) | 1.42x | 1.01x |
-  | smECE | 1.33x | 1.04x |
-  | `MCB` | 1.52x | 1.09x |
-
-  The 1.42 is the predicted √2: the observed value is `‖δ‖` for sampling noise `δ`,
-  while a resample gives `‖δ + ε‖` with `ε` of comparable variance, doubling the
-  variance inside the norm. It **does not shrink with sample size** — 1.43, 1.44, 1.44,
-  1.42 at n of 250, 1000, 4000 and 16000 — because both terms scale as `1/√n`. The
-  decisive control is that the *signed* mean calibration error, which is linear, shows
-  no shift at all (z = +0.009) while the *absolute* version on the same data through
-  the same resampling shifts clearly (z = +0.411).
-
-  Coverage of a true calibration error of exactly zero, at nominal 95%, using
-  `debiased_calibration_error` (whose estimand really is the true error):
-
-  | method | coverage | mean width |
-  |---|---|---|
-  | `percentile` | 77% | 0.063 |
-  | `basic` | 98% | 0.063 |
-  | **`bc`** | **95%** | **0.017** |
-
-  So the default both hits the nominal level and is 3.6x tighter. `basic` over-covers
-  and returns negative lower bounds for a non-negative quantity; `bc`, being a
-  percentile method, cannot.
-
-  Two caveats are documented rather than hidden. `bc` reads the bias off how many draws
-  fall below the estimate, so it needs a tie correction to avoid collapsing to `[0, 0]`
-  when a censored estimator sits on its boundary — `debiased_calibration_error` floors
-  at zero on 59% of well-calibrated samples. A `degenerate` flag reports the collapse
-  when it still happens. And the *plugin* estimator is biased, so its estimand is not
-  zero and an interval for it correctly excludes zero; no interval method changes that.
-
-  The result now also carries `bias`, the measured bootstrap shift, so the distortion is
-  visible rather than inferred.
-
-  `MCB` and `DSC` are excluded from `calibration_report`'s intervals altogether. They
-  are functionals of an isotonic fit, for which the naive n-out-of-n bootstrap is
-  inconsistent: a resample keeps only ~63% of rows distinct (measured 0.630 against a
-  theoretical 0.632) and PAV overfits the duplicates, so the inflation tracks effective
-  sample size — subsampling without replacement gives `MCB` of 0.0155, 0.0088 and 0.0056
-  at m of 200, 500 and 1000 against 0.0036 observed at n = 2000. In practice it produced
-  an interval both degenerate and sitting above its own estimate. `consistency_bands`
-  and `confidence_bands` resample outcomes instead and remain correct there.
-
-  `tests/test_bootstrap_bias.py` pins the mechanism rather than the constants: the
-  linear control, the convex-versus-linear divergence on identical data, invariance to
-  sample size, and the decay with distortion. If the explanation ever stops holding,
-  those fail.
-
-- **`calibration_report(y_true, y_pred, ci=False)`** — one call returning the CORP
-  decomposition, three calibration-error estimators that disagree instructively, the
-  bias, and the resolution retained, as an immutable dataclass that prints as an
-  aligned block. The "just tell me if my model is calibrated" entry point. When
-  intervals are requested it prints the caveat above alongside them, rather than
-  relying on the reader having found the docstring.
+- **`calibration_report(y_true, y_pred)`** — a printable dataclass gathering the
+  CORP decomposition and several calibration-error estimators.
 
 - **A Monte Carlo battery: unbiasedness, coverage, size and power.**
   `tests/simulation.py` supplies data-generating processes whose population values
@@ -385,17 +394,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   The winner took 12/12 seeds in every row.
 
-  - `miscalibration_profile(P, y)` — the diagnostic. Reports per-class miscalibration,
+  - `miscalibration_profile(y_true, y_pred)` — the diagnostic. Reports per-class
+    miscalibration,
     its spread, and a plain-language reading. The spread is ~0.13 when the distortion is
     global and 0.38–0.92 when it is class-dependent, which is enough to choose a method.
     Built entirely on 0.8.0's `score_decomposition`.
-  - `classwise_decomposition(P, y)` — the CORP `MCB`/`DSC`/`UNC` split per class. The
+  - `classwise_decomposition(y_true, y_pred)` — the CORP `MCB`/`DSC`/`UNC` split per
+    class. The
     identity is exact and the components non-negative in every class, inherited from the
     binary implementation rather than reimplemented; a 2-class problem agrees with
     `score_decomposition` to 1e-15.
   - `classwise_ece`, `top_label_ece` — built on the bias-aware, tie-safe estimators added
     in 0.8.0.
-  - `classwise_reliability(P, y)` — one CORP reliability diagram per class.
+  - `classwise_reliability(y_true, y_pred)` — one CORP reliability diagram per class.
   - `TemperatureScaler` — one parameter fitted by NLL. Ships because it *wins a whole
     regime*, not for completeness. **Never changes the predicted class**, so accuracy is
     exactly preserved — asserted on every row in the test suite. Its ceiling is asserted
@@ -424,8 +435,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   makes the analyst pick the bins, and the picture changes with the choice; CORP removes
   the choice by estimating conditional event probabilities with isotonic regression via
   PAV — machinery this package already owned and already pinned against R.
-  - `corp_reliability(x, y)` — the diagram, with no bin count to tune.
-  - `score_decomposition(x, y, score=...)` — `mean_score = MCB - DSC + UNC`
+  - `corp_reliability(y_true, y_pred)` — the diagram, with no bin count to tune.
+  - `score_decomposition(y_true, y_pred, score=...)` —
+    `mean_score = MCB - DSC + UNC`
     (miscalibration, discrimination, uncertainty) for the Brier or log score.
     `MCB` and `DSC` are non-negative by construction, and the identity is exact.
   - `consistency_bands` / `confidence_bands` — resampling-based uncertainty
@@ -433,7 +445,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     and that limit is documented rather than left for a user to discover.
 
   Pinned against R's `reliabilitydiag` on five datasets (calibrated, overconfident,
-  squashed, heavily tied, rare-event): every component agrees to **1e-16 or better**.
+  squashed, heavily tied, rare-event): every component agrees within tight
+  floating-point tolerance.
   The Python ecosystem has no equivalent — the scikit-learn request for this
   decomposition ([#23767](https://github.com/scikit-learn/scikit-learn/issues/23767))
   has been open since 2022.
@@ -600,7 +613,9 @@ optimum, and the test suite asserts the guarantees rather than restating them.
 - **`mean_calibration_error` returns `|E[p] - E[y]|`.** It previously returned
   `mean(|p - y|)` — mean absolute error, which is minimised by hard 0/1 predictions and
   is nonzero for a perfectly calibrated model. Use
-  `sklearn.metrics.mean_absolute_error` for the old quantity.
+  `sklearn.metrics.mean_absolute_error` for the old quantity. It now also accepts
+  keyword-only `sample_weight` and strictly validates binary outcomes and forecast
+  probabilities.
 - **`calibre.visualization` removed.** It was never exported, had no tests, was absent
   from the API docs, indexed diagnostic keys the current `diagnostics.py` does not
   emit, and called `plt.cm.get_cmap`, removed in matplotlib 3.9.

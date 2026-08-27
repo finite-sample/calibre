@@ -31,15 +31,16 @@ to tune, and preserves score ordering between pooled isotonic blocks.
    * - Exactly scikit-learn's isotonic behavior
      - :class:`~calibre.IsotonicCalibrator`
      - Thin wrapper, plus optional plateau diagnostics.
-   * - Strict increase without output clipping
+   * - A fitted-value change bound you control
      - :class:`~calibre.RelaxedPAVACalibrator`
-     - ``min_slope`` forces a minimum step; clipping can flatten boundary values.
+     - Negative permits bounded drops; positive forces a step before clipping.
    * - To allow small ranking violations if they fit better
      - :class:`~calibre.NearlyIsotonicCalibrator`
      - ``lam`` trades monotonicity against fit.
    * - Accuracy near specific decision thresholds
      - :class:`~calibre.CDIIsotonicCalibrator`
-     - Research-grade; needs your operating thresholds.
+     - Research-grade; requires operating thresholds and can permit bounded
+       decreases away from them.
 
 Base Classes
 ------------
@@ -100,9 +101,11 @@ Relaxed PAVA Calibrator
    :undoc-members:
    :show-inheritance:
 
-Bounds each adjacent increment: ``epsilon`` permits small decreases, while
-``min_slope`` forbids plateaus when output clipping is disabled. Solved by
-shift-to-PAVA in O(n).
+``min_increment`` is the lower bound on each adjacent fitted-value change. Zero is
+ordinary isotonic regression, negative values permit bounded decreases, and positive
+values forbid plateaus before optional output clipping. The bound is required because
+its appropriate value depends on the application and score grid. The exact weighted
+least-squares solution uses a cumulative shift followed by PAVA.
 
 Nearly Isotonic Calibrator
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -128,9 +131,9 @@ Cost- and Data-Informed Isotonic Calibrator
 
 .. note::
    CDI-ISO is research-grade. It uses economic decision theory and statistical
-   evidence to decide where monotonicity should be enforced strictly, and
-   requires you to specify the operating thresholds where discrimination
-   matters most.
+   evidence to require positive increments near operating thresholds and permit
+   bounded decreases away from them. It is not globally monotone unless all
+   learned adjacency bounds are non-negative.
 
 Usage Examples
 --------------
@@ -178,13 +181,13 @@ Comparing Methods
        "Isotonic": IsotonicCalibrator(),
        "Centered": CenteredIsotonicCalibrator(),
        "Spline": SplineCalibrator(),
-       "Relaxed PAVA": RelaxedPAVACalibrator(min_slope=1e-5),
+       "Relaxed PAVA": RelaxedPAVACalibrator(min_increment=-0.01),
        "Spline (fixed alpha)": SplineCalibrator(alpha=0.1),
    }
 
    for name, cal in calibrators.items():
        out = cal.fit(X, y).transform(X)
-       n = unique_value_counts(out)["n_unique_y_pred"]
+       n = unique_value_counts(out)["n_unique_predictions"]
        print(f"{name:14s} {n:5d} distinct values")
 
 CDI-ISO Usage Example
@@ -197,18 +200,23 @@ CDI-ISO Usage Example
    from calibre import CDIIsotonicCalibrator
 
    cdi_cal = CDIIsotonicCalibrator(
-       thresholds=[0.3, 0.7],           # operating decision thresholds
-       threshold_weights=[0.6, 0.4],    # relative importance
-       bandwidth=0.1,                   # kernel bandwidth around thresholds
-       gamma=0.2,                       # minimum slope strength
-       alpha=0.05,                      # significance level
-       window=30,                       # evidence window size
+       thresholds=[0.3, 0.7],
+       threshold_weights=[0.6, 0.4],
+       bandwidth=0.1,
+       gamma=0.2,
+       alpha=0.05,
    )
    cdi_cal.fit(X, y)
    y_calibrated = cdi_cal.transform(X_new)
 
-   bounds = cdi_cal.adjacency_bounds_()
-   breakpoints = cdi_cal.breakpoints_()
+   bounds = cdi_cal.adjacency_bounds_
+   breakpoints = cdi_cal.calibration_curve_.x
 
    print(f"CDI calibrator learned {len(bounds)} local bounds")
-   print(f"Calibration function has {len(breakpoints[0])} breakpoints")
+   print(f"Calibration function has {len(breakpoints)} breakpoints")
+
+The thresholds and scores must use the same probability-score scale. CDI-ISO's
+uncertainty calculation operates on repeated score groups; when scores are
+continuous, most group sizes are one and the normal approximation is weak. Tune
+its design parameters and compare proper scores and decision utility on held-out
+validation data.

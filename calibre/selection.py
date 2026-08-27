@@ -120,6 +120,7 @@ def _resolve_scoring(scoring: str) -> Callable[[np.ndarray, np.ndarray], np.ndar
 def make_folds(
     X: np.ndarray,
     y: np.ndarray,
+    *,
     cv: int = 5,
     random_state: int | None = 0,
 ) -> list[tuple[np.ndarray, np.ndarray]]:
@@ -127,7 +128,7 @@ def make_folds(
 
     Args:
         X: Uncalibrated scores.
-        y: Targets: binary labels, or values in ``[0, 1]``.
+        y: Finite binary or continuous calibration targets.
         cv: Requested number of folds. Reduced when the data cannot support it.
         random_state: Seed for the shuffle.
 
@@ -135,12 +136,19 @@ def make_folds(
         list of (ndarray, ndarray): ``(train_index, validation_index)`` pairs.
 
     Raises:
-        ValueError: If ``cv`` is below 2.
+        ValueError: If fewer than two observations are supplied, ``cv`` is not an
+            integer, or ``cv`` is below 2.
 
     Notes:
         With binary targets the fold count is capped by the rarer class, so a rare
-        positive appears in every training split rather than leaving a fold with no
-        positives at all.
+        class appears in every training and validation split. For continuous targets,
+        the fold count is capped by the sample size.
+
+        The shuffled folds assume independent, exchangeable observations. They are
+        not appropriate for grouped, repeated-measures, spatial, or temporal data.
+
+        Splitting delegates to :class:`sklearn.model_selection.StratifiedKFold` for
+        binary targets and :class:`sklearn.model_selection.KFold` otherwise.
 
     Examples:
         >>> import numpy as np
@@ -151,8 +159,13 @@ def make_folds(
         4
     """
     X, y = check_arrays(X, y)
+    if isinstance(cv, (bool, np.bool_)) or not isinstance(cv, (int, np.integer)):
+        raise ValueError(f"cv must be an integer, got {cv!r}")
+    cv = int(cv)
     if cv < 2:
         raise ValueError(f"cv must be at least 2, got {cv}")
+    if y.size < 2:
+        raise ValueError("cross-validation requires at least two observations")
 
     from sklearn.model_selection import KFold, StratifiedKFold
 
@@ -198,10 +211,11 @@ def _grid_points(param_grid: dict[str, Sequence[Any]]) -> list[dict[str, Any]]:
 
 
 def select_by_cv(
-    factory: Callable[..., Any],
+    calibrator_factory: Callable[..., Any],
     param_grid: dict[str, Sequence[Any]],
     X: np.ndarray,
     y: np.ndarray,
+    *,
     sample_weight: np.ndarray | None = None,
     cv: int = 5,
     scoring: str = "log_loss",
@@ -215,7 +229,7 @@ def select_by_cv(
     had seen only ``(cv-1)/cv`` of the sample.
 
     Args:
-        factory: Called with a candidate's keyword arguments, returning an
+        calibrator_factory: Called with a candidate's keyword arguments, returning an
             unfitted calibrator.
         param_grid: Mapping from parameter name to candidate values.
         X: Uncalibrated scores.
@@ -231,7 +245,7 @@ def select_by_cv(
         random_state: Seed for folds and subsampling.
 
     Returns:
-        dict: The winning parameters, ready to splat into ``factory``.
+        dict: The winning parameters, ready to pass to ``calibrator_factory``.
 
     Raises:
         ValueError: If the grid is empty, ``scoring`` is unknown, log loss is
@@ -294,7 +308,7 @@ def select_by_cv(
         failed = False
         for train_idx, val_idx in folds:
             try:
-                model = factory(**params)
+                model = calibrator_factory(**params)
                 if sample_weight is None:
                     model.fit(X[train_idx], y[train_idx])
                 else:
@@ -333,6 +347,7 @@ def cross_val_calibrate(
     calibrator: Any,
     X: np.ndarray,
     y: np.ndarray,
+    *,
     sample_weight: np.ndarray | None = None,
     cv: int = 5,
     random_state: int | None = 0,
@@ -424,16 +439,17 @@ def cross_val_calibrate(
 
 
 def resolve_auto(
-    value: float | str,
-    name: str,
-    grid: Sequence[Any],
-    factory: Callable[..., Any],
+    parameter_value: float | str,
+    parameter_name: str,
+    parameter_grid: Sequence[Any],
+    calibrator_factory: Callable[..., Any],
     X: np.ndarray,
     y: np.ndarray,
+    *,
     cv: int = 5,
     scoring: str = "log_loss",
     random_state: int | None = 0,
-    minimum: float = 0.0,
+    minimum_value: float = 0.0,
     sample_weight: np.ndarray | None = None,
 ) -> float:
     """Resolve one parameter that may be a number or ``"auto"``.
@@ -443,16 +459,16 @@ def resolve_auto(
     estimator.
 
     Args:
-        value: The constructor argument: a number, or ``"auto"``.
-        name: Parameter name, used in the grid and in error messages.
-        grid: Candidate values searched when ``value`` is ``"auto"``.
-        factory: Called with ``{name: candidate}`` to build an unfitted calibrator.
+        parameter_value: The constructor argument: a number, or ``"auto"``.
+        parameter_name: Parameter name, used in the grid and in error messages.
+        parameter_grid: Candidate values searched when the value is ``"auto"``.
+        calibrator_factory: Called with the candidate to build an unfitted calibrator.
         X: Uncalibrated scores.
         y: Targets.
         cv: Number of folds.
         scoring: Selection criterion, a proper scoring rule.
         random_state: Seed for folds.
-        minimum: Smallest permitted numeric value.
+        minimum_value: Smallest permitted numeric value.
         sample_weight: Non-negative per-observation weights used during selection.
 
     Returns:
@@ -461,8 +477,8 @@ def resolve_auto(
             break ``get_params`` round-tripping and therefore ``clone``.
 
     Raises:
-        ValueError: If ``value`` is a string other than ``"auto"``, or a
-            number below ``minimum``.
+        ValueError: If ``parameter_value`` is a string other than ``"auto"``, or a
+            number below ``minimum_value``.
 
     Examples:
         >>> import numpy as np
@@ -474,14 +490,16 @@ def resolve_auto(
     """
     # "non-negative" reads better than ">= 0.0" and is the wording these
     # calibrators have always used.
-    limit = "non-negative" if minimum == 0.0 else f">= {minimum}"
+    limit = "non-negative" if minimum_value == 0.0 else f">= {minimum_value}"
 
-    if isinstance(value, str):
-        if value != "auto":
-            raise ValueError(f'{name} must be {limit} or "auto", got {value!r}')
+    if isinstance(parameter_value, str):
+        if parameter_value != "auto":
+            raise ValueError(
+                f'{parameter_name} must be {limit} or "auto", got {parameter_value!r}'
+            )
         best = select_by_cv(
-            factory,
-            {name: list(grid)},
+            calibrator_factory,
+            {parameter_name: list(parameter_grid)},
             X,
             y,
             cv=cv,
@@ -489,12 +507,16 @@ def resolve_auto(
             random_state=random_state,
             sample_weight=sample_weight,
         )
-        return float(best[name])
+        return float(best[parameter_name])
 
     try:
-        numeric = float(value)
+        numeric = float(parameter_value)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f'{name} must be {limit} or "auto", got {value!r}') from exc
-    if not np.isfinite(numeric) or numeric < minimum:
-        raise ValueError(f"{name} must be finite and {limit}, got {value}")
+        raise ValueError(
+            f'{parameter_name} must be {limit} or "auto", got {parameter_value!r}'
+        ) from exc
+    if not np.isfinite(numeric) or numeric < minimum_value:
+        raise ValueError(
+            f"{parameter_name} must be finite and {limit}, got {parameter_value}"
+        )
     return numeric

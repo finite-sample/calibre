@@ -76,9 +76,9 @@ isotonic blocks.
 | A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing using the loss appropriate for its link. |
 | A smooth curve with smoothing you control | `SplineCalibrator` | Set `alpha`; also set `n_knots` to skip cross-validation. |
 | Exactly scikit-learn's isotonic behavior | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
-| Strict increase without output clipping | `RelaxedPAVACalibrator` | Forces a minimum step; clipping can flatten boundary values. |
+| A fitted-value change bound you control | `RelaxedPAVACalibrator` | Negative permits bounded drops; positive forces a step before clipping. |
 | To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. Not the one to reach for if you want resolution — see its docstring. |
-| Accuracy near specific decision thresholds | `CDIIsotonicCalibrator` | Research-grade; needs your operating thresholds. |
+| Accuracy near specific decision thresholds | `CDIIsotonicCalibrator` | Research-grade; requires thresholds on the same probability-score scale and can permit bounded drops away from them. Validate proper scores and decision utility. |
 
 Every calibrator follows the scikit-learn transformer API: `.fit(scores, labels)` and
 `.transform(scores)`, plus `sample_weight` where it is meaningful.
@@ -98,7 +98,6 @@ seeds, scored on a held-out half that nothing was tuned on. Lower Brier is bette
 | Uncalibrated | 0.1604 | — | 0.0835 | 1594 | — |
 | `IsotonicCalibrator` | 0.1530 | +0.0073 | 0.0270 | **49** | baseline |
 | `NearlyIsotonicCalibrator` | 0.1531 | +0.0073 | 0.0270 | 52 | 7/30 |
-| `RelaxedPAVACalibrator` | 0.1530 | +0.0073 | 0.0270 | 1356 | 28/30 |
 | `CenteredIsotonicCalibrator` | 0.1527 | +0.0076 | 0.0284 | 1514 | 25/30 |
 | `SplineCalibrator` | 0.1524 | +0.0080 | 0.0263 | 1595 | 28/30 |
 | Platt scaling (sklearn `method="sigmoid"`) | **0.1521** | **+0.0082** | 0.0251 | 1599 | 26/30 |
@@ -106,11 +105,10 @@ seeds, scored on a held-out half that nothing was tuned on. Lower Brier is bette
 
 Read three things off it honestly.
 
-**The Brier gains over isotonic are small.** The large win is the distinct-value
-column: ~1400–1600 values instead of 49, at a Brier difference in the fourth
-decimal. `RelaxedPAVACalibrator` is the cleanest case — it beats isotonic on 28 of
-30 seeds by an average of 0.00001 in this design, while keeping 1,356 distinct
-values on average instead of 49.
+**The Brier gains over isotonic are small.** Centered isotonic and the spline keep
+around 1,500 distinct values instead of 49, at a Brier difference in the fourth
+decimal. Relaxed PAVA is not in this defaults-only table because its increment
+bound is deliberately required.
 
 **scikit-learn's parametric methods win this design outright.** Both are
 `CalibratedClassifierCV` options — `method="sigmoid"`, and `method="temperature"`
@@ -125,10 +123,9 @@ miscalibration has that shape, use them. calibre is for when you don't.
 resolution is not miscalibration. That is a reason to look at more than one number,
 which is what `calibration_report` below is for.
 
-The cost is computation: isotonic fits one model, while
-`RelaxedPAVACalibrator` and `SplineCalibrator` cross-validate multiple candidates.
-Their exact runtime depends on the calibration-set size, fold count and hardware;
-the benchmark records timings for its own runs.
+The cost is computation: isotonic fits one model, while `SplineCalibrator`
+cross-validates multiple candidates. Runtime depends on calibration-set size, fold
+count, and hardware; the benchmark records timings for its own runs.
 
 `nonmonotone` is in the grid because monotone methods should lose there. They
 don't: `SplineCalibrator` scores 0.2156 against Platt's 0.2224,
@@ -172,15 +169,15 @@ print(
 # > 500 calibrated probabilities in [0.000, 1.000]
 ```
 
-### Preserve more score resolution
+### Bound adjacent fitted changes
 
-Since 0.10.0 `RelaxedPAVACalibrator` defaults to `min_slope="auto"`. When its
-automatic epsilon search selects strict monotonicity (`epsilon_ == 0`), it uses a
-step of `0.01 / n_unique` to separate adjacent fitted values before output
-clipping. On the benchmark grid that takes it from 11 distinct values to 124 on
-`breast_cancer/logreg` while the Brier score moves in the fifth decimal.
+`RelaxedPAVACalibrator` exposes the lower bound in its optimization problem as one
+required signed parameter. Zero is ordinary isotonic regression, a negative value
+permits bounded decreases, and a positive value requires adjacent fitted values to
+differ. The package does not invent a default bound; choose it using held-out data
+and a proper score.
 
-Set `min_slope` yourself and disable clipping when you need a guaranteed gap:
+Disable clipping when you need a positive bound to hold at the output boundaries:
 
 ```python
 import numpy as np
@@ -191,7 +188,7 @@ rng = np.random.default_rng(0)
 scores = np.sort(rng.random(500))
 labels = (rng.random(500) < scores).astype(float)
 
-cal = RelaxedPAVACalibrator(min_slope=1e-4, clip_output=False)
+cal = RelaxedPAVACalibrator(min_increment=1e-4, clip_output=False)
 fitted = cal.fit_transform(scores, labels)
 
 steps = np.diff(fitted)
@@ -210,10 +207,10 @@ Note `clip_output=False`. Forcing 500 points apart by `1e-4` needs at least `0.0
 range, so the fit runs slightly outside `[0, 1]` at the ends. Leaving the default
 `clip_output=True` would clamp those tails and flatten them back together — 31 of the
 499 steps become exactly zero — which defeats the point. Either turn clipping off, as
-here, or pick a `min_slope` small enough that the fit stays inside the unit interval.
-
-The same parameter runs the other way: `epsilon` permits decreases of up to that size,
-which buys a closer fit at the cost of reordering some pairs.
+here, or pick a `min_increment` small enough that the fit stays inside the unit
+interval. Set `min_increment=-0.02` to permit drops of at most two percentage points
+between adjacent unique calibration scores; this can improve fit by reordering some
+pairs, so validate it on held-out data.
 
 ### Weight your calibration set
 
@@ -257,11 +254,14 @@ print(f"bias           {mean_calibration_error(y_true, y_pred):.4f}")
 `brier_score` is a proper scoring rule and the one to optimize.
 `expected_calibration_error` is the familiar binned ECE — useful, but sensitive to the
 bin count and blind to resolution. `mean_calibration_error` is calibration in the
-large, `|mean(prediction) − base rate|`.
+large, `|mean(prediction) − base rate|`, and accepts `sample_weight` for a weighted
+evaluation population. Opposing errors can cancel, so it is not a standalone
+calibration verdict.
 
 Binned ECE is also **biased upward**: part of each bin's gap is sampling noise in the
 label mean rather than miscalibration, and the bias grows with the bin count — precisely
-when you wanted a finer picture. Two estimators correct for it:
+when you wanted a finer picture. These estimators address the correction and bin-count
+problems separately:
 
 ```python
 import numpy as np
@@ -278,7 +278,7 @@ print(f"debiased    {debiased_calibration_error(y, p, n_bins=15):.4f}")
 print(f"sweep       {sweep_calibration_error(y, p):.4f}")
 # > plugin ECE  0.0163
 # > debiased    0.0000
-# > sweep       0.0155
+# > sweep       0.0200
 ```
 
 The true error here is zero, so the plugin's 0.0163 is entirely bias. Debiasing removes
@@ -292,7 +292,7 @@ bins while the calibration curve stays monotone and stopping when it doesn't (Ro
 et al. 2022). Both use equal-mass bins, and neither ever splits a group of tied
 predictions across a bin boundary.
 
-Also available: `maximum_calibration_error`, `binned_calibration_error`,
+Also available: `maximum_calibration_error`, `root_mean_squared_calibration_error`,
 `calibration_curve`, `correlation_metrics`, `unique_value_counts`,
 and `tie_preservation_score`.
 
@@ -318,59 +318,55 @@ print(calibration_report(y, p))
 # >     - DSC          0.1072   (earned by the forecasts)
 # >     + UNC          0.2442   (irreducible)
 # >
-# >   bias             0.0771   (mean forecast 0.4989)
+# >   mean cal. error  0.0771   (mean forecast 0.4989)
 # >   smECE            0.0769   (bandwidth 0.0771, chosen)
-# >   debiased ECE     0.0871   (15 bins)
-# >   plugin ECE       0.0929   (15 bins, uncorrected)
-# >   sweep ECE        0.0771   (10 bins, chosen)
+# >   debiased ECE     0.0873   (15 bins)
+# >   plugin ECE       0.0931   (15 bins, uncorrected)
+# >   sweep ECE        0.0904   (10 bins; assumes a monotone calibration curve)
 # >
-# >   distinct values  2,000 of 2,000 (100.0%)
+# >   prediction granularity  2,000 of 2,000 values unique (100.0%)
 ```
 
-`smooth_calibration_error` is smECE, from Błasiok & Nakkiran (2024). It is the one
+`smooth_calibration_error` is smECE, from Jarosław Błasiok and Preetum Nakkiran
+(2024). It is the one
 to reach for if you want a single number: unlike binned ECE it is *consistent* —
 it goes to zero if and only if the forecaster is calibrated — and it has no bin
 count for you to choose, which means no bin count for you to choose badly. calibre
-pins it against the authors' own `relplot` implementation to 1.1e-16.
+pins it against their Apple `relplot` reference implementation across ten regimes
+within a tight floating-point tolerance.
 
-Every field is also available as an attribute (`report.brier`, `report.smece`, …)
-rather than only as text.
+Every field is also available under its full name
+(`report.brier_score`, `report.smooth_calibration_error`, …) rather than only
+as text. Sweep ECE relies on a monotone population calibration curve; the report
+labels that assumption because a strongly nonmonotone model can violate it.
 
 ### Put an interval on it
 
-A calibration error computed on 2,000 rows is an estimate, and estimates deserve
-intervals:
+An evaluation metric computed on 2,000 rows is an estimate, and estimates deserve
+intervals when their sampling assumptions support them:
 
 ```python
 import numpy as np
 
 from calibre import bootstrap_ci
-from calibre.metrics import brier_score, smooth_calibration_error
+from calibre.metrics import brier_score
 
 rng = np.random.default_rng(0)
 p = rng.uniform(0, 1, 2000)
 y = rng.binomial(1, p).astype(float)  # calibrated by construction
 
-for name, metric in (("Brier", brier_score), ("smECE", smooth_calibration_error)):
-    ci = bootstrap_ci(metric, y, p, n_resamples=400, random_state=0)
-    print(f"{name:6s} {ci['estimate']:.4f}  [{ci['lower']:.4f}, {ci['upper']:.4f}]")
-# > Brier  0.1604  [0.1516, 0.1684]
-# > smECE  0.0223  [0.0199, 0.0226]
+ci = bootstrap_ci(brier_score, y, p, n_resamples=400, random_state=0)
+print(f"Brier {ci['estimate']:.4f}  [{ci['lower']:.4f}, {ci['upper']:.4f}]")
+# > Brier 0.1604  [0.1516, 0.1686]
 ```
 
-Look at the smECE row: the point estimate sits at the *top* of its interval. That
-is not a bug, it is the correction working. **The naive bootstrap is biased upward
-on calibration errors, and worst exactly when the model is well calibrated** —
-which is when you most want to trust the number.
-
-The reason is Jensen's inequality. Miscalibration is a convex functional of the
-empirical distribution, so averaging it over resamples overshoots its value at the
-centre. The truth here is zero by construction, and the percentile interval would
-not contain it. `bootstrap_ci` therefore defaults to the bias-corrected interval
-(`method="bc"`; `"percentile"`, `"basic"` and `"bca"` are also available). The
-predicted inflation factor of √2 is measured at 1.40–1.42 and is invariant in `n`;
-`experiments/bootstrap_bias/` reproduces the whole argument, including the linear
-control — Brier, being linear, shows no bias at all.
+`bootstrap_ci` uses SciPy's paired bootstrap and defaults to BCa; percentile and
+basic intervals are also available. Use it on independent, held-out evaluation
+rows and regular statistics such as a mean proper score. Ordinary row-bootstrap
+intervals are not generally valid for calibration-error metrics at perfect
+calibration, so
+`calibration_report(..., include_brier_interval=True)` reports an interval only
+for the Brier score.
 
 ### Measure it honestly
 
@@ -391,14 +387,20 @@ labels = rng.binomial(1, scores).astype(float)
 in_sample = IsotonicCalibrator().fit(scores, labels).transform(scores)
 out_of_fold = cross_val_calibrate(IsotonicCalibrator(), scores, labels, cv=5)
 
-print(f"MCB in-sample    {score_decomposition(in_sample, labels)['MCB']:.4f}")
-print(f"MCB out-of-fold  {score_decomposition(out_of_fold, labels)['MCB']:.4f}")
+print(
+    f"MCB in-sample    {score_decomposition(labels, in_sample)['miscalibration']:.4f}"
+)
+print(
+    f"MCB out-of-fold  {score_decomposition(labels, out_of_fold)['miscalibration']:.4f}"
+)
 # > MCB in-sample    0.0000
 # > MCB out-of-fold  0.0030
 ```
 
 `cross_val_calibrate` returns out-of-fold probabilities: each one comes from a model
 that never saw that observation. Use those for any number you intend to believe.
+Its shuffled folds assume independent, exchangeable observations; grouped,
+repeated-measures, spatial, and temporal data require a design-aware workflow.
 
 ### Decompose the score
 
@@ -418,10 +420,11 @@ labels = rng.binomial(1, scores).astype(float)
 overconfident = np.clip(1.6 * (scores - 0.5) + 0.5, 0, 1)
 
 for name, x in (("honest", scores), ("overconfident", overconfident)):
-    d = score_decomposition(x, labels)
+    d = score_decomposition(labels, x)
     print(
         f"{name:14s} Brier {d['mean_score']:.4f} = "
-        f"MCB {d['MCB']:.4f} - DSC {d['DSC']:.4f} + UNC {d['UNC']:.4f}"
+        f"MCB {d['miscalibration']:.4f} - "
+        f"DSC {d['discrimination']:.4f} + UNC {d['uncertainty']:.4f}"
     )
 # > honest         Brier 0.1670 = MCB 0.0030 - DSC 0.0859 + UNC 0.2500
 # > overconfident  Brier 0.1799 = MCB 0.0141 - DSC 0.0841 + UNC 0.2500
@@ -441,7 +444,8 @@ can fix.
 `mean_score = MCB - DSC + UNC` holds exactly, and both `MCB` and `DSC` are non-negative
 by construction.
 
-These numbers are pinned against R's `reliabilitydiag` to 1e-16 in the test suite.
+These numbers match R's `reliabilitydiag` across five regimes within a tight
+floating-point tolerance in the test suite.
 `consistency_bands` and `confidence_bands` add resampling-based uncertainty.
 
 ### Inspect where a fit went flat
@@ -460,15 +464,15 @@ report = run_plateau_diagnostics(scores, calibrator.transform(scores))
 
 print(f"{report['n_plateaus']} plateaus")
 for plateau in report["plateaus"][:3]:
-    low, high = plateau["x_range"]
+    low, high = plateau["input_score_range"]
     print(
-        f"  [{low:.3f}, {high:.3f}] -> {plateau['value']:.3f} "
-        f"({plateau['n_samples']} samples, {plateau['sample_density']})"
+        f"  [{low:.3f}, {high:.3f}] -> {plateau['calibrated_value']:.3f} "
+        f"({plateau['n_observations']} observations, {plateau['support']})"
     )
 # > 16 plateaus
-# >   [0.000, 0.006] -> 0.000 (3 samples, very_sparse)
-# >   [0.010, 0.163] -> 0.017 (58 samples, adequate)
-# >   [0.163, 0.280] -> 0.103 (39 samples, adequate)
+# >   [0.000, 0.006] -> 0.000 (3 observations, very_sparse)
+# >   [0.010, 0.163] -> 0.017 (58 observations, adequate)
+# >   [0.163, 0.280] -> 0.103 (39 observations, adequate)
 ```
 
 Plateaus flagged `very_sparse` rest on few observations. `report["warnings"]` collects
@@ -502,9 +506,9 @@ labels = np.array([rng.choice(5, p=t) for t in truth])
 skewed = truth ** np.linspace(0.6, 2.4, 5)
 scores = skewed / skewed.sum(axis=1, keepdims=True)
 
-profile = miscalibration_profile(scores, labels)
-print(f"spread {profile['spread']:.2f}")
-print(profile["reading"])
+profile = miscalibration_profile(labels, scores)
+print(f"spread {profile['relative_miscalibration_spread']:.2f}")
+print(profile["interpretation"])
 # > spread 0.96
 # > Miscalibration is concentrated in classes 0, 4, 3 (spread 0.96). A one-parameter method applies the same correction to every class and cannot express this; per-class calibration is likely to help.
 ```
@@ -566,7 +570,7 @@ ax = plot_resolution_loss(
         "isotonic": IsotonicCalibrator().fit_transform(scores, labels),
         "centered": CenteredIsotonicCalibrator().fit_transform(scores, labels),
     },
-    scores,
+    input_scores=scores,
 )
 print("strips:", [t.get_text() for t in ax.get_yticklabels()])
 # > strips: ['isotonic', 'centered']

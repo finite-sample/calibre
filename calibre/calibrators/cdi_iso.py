@@ -1,567 +1,302 @@
-# calibre/calibrators/cdi_iso.py
-# Copyright (c) ...
-# Licensed under the ... license.
-
-"""CDI-ISO: Cost- and Data-Informed Isotonic Calibration.
-
-This calibrator solves:
-    min_z  sum_i w_i (y_i - z_i)^2
-    s.t.   z_{i+1} - z_i >= L_i   for i = 1..m-1
-
-on the unique sorted training scores (optionally aggregated),
-where the local lower bounds are L_i = phi_i - epsilon_i.
-
-- phi_i  (>=0): economically weighted minimum slope near operating thresholds,
-               gated by statistical evidence of a positive adjacent-block difference.
-- epsilon_i (>=0): variance-aware relaxation away from thresholds.
-
-The constrained problem reduces to a single weighted isotonic regression
-via a cumulative shift (shift-to-PAVA). Prediction is stepwise-constant,
-as in standard isotonic calibration.
-
-References (for context; not imported):
-- Weighted PAVA under order constraints (Barlow et al. 1972; Robertson et al. 1988)
-- Decision-curve analysis and threshold odds (Vickers & Elkin, 2006)
-- Two-proportion normal approximation for difference SE (textbook)
-
-Usage
------
-cal = CDIIsotonicCalibrator(
-    thresholds=[0.2, 0.5], threshold_weights=[0.4, 0.6], bandwidth=0.05,
-    alpha=0.05, gamma=0.15, window=25
-)
-cal.fit(scores_train, y_train)
-p_test = cal.transform(scores_test)
-"""
+"""Cost- and data-informed isotonic calibration."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
+from scipy.stats import norm
 
+from .._core import StepFunction, aggregate_ties, shift_to_pava
+from ..base import BaseCalibrator
 from ..utils import check_array_1d, check_arrays, check_fitted
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Sequence
 
-try:
-    # Optional: for sklearn-style get_params/set_params compatibility
-    from sklearn.base import BaseEstimator, TransformerMixin
-
-    _SK_AVAILABLE = True
-except Exception:
-    BaseEstimator = object  # type: ignore[assignment,misc]
-    TransformerMixin = object  # type: ignore[assignment,misc]
-    _SK_AVAILABLE = False
+__all__ = ["CDIIsotonicCalibrator"]
 
 
-# ----------------------------- utilities ---------------------------------- #
-
-
-def _triangular_kernel(dist: np.ndarray, h: float) -> np.ndarray:
-    """Triangular kernel K(d; h) = max(0, 1 - d/h) for d >= 0."""
-    if h <= 0:
-        # Degenerates to a point mass: weight only exact matches at zero distance
-        return np.asarray((dist == 0).astype(float))
-    w = 1.0 - dist / float(h)
-    w[w < 0.0] = 0.0
-    return w
-
-
-def _inv_std_normal_cdf(p: float) -> float:
-    """Invert the standard normal CDF via a rational approximation.
-
-    Uses Peter J. Acklam's algorithm (public domain).
-    """
-    if not (0.0 < p < 1.0):
-        if p <= 0.0:
-            return -np.inf
-        if p >= 1.0:
-            return np.inf
-
-    # Coefficients in rational approximations
-    a = [
-        -3.969683028665376e01,
-        2.209460984245205e02,
-        -2.759285104469687e02,
-        1.383577518672690e02,
-        -3.066479806614716e01,
-        2.506628277459239e00,
-    ]
-    b = [
-        -5.447609879822406e01,
-        1.615858368580409e02,
-        -1.556989798598866e02,
-        6.680131188771972e01,
-        -1.328068155288572e01,
-    ]
-    c = [
-        -7.784894002430293e-03,
-        -3.223964580411365e-01,
-        -2.400758277161838e00,
-        -2.549732539343734e00,
-        4.374664141464968e00,
-        2.938163982698783e00,
-    ]
-    d = [
-        7.784695709041462e-03,
-        3.224671290700398e-01,
-        2.445134137142996e00,
-        3.754408661907416e00,
-    ]
-
-    # Define break-points
-    plow = 0.02425
-    phigh = 1 - plow
-
-    if p < plow:
-        q = np.sqrt(-2 * np.log(p))
-        return float(
-            (((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
-            / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
-        )
-    if p <= phigh:
-        q = p - 0.5
-        r = q * q
-        return float(
-            (((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
-            * q
-            / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r + 1)
-        )
-    q = np.sqrt(-2 * np.log(1 - p))
-    return float(
-        -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5])
-        / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1)
+def _effective_sample_size_by_score(
+    scores: np.ndarray,
+    sample_weight: np.ndarray | None,
+    unique_scores: np.ndarray,
+) -> np.ndarray:
+    """Return Kish effective sample sizes for positive-mass score groups."""
+    weight = (
+        np.ones(scores.size, dtype=float)
+        if sample_weight is None
+        else np.asarray(sample_weight, dtype=float)
     )
+    positive = weight > 0.0
+    group = np.searchsorted(unique_scores, scores[positive])
+    sum_weight = np.bincount(
+        group, weights=weight[positive], minlength=unique_scores.size
+    )
+    sum_squared_weight = np.bincount(
+        group, weights=weight[positive] ** 2, minlength=unique_scores.size
+    )
+    return np.asarray(sum_weight**2 / sum_squared_weight, dtype=float)
 
 
-def _z_value(alpha: float) -> float:
-    """Two-sided z such that P(|Z| <= z) = 1 - alpha."""
-    alpha = float(alpha)
-    alpha = min(max(alpha, 1e-9), 0.999999999)  # guard
-    return _inv_std_normal_cdf(1 - alpha / 2.0)
+class CDIIsotonicCalibrator(BaseCalibrator):
+    r"""Cost- and data-informed isotonic calibration (CDI-ISO).
 
+    On the sorted unique score groups, this estimator solves
 
-def _weighted_pava(y: np.ndarray, w: np.ndarray) -> np.ndarray:
-    """Fit a nondecreasing sequence by weighted PAVA on a total order.
+    .. math::
+        \min_z \sum_i w_i(y_i-z_i)^2
+        \quad\text{s.t.}\quad z_{i+1}-z_i \ge L_i,
 
-    Returns fitted values of length ``len(y)``.
-    """
-    y = np.asarray(y, dtype=float)
-    w = np.asarray(w, dtype=float)
-    if y.ndim != 1 or w.ndim != 1:
-        raise ValueError(f"y and w must be 1-D, got {y.ndim}-D and {w.ndim}-D")
-    if y.size != w.size:
-        raise ValueError(f"y has {y.size} elements but w has {w.size}")
-    if y.size == 0:
-        raise ValueError("y must not be empty")
+    where :math:`L_i=\phi_i-\epsilon_i`. Near user-supplied operating
+    thresholds, :math:`\phi_i` can require a positive increment when the
+    adjacent empirical rates differ by more than their pooled normal-approximation
+    uncertainty. Away from those thresholds, :math:`\epsilon_i` permits a bounded
+    decrease. A cumulative shift reduces the problem exactly to weighted PAVA.
 
-    means: list[float] = []
-    weights: list[float] = []
-    counts: list[int] = []
-
-    for i in range(y.size):
-        means.append(y[i])
-        weights.append(w[i])
-        counts.append(1)
-
-        # Merge while the monotonicity constraint is violated
-        while len(means) >= 2 and means[-2] > means[-1]:
-            m2, w2, c2 = means.pop(), weights.pop(), counts.pop()
-            m1, w1, c1 = means.pop(), weights.pop(), counts.pop()
-            m = (w1 * m1 + w2 * m2) / (w1 + w2)
-            w_new = w1 + w2
-            c_new = c1 + c2
-            means.append(m)
-            weights.append(w_new)
-            counts.append(c_new)
-
-    # Expand block means to per-index fitted values
-    return np.repeat(np.asarray(means), np.asarray(counts))
-
-
-# ----------------------------- calibrator ---------------------------------- #
-
-
-@dataclass
-class CDIIsotonicCalibrator(BaseEstimator, TransformerMixin):  # type: ignore[misc]
-    """Cost- and Data-Informed Isotonic calibrator (CDI-ISO).
+    This is the estimator defined in Sood (2025). It is research-grade: there is
+    no independent reference implementation or evidence for universal defaults.
+    Choose ``bandwidth``, ``alpha``, and ``gamma`` using validation data that was
+    not used to fit the final calibration map, and compare proper scores as well
+    as decision utility at the intended threshold.
 
     Args:
-        thresholds: Operating thresholds in [0,1] that matter economically. If
-            None, uniform attention across the score range is assumed.
-        threshold_weights: Nonnegative weights matching thresholds. If None,
-            equal weights.
-        bandwidth: Half-width h of the triangular kernel around each threshold
-            (in score units, after optional min-max normalization). Defaults
-            to 0.05.
-        alpha: Significance level for the two-proportion normal approximation
-            used to gate minimum-slope enforcement (default 0.05 -> z≈1.96).
-        gamma: Global multiplier in [0,1] for the minimum-slope budget phi_i
-            (default 0.15).
-        window: Number of adjacent unique-score points used on each side to
-            form the left/right evidence blocks (default 25). Automatically
-            clipped at edges.
-        normalize_scores: If True (default), min-max normalize training scores
-            to [0,1] for the economics kernel; the same affine scaling is
-            applied at transform time.
-        clip_output: If True (default), clip calibrated outputs to [0,1].
+        thresholds: Non-empty operating thresholds in ``[0, 1]``. Thresholds
+            and input scores use the same probability-score scale.
+        threshold_weights: Finite non-negative relative importance weights, one
+            per threshold. At least one must be positive. Equal weights are used
+            when omitted.
+        bandwidth: Positive half-width of the triangular threshold kernel, in
+            probability-score units.
+        alpha: Two-sided significance level in ``(0, 1)`` for the pooled normal
+            approximation used in the adjacent-rate lower confidence bound.
+        gamma: Minimum-increment multiplier in ``[0, 1]``.
+        clip_output: Clip fitted values into ``[0, 1]``. Clipping preserves
+            ordering but can flatten a positive local increment at a boundary.
+        enable_diagnostics: Whether to enable plateau diagnostics.
+
+    Attributes:
+        adjacency_bounds_: Learned lower bound for each adjacent fitted
+            increment.
+        block_rate_: Weighted event rate at each unique training score.
+        block_weight_: Objective weight at each unique training score.
+        calibration_curve_: Fitted right-continuous step function.
+        cumulative_shift_: Cumulative shift used by the PAVA reduction.
+        economics_weight_: Threshold-kernel weight for each adjacency.
+        effective_sample_size_: Kish effective sample size used in each block's
+            uncertainty calculation. This makes the inference invariant to a
+            common rescaling of ``sample_weight``.
+        thresholds_: Validated operating thresholds.
+        threshold_weights_: Validated threshold weights normalized to sum to one.
 
     Notes:
-        - Builds local bounds L_i = phi_i - epsilon_i on sorted unique training scores.
-        - Solves a single weighted PAVA on shifted labels (O(n)) and shifts back.
-        - Predictions are stepwise-constant in the training score order.
+        CDI-ISO estimates adjacent event rates at repeated score values. With
+        continuous scores, most effective block sizes are one and the normal
+        approximation is weak; discretize scores using a prespecified scheme or
+        use another calibrator rather than interpreting those bounds as strong
+        evidence.
+
+        The returned map is the right-continuous step function specified in the
+        paper. It is not scikit-learn's piecewise-linear isotonic interpolant.
+
+    Examples:
+        >>> import numpy as np
+        >>> from calibre import CDIIsotonicCalibrator
+        >>> scores = np.repeat([0.2, 0.5, 0.8], 20)
+        >>> outcomes = np.r_[np.zeros(16), np.ones(4),
+        ...                  np.zeros(10), np.ones(10),
+        ...                  np.zeros(4), np.ones(16)]
+        >>> calibrator = CDIIsotonicCalibrator(thresholds=[0.5])
+        >>> calibrated = calibrator.fit_transform(scores, outcomes)
+        >>> bool(np.all((calibrated >= 0.0) & (calibrated <= 1.0)))
+        True
+
+    References:
+        Sood, G. (2025). *Calibration Where It Counts: Cost- and Data-Informed
+        Isotonic Regression*. https://gsood.com/research/papers/calibre.pdf
+
+        Kish, L. (1965). *Survey Sampling*. John Wiley & Sons.
+
+        Vickers, A. J., & Elkin, E. B. (2006). Decision curve analysis: A novel
+        method for evaluating prediction models. *Medical Decision Making*,
+        26(6), 565--574.
     """
 
-    thresholds: Iterable[float] | None = None
-    threshold_weights: Iterable[float] | None = None
-    bandwidth: float = 0.05
-    alpha: float = 0.05
-    gamma: float = 0.15
-    window: int = 25
-    normalize_scores: bool = True
-    clip_output: bool = True
-
-    # Fitted attributes. `init=False` keeps them out of the generated __init__,
-    # which is what sklearn's BaseEstimator inspects to decide what a
-    # hyperparameter is. Without it these appear in get_params(), so clone()
-    # copies fitted state into a supposedly fresh estimator and repr() prints
-    # the whole fitted arrays.
-    _fitted: bool = field(default=False, init=False, repr=False)
-    _s_min: float = field(default=0.0, init=False, repr=False)
-    _s_max: float = field(default=1.0, init=False, repr=False)
-    # unique sorted scores (train scale)
-    _x_unique: np.ndarray | None = field(default=None, init=False, repr=False)
-    # scaled to [0,1] if normalize_scores
-    _x_unique_scaled: np.ndarray | None = field(default=None, init=False, repr=False)
-    # calibrated values per unique score
-    _z_fit: np.ndarray | None = field(default=None, init=False, repr=False)
-    # local bounds per adjacency
-    _L: np.ndarray | None = field(default=None, init=False, repr=False)
-    # cumulative shift
-    _R: np.ndarray | None = field(default=None, init=False, repr=False)
-    # weights per unique score (counts)
-    _w_block: np.ndarray | None = field(default=None, init=False, repr=False)
-
-    # ----------------------------- core API -------------------------------- #
-
-    def fit(
+    def __init__(
         self,
-        scores: np.ndarray,
-        y: np.ndarray,
-        sample_weight: np.ndarray | None = None,
-    ) -> CDIIsotonicCalibrator:
-        """Fit CDI-ISO on a one-dimensional score and target pair."""
-        self._reset_fit_state()
-        try:
-            return self._fit_impl(scores, y, sample_weight)
-        except Exception:
-            self._reset_fit_state()
-            raise
-
-    def _reset_fit_state(self) -> None:
-        """Remove learned state before fitting or after a failed refit."""
-        self._fitted = False
-        self._s_min = 0.0
-        self._s_max = 1.0
-        self._x_unique = None
-        self._x_unique_scaled = None
-        self._z_fit = None
-        self._L = None
-        self._R = None
-        self._w_block = None
+        thresholds: Sequence[float],
+        *,
+        threshold_weights: Sequence[float] | None = None,
+        bandwidth: float = 0.05,
+        alpha: float = 0.05,
+        gamma: float = 0.15,
+        clip_output: bool = True,
+        enable_diagnostics: bool = False,
+    ) -> None:
+        super().__init__(enable_diagnostics=enable_diagnostics)
+        self.thresholds = thresholds
+        self.threshold_weights = threshold_weights
+        self.bandwidth = bandwidth
+        self.alpha = alpha
+        self.gamma = gamma
+        self.clip_output = clip_output
 
     def _fit_impl(
         self,
-        scores: np.ndarray,
+        X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-    ) -> CDIIsotonicCalibrator:
-        """Fit CDI-ISO on (scores, y).
-
-        Args:
-            scores: Raw model scores; will be sorted internally. If
-                normalize_scores=True, an affine min-max transform to [0,1] is
-                learned and applied in transform.
-            y: Binary labels {0,1}.
-            sample_weight: Nonnegative per-sample weights.
-
-        Returns:
-            Returns self for method chaining.
-
-        Raises:
-            ValueError: If scores and y have different lengths, y contains
-                invalid values, or sample_weight has invalid values.
-        """
-        s, y = check_arrays(scores, y)
-
-        if sample_weight is None:
-            w = np.ones_like(y, dtype=float)
-        else:
-            w = check_array_1d(sample_weight, "sample_weight")
-            if w.shape[0] != y.shape[0]:
-                raise ValueError("sample_weight must match length of y")
-            if not np.all(np.isfinite(w)) or np.any(w < 0):
-                raise ValueError("sample_weight must contain finite nonnegative values")
-            if np.sum(w) <= 0.0:
-                raise ValueError(
-                    "sample_weight must contain at least one positive weight"
-                )
-
-        positive = w > 0.0
-        s, y, w = s[positive], y[positive], w[positive]
-        if not np.all(np.isfinite(s)) or not np.all(np.isfinite(y)):
-            raise ValueError("scores and y must contain finite values")
-        if np.any((y < 0) | (y > 1)):
-            raise ValueError(
-                "y must be in {0,1} (or in [0,1] for probabilistic labels)"
-            )
-
-        # Sort by scores
-        order = np.argsort(s, kind="mergesort")
-        s_sorted, y_sorted, w_sorted = s[order], y[order], w[order]
-
-        # Aggregate duplicates to unique-score blocks for stability/efficiency
-        uniq_vals, idx_first, _counts = np.unique(
-            s_sorted, return_index=True, return_counts=True
-        )
-
-        sum_w = np.add.reduceat(w_sorted, idx_first)
-        sum_yw = np.add.reduceat(y_sorted * w_sorted, idx_first)
-        y_bar = np.divide(sum_yw, sum_w, out=np.zeros_like(sum_yw), where=sum_w > 0.0)
-
-        x_unique = uniq_vals.astype(float)  # shape (m,)
-        w_block = sum_w.astype(float)  # shape (m,)
-        m = x_unique.size
-        if m < 2:
-            # Degenerate: constant mapping
-            self._store_fit(
-                x_unique,
-                x_unique,
-                np.full(m, y_bar[0]),
-                np.zeros(0),
-                np.zeros(m),
-                w_block,
-            )
-            return self
-
-        # Score scaling for economics kernel
-        s_min, s_max = float(x_unique.min()), float(x_unique.max())
-        self._s_min, self._s_max = s_min, s_max
-        if self.normalize_scores and s_max > s_min:
-            x_scaled = (x_unique - s_min) / (s_max - s_min)
-        else:
-            x_scaled = (
-                x_unique - s_min
-            )  # could be [0, range], but distances are consistent
-        self._x_unique = x_unique
-        self._x_unique_scaled = x_scaled
-
-        # Build local bounds L_i = phi_i - epsilon_i on adjacencies
-        L = self._compute_local_bounds(
-            x_scaled=x_scaled,
-            y_bar=y_bar,
-            w_block=w_block,
-        )  # shape (m-1,)
-
-        # Shift-to-PAVA reduction: cumulative shift R_i, shifted labels y' = y_bar - R
-        R = np.zeros(m, dtype=float)
-        if L.size > 0:
-            R[1:] = np.cumsum(L)
-        y_shifted = y_bar - R
-
-        # Solve weighted isotonic on shifted labels
-        u_fit = _weighted_pava(y_shifted, w_block)
-        z_fit = u_fit + R  # undo the shift
-
-        if self.clip_output:
-            z_fit = np.clip(z_fit, 0.0, 1.0)
-
-        self._store_fit(x_unique, x_scaled, z_fit, L, R, w_block)
-        return self
-
-    def __sklearn_is_fitted__(self) -> bool:
-        """Return whether :meth:`fit` completed successfully."""
-        return self._fitted
-
-    def transform(self, scores: np.ndarray) -> np.ndarray:
-        """Map new scores to calibrated probabilities (stepwise-constant).
-
-        Args:
-            scores: Input scores to calibrate.
-
-        Returns:
-            Calibrated probabilities in [0,1] (if clip_output=True).
-
-        """
-        check_fitted(self, ["_x_unique", "_z_fit"])
-        x_unique = cast("np.ndarray", self._x_unique)
-        z_fit = cast("np.ndarray", self._z_fit)
-
-        s = check_array_1d(scores, "scores")
-        # Apply the same affine scaling for threshold distances if needed (not
-        # required for prediction)
-        # For prediction, we step on the ORIGINAL train-scale breakpoints.
-        # Stepwise rule: right-closed intervals (like sklearn IsotonicRegression)
-        idx = np.searchsorted(x_unique, s, side="right") - 1
-        idx[idx < 0] = 0
-        idx[idx >= x_unique.size] = x_unique.size - 1
-        p = z_fit[idx]
-        if self.clip_output:
-            p = np.clip(p, 0.0, 1.0)
-        return p
-
-    # --------------------------- diagnostics -------------------------------- #
-
-    def adjacency_bounds_(self) -> np.ndarray | None:
-        """Return the learned local bounds L_i per adjacency (shape: m-1).
-
-        Returns None if not fitted.
-        """
-        return None if not self._fitted else self._L
-
-    def cumulative_shift_(self) -> np.ndarray | None:
-        """Return the cumulative shift R_i (shape: m) or None if not fitted."""
-        return None if not self._fitted else self._R
-
-    def breakpoints_(self) -> tuple[np.ndarray, np.ndarray] | None:
-        """Return (unique_scores, calibrated_values) on the training grid."""
-        if not self._fitted or self._x_unique is None or self._z_fit is None:
-            return None
-        return (self._x_unique, self._z_fit)
-
-    # --------------------------- internals ---------------------------------- #
-
-    def _store_fit(
-        self,
-        x_unique: np.ndarray,
-        x_scaled: np.ndarray,
-        z_fit: np.ndarray,
-        L: np.ndarray,
-        R: np.ndarray,
-        w_block: np.ndarray,
     ) -> None:
-        self._x_unique = x_unique
-        self._x_unique_scaled = x_scaled
-        self._z_fit = z_fit
-        self._L = L
-        self._R = R
-        self._w_block = w_block
-        self._fitted = True
+        """Fit the paper's adjacent-block constrained projection."""
+        X, y = check_arrays(X, y)
+        positive_mass = (
+            np.ones(X.size, dtype=bool)
+            if sample_weight is None
+            else sample_weight > 0.0
+        )
+        if np.any((X[positive_mass] < 0.0) | (X[positive_mass] > 1.0)):
+            raise ValueError("X must contain probability scores in [0, 1]")
+        if np.any((y[positive_mass] != 0.0) & (y[positive_mass] != 1.0)):
+            raise ValueError("y must contain binary outcomes in {0, 1}")
 
-    def _compute_local_bounds(
-        self,
-        x_scaled: np.ndarray,  # shape (m,)
-        y_bar: np.ndarray,  # shape (m,)
-        w_block: np.ndarray,  # shape (m,)
-    ) -> np.ndarray:
-        """Build the local increment bounds ``L_i = phi_i - epsilon_i``.
+        self._validate_hyperparameters()
+        x_unique, block_rate, block_weight = aggregate_ties(X, y, sample_weight)
+        effective_size = _effective_sample_size_by_score(X, sample_weight, x_unique)
+        bounds, economics_weight = self._local_bounds(
+            x_unique, block_rate, effective_size
+        )
+        fitted = shift_to_pava(block_rate, block_weight, L=bounds)
+        if self.clip_output:
+            fitted = np.clip(fitted, 0.0, 1.0)
 
-        For ``i = 0..m-2``, combining:
-          - economics kernel weight ``w_econ_i`` in [0, 1],
-          - two-proportion SE across adjacent aggregated blocks in a sliding band,
-          - the ``gamma`` and ``alpha`` hyperparameters.
+        cumulative_shift = np.zeros(x_unique.size, dtype=float)
+        if bounds.size:
+            np.cumsum(bounds, out=cumulative_shift[1:])
 
-        Args:
-            x_scaled: Scaled unique scores, shape (m,).
-            y_bar: Average target values per unique score, shape (m,).
-            w_block: Weights per unique score (counts), shape (m,).
+        self.adjacency_bounds_ = bounds
+        self.block_rate_ = block_rate
+        self.block_weight_ = block_weight
+        self.calibration_curve_ = StepFunction(x_unique, fitted)
+        self.cumulative_shift_ = cumulative_shift
+        self.economics_weight_ = economics_weight
+        self.effective_sample_size_ = effective_size
+        self.n_features_in_ = 1
 
-        Returns:
-            Local bounds array of shape (m-1,).
-        """
-        m = x_scaled.size
-        z = _z_value(self.alpha)
-
-        # Economics weights per adjacency: center at midpoints between x_i and x_{i+1}
-        mids = 0.5 * (x_scaled[:-1] + x_scaled[1:])  # shape (m-1,)
-        w_econ = self._economics_weight(mids)  # in [0,1], shape (m-1,)
-
-        # Evidence on adjacent-block differences within a sliding window
-        win = int(max(1, self.window))
-        L_list = []
-
-        # Precompute cumulative sums for fast band aggregation
-        c_w = np.cumsum(w_block)  # weights
-        c_yw = np.cumsum(y_bar * w_block)  # weighted positives
-
-        def band_sums(lo: int, hi: int) -> tuple[float, float]:
-            """Inclusive band [lo, hi], return (sum_w, sum_pos_weighted)."""
-            if lo > hi:
-                return 0.0, 0.0
-            sw = c_w[hi] - (c_w[lo - 1] if lo > 0 else 0.0)
-            sy = c_yw[hi] - (c_yw[lo - 1] if lo > 0 else 0.0)
-            return sw, sy
-
-        for i in range(m - 1):
-            # Left band: indices [i-win+1, i]
-            l_lo = max(0, i - win + 1)
-            l_hi = i
-            # Right band: indices [i+1, i+win]
-            r_lo = i + 1
-            r_hi = min(m - 1, i + win)
-
-            n_l, y_l = band_sums(l_lo, l_hi)
-            n_r, y_r = band_sums(r_lo, r_hi)
-
-            # Guard small bands
-            if n_l <= 0 or n_r <= 0:
-                L_list.append(0.0)
-                continue
-
-            p_l = y_l / n_l
-            p_r = y_r / n_r
-            p_pool = (y_l + y_r) / (n_l + n_r)
-
-            # Two-proportion pooled SE
-            se = np.sqrt(max(p_pool * (1 - p_pool), 0.0) * (1.0 / n_l + 1.0 / n_r))
-            # Evidence-gated minimum slope (lower confidence bound, truncated at 0)
-            delta_lcb = max(0.0, (p_r - p_l) - z * se)
-
-            phi = self.gamma * w_econ[i] * delta_lcb
-            eps = (1.0 - w_econ[i]) * z * se
-
-            L_list.append(phi - eps)
-
-        return np.asarray(L_list, dtype=float)
-
-    def _economics_weight(self, mids: np.ndarray) -> np.ndarray:
-        """Compute w_econ(mid) in [0,1] from thresholds and a triangular kernel.
-
-        The kernel has half-width h. If thresholds is None, return ones
-        (uniform attention). Otherwise, for thresholds T_j with weights a_j, set
-            w(mid) = sum_j a_j * K(|mid - T_j|; h) / sum_j a_j
-        and normalize to have max 1 across mids.
-        """
-        if self.thresholds is None:
-            return np.ones_like(mids, dtype=float)
-
-        T = np.asarray(list(self.thresholds), dtype=float).reshape(-1)
-        if T.size == 0:
-            return np.ones_like(mids, dtype=float)
+    def _validate_hyperparameters(self) -> None:
+        """Validate and store the estimator's statistical design parameters."""
+        try:
+            thresholds = np.asarray(self.thresholds, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "thresholds must be a one-dimensional numeric sequence"
+            ) from exc
+        if thresholds.ndim != 1 or thresholds.size == 0:
+            raise ValueError("thresholds must be a non-empty one-dimensional sequence")
+        if not np.all(np.isfinite(thresholds)) or np.any(
+            (thresholds < 0.0) | (thresholds > 1.0)
+        ):
+            raise ValueError("thresholds must contain finite values in [0, 1]")
 
         if self.threshold_weights is None:
-            A = np.ones_like(T, dtype=float)
+            threshold_weights = np.ones(thresholds.size, dtype=float)
         else:
-            A = np.asarray(list(self.threshold_weights), dtype=float).reshape(-1)
-            if A.size != T.size:
-                raise ValueError("threshold_weights must match thresholds length")
-            if np.any(A < 0):
-                raise ValueError("threshold_weights must be nonnegative")
-            if A.sum() == 0:
-                A = np.ones_like(T, dtype=float)
+            try:
+                threshold_weights = np.asarray(self.threshold_weights, dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "threshold_weights must be a one-dimensional numeric sequence"
+                ) from exc
+            if (
+                threshold_weights.ndim != 1
+                or threshold_weights.shape != thresholds.shape
+            ):
+                raise ValueError("threshold_weights must match thresholds in shape")
+            if not np.all(np.isfinite(threshold_weights)) or np.any(
+                threshold_weights < 0.0
+            ):
+                raise ValueError(
+                    "threshold_weights must contain finite non-negative values"
+                )
+            if not np.any(threshold_weights > 0.0):
+                raise ValueError(
+                    "threshold_weights must contain at least one positive value"
+                )
 
-        # Broadcast kernel contributions and average by total weight
-        # mids: (k,), T: (J,) -> |mids[:,None] - T[None,:]| -> (k,J)
-        d = np.abs(mids[:, None] - T[None, :])
-        K = _triangular_kernel(d, self.bandwidth)  # (k,J)
-        weighted = K * A[None, :]
-        w = weighted.sum(axis=1) / (A.sum() + 1e-12)  # in [0,1] but may not reach 1.0
+        self.bandwidth_ = self._finite_scalar("bandwidth", self.bandwidth)
+        if self.bandwidth_ <= 0.0:
+            raise ValueError("bandwidth must be greater than zero")
+        self.alpha_ = self._finite_scalar("alpha", self.alpha)
+        if not 0.0 < self.alpha_ < 1.0:
+            raise ValueError("alpha must be strictly between zero and one")
+        self.gamma_ = self._finite_scalar("gamma", self.gamma)
+        if not 0.0 <= self.gamma_ <= 1.0:
+            raise ValueError("gamma must be between zero and one")
+        if not isinstance(self.clip_output, (bool, np.bool_)):
+            raise ValueError("clip_output must be a boolean")
 
-        # Normalize to [0,1] by max; if max is 0 (all outside bandwidth), return zeros.
-        maxw = float(np.max(w)) if w.size > 0 else 0.0
-        if maxw > 0:
-            w = w / maxw
-        return np.asarray(w.astype(float))
+        self.thresholds_ = thresholds.copy()
+        self.threshold_weights_ = threshold_weights / np.sum(threshold_weights)
+
+    @staticmethod
+    def _finite_scalar(name: str, value: float) -> float:
+        """Coerce one numeric hyperparameter and reject non-finite values."""
+        try:
+            validated = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be a finite number") from exc
+        if not np.isfinite(validated):
+            raise ValueError(f"{name} must be a finite number")
+        return validated
+
+    def _local_bounds(
+        self,
+        scores: np.ndarray,
+        rates: np.ndarray,
+        effective_size: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Construct the paper's adjacent-block bounds and economics weights."""
+        if scores.size < 2:
+            empty = np.empty(0, dtype=float)
+            return empty, empty.copy()
+
+        midpoint = 0.5 * (scores[:-1] + scores[1:])
+        distance = np.abs(midpoint[:, None] - self.thresholds_[None, :])
+        kernel = np.maximum(0.0, 1.0 - distance / self.bandwidth_)
+        economics_weight = kernel @ self.threshold_weights_
+
+        left_size = effective_size[:-1]
+        right_size = effective_size[1:]
+        pooled_rate = (left_size * rates[:-1] + right_size * rates[1:]) / (
+            left_size + right_size
+        )
+        standard_error = np.sqrt(
+            pooled_rate * (1.0 - pooled_rate) * (1.0 / left_size + 1.0 / right_size)
+        )
+        z_value = float(norm.ppf(1.0 - self.alpha_ / 2.0))
+        lower_difference = rates[1:] - rates[:-1] - z_value * standard_error
+        minimum_increment = (
+            self.gamma_ * economics_weight * np.maximum(lower_difference, 0.0)
+        )
+        relaxation = (1.0 - economics_weight) * z_value * standard_error
+        return (
+            np.asarray(minimum_increment - relaxation, dtype=float),
+            np.asarray(economics_weight, dtype=float),
+        )
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        """Map probability scores through the fitted CDI-ISO step function.
+
+        Args:
+            X: Probability scores in ``[0, 1]``.
+
+        Returns:
+            ndarray of shape (n_samples,): Calibrated values.
+
+        Raises:
+            ValueError: If a score is outside ``[0, 1]``.
+        """
+        check_fitted(self, ["calibration_curve_"])
+        X = check_array_1d(X)
+        if np.any((X < 0.0) | (X > 1.0)):
+            raise ValueError("X must contain probability scores in [0, 1]")
+        return self.calibration_curve_(X)

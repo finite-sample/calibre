@@ -16,6 +16,8 @@ SplineCalibrator
     I-Spline calibration with cross-validation
 RelaxedPAVACalibrator
     Relaxed Pool Adjacent Violators Algorithm
+CDIIsotonicCalibrator
+    Cost- and data-informed local increment constraints
 
 Examples:
 --------

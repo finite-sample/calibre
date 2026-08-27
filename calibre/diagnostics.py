@@ -10,15 +10,15 @@ from __future__ import annotations
 import numpy as np
 
 # Plateau widths, in number of tied samples, at which the reported
-# `sample_density` label changes. Conventional cut points for a human-readable
+# `support` label changes. Conventional cut points for a human-readable
 # summary, not thresholds anything is inferred from.
 SPARSE_PLATEAU_WIDTH = 5
 MODERATE_PLATEAU_WIDTH = 10
 
 
 def run_plateau_diagnostics(
-    X: np.ndarray,
-    y_calibrated: np.ndarray,
+    input_scores: np.ndarray,
+    calibrated_predictions: np.ndarray,
 ) -> dict:
     """Detect and analyze plateaus (flat regions) in calibration curves.
 
@@ -32,8 +32,8 @@ def run_plateau_diagnostics(
     enough data sits underneath it to say anything at all.
 
     Args:
-        X: Original predicted probabilities.
-        y_calibrated: Calibrated probabilities.
+        input_scores: Original predicted probabilities.
+        calibrated_predictions: Calibrated probabilities.
 
     Returns:
         diagnostics: Dictionary containing:
@@ -43,67 +43,71 @@ def run_plateau_diagnostics(
               containing:
 
             - ``'plateau_id'``: Unique identifier (0-indexed).
-            - ``'x_range'``: Tuple of (min, max) input values in the plateau.
-            - ``'value'``: The constant output value of the plateau.
-            - ``'width'``: Number of samples in the plateau.
-            - ``'n_samples'``: Number of samples (same as width).
-            - ``'sample_density'``: ``'adequate'``, ``'sparse'`` or
+            - ``'input_score_range'``: Minimum and maximum input score.
+            - ``'calibrated_value'``: Constant output value of the plateau.
+            - ``'n_observations'``: Number of observations in the plateau.
+            - ``'support'``: ``'adequate'``, ``'sparse'`` or
               ``'very_sparse'``.
 
             - ``'warnings'``: List of warning messages about problematic plateaus.
 
     Raises:
-        ValueError: If ``X`` and ``y_calibrated`` have different lengths.
+        ValueError: If the two arrays have different lengths.
 
     Examples:
-        >>> X = np.array([0.1, 0.2, 0.3, 0.7, 0.8, 0.9])
-        >>> y_cal = np.array([0.2, 0.2, 0.2, 0.8, 0.8, 0.8])
-        >>> diagnostics = run_plateau_diagnostics(X, y_cal)
+        >>> input_scores = np.array([0.1, 0.2, 0.3, 0.7, 0.8, 0.9])
+        >>> calibrated = np.array([0.2, 0.2, 0.2, 0.8, 0.8, 0.8])
+        >>> diagnostics = run_plateau_diagnostics(input_scores, calibrated)
         >>> print(diagnostics['n_plateaus'])
         2
         >>> for warning in diagnostics['warnings']:
         ...     print(warning)
-        Plateau 1 at [0.100, 0.300] has only 3 samples - may be unreliable
-        Plateau 2 at [0.700, 0.900] has only 3 samples - may be unreliable
+        Plateau 1 at [0.100, 0.300] has only 3 observations - may be unreliable
+        Plateau 2 at [0.700, 0.900] has only 3 observations - may be unreliable
     """
-    X = np.asarray(X, dtype=float).ravel()
-    y_calibrated = np.asarray(y_calibrated, dtype=float).ravel()
-    if X.size != y_calibrated.size:
+    input_scores = np.asarray(input_scores, dtype=float).ravel()
+    calibrated_predictions = np.asarray(calibrated_predictions, dtype=float).ravel()
+    if input_scores.size != calibrated_predictions.size:
         raise ValueError(
-            "X and y_calibrated must have the same length; "
-            f"got {X.size} and {y_calibrated.size}"
+            "input_scores and calibrated_predictions must have the same length; "
+            f"got {input_scores.size} and {calibrated_predictions.size}"
         )
 
     # A plateau is a flat region along the score axis. Sorting by the output
     # instead would bring equal but separated values together and invent a flat
     # region spanning the different value between them.
-    sorted_indices = np.argsort(X, kind="mergesort")
-    y_cal_sorted = y_calibrated[sorted_indices]
-    X_sorted = X[sorted_indices]
+    sorted_indices = np.argsort(input_scores, kind="mergesort")
+    calibrated_sorted = calibrated_predictions[sorted_indices]
+    input_scores_sorted = input_scores[sorted_indices]
 
     # Detect plateaus
-    plateau_indices = detect_plateaus(y_cal_sorted)
+    plateau_indices = detect_plateaus(calibrated_sorted)
 
     # Analyze each plateau
     plateaus = []
     warnings = []
 
     for i, (start_idx, end_idx, value) in enumerate(plateau_indices):
-        plateau_info = analyze_plateau_simple(X_sorted, start_idx, end_idx, value, i)
+        plateau_info = analyze_plateau_simple(
+            input_scores_sorted, start_idx, end_idx, value, i
+        )
         plateaus.append(plateau_info)
 
         # Generate warnings for problematic plateaus
-        if plateau_info["sample_density"] == "very_sparse":
+        if plateau_info["support"] == "very_sparse":
             warnings.append(
-                f"Plateau {i + 1} at [{plateau_info['x_range'][0]:.3f}, "
-                f"{plateau_info['x_range'][1]:.3f}] has only "
-                f"{plateau_info['n_samples']} samples - may be unreliable"
+                f"Plateau {i + 1} at "
+                f"[{plateau_info['input_score_range'][0]:.3f}, "
+                f"{plateau_info['input_score_range'][1]:.3f}] has only "
+                f"{plateau_info['n_observations']} observations - may be unreliable"
             )
-        elif plateau_info["sample_density"] == "sparse":
+        elif plateau_info["support"] == "sparse":
             warnings.append(
-                f"Plateau {i + 1} at [{plateau_info['x_range'][0]:.3f}, "
-                f"{plateau_info['x_range'][1]:.3f}] has {plateau_info['n_samples']} "
-                f"samples - consider collecting more data in this range"
+                f"Plateau {i + 1} at "
+                f"[{plateau_info['input_score_range'][0]:.3f}, "
+                f"{plateau_info['input_score_range'][1]:.3f}] has "
+                f"{plateau_info['n_observations']} observations - consider "
+                "collecting more data in this range"
             )
 
     # Summary
@@ -115,12 +119,12 @@ def run_plateau_diagnostics(
 
 
 def detect_plateaus(
-    y_calibrated: np.ndarray, min_width: int = 2
+    calibrated_predictions: np.ndarray, *, min_width: int = 2
 ) -> list[tuple[int, int, float]]:
     """Detect plateaus (consecutive identical values) in calibrated predictions.
 
     Args:
-        y_calibrated: Calibrated probabilities ordered by their input score.
+        calibrated_predictions: Calibrated probabilities ordered by input score.
         min_width: Minimum number of consecutive identical values to count as
             a plateau.
 
@@ -134,15 +138,15 @@ def detect_plateaus(
         >>> [(lo, hi, float(v)) for lo, hi, v in plateaus]
         [(0, 2, 0.2), (4, 5, 0.8)]
     """
-    if len(y_calibrated) == 0:
+    if len(calibrated_predictions) == 0:
         return []
 
     plateaus = []
     start_idx = 0
-    current_value = y_calibrated[0]
+    current_value = calibrated_predictions[0]
 
-    for i in range(1, len(y_calibrated)):
-        if not np.isclose(y_calibrated[i], current_value):
+    for i in range(1, len(calibrated_predictions)):
+        if not np.isclose(calibrated_predictions[i], current_value):
             # End of current plateau
             width = i - start_idx
             if width >= min_width:
@@ -150,18 +154,18 @@ def detect_plateaus(
 
             # Start new potential plateau
             start_idx = i
-            current_value = y_calibrated[i]
+            current_value = calibrated_predictions[i]
 
     # Check final plateau
-    width = len(y_calibrated) - start_idx
+    width = len(calibrated_predictions) - start_idx
     if width >= min_width:
-        plateaus.append((start_idx, len(y_calibrated) - 1, current_value))
+        plateaus.append((start_idx, len(calibrated_predictions) - 1, current_value))
 
     return plateaus
 
 
 def analyze_plateau_simple(
-    X: np.ndarray,
+    input_scores: np.ndarray,
     start_idx: int,
     end_idx: int,
     value: float,
@@ -170,7 +174,7 @@ def analyze_plateau_simple(
     """Analyze a single plateau with simple, interpretable metrics.
 
     Args:
-        X: Sorted input predictions.
+        input_scores: Sorted input predictions.
         start_idx: Start index of plateau (inclusive).
         end_idx: End index of plateau (inclusive).
         value: The constant value of the plateau.
@@ -180,35 +184,33 @@ def analyze_plateau_simple(
         plateau_info: Dictionary with plateau information:
 
             - plateau_id
-            - x_range: (min, max) of input values
-            - value: output value
-            - width: number of samples
-            - n_samples: same as width
-            - sample_density: 'adequate', 'sparse', or 'very_sparse'
+            - input_score_range: (minimum, maximum) input value
+            - calibrated_value: output value
+            - n_observations: number of observations
+            - support: 'adequate', 'sparse', or 'very_sparse'
     """
     # Extract plateau region
-    X_plateau = X[start_idx : end_idx + 1]
+    plateau_scores = input_scores[start_idx : end_idx + 1]
 
     # Basic statistics
     width = end_idx - start_idx + 1
-    x_min = float(np.min(X_plateau))
-    x_max = float(np.max(X_plateau))
+    score_minimum = float(np.min(plateau_scores))
+    score_maximum = float(np.max(plateau_scores))
 
     # The labels are a convenience for reading a diagnostic, not a statistical
     # statement, and the cut points are conventional rather than derived -- which
     # is exactly why they are named here instead of sitting bare in the branch.
     if width < SPARSE_PLATEAU_WIDTH:
-        sample_density = "very_sparse"
+        support = "very_sparse"
     elif width < MODERATE_PLATEAU_WIDTH:
-        sample_density = "sparse"
+        support = "sparse"
     else:
-        sample_density = "adequate"
+        support = "adequate"
 
     return {
         "plateau_id": plateau_id,
-        "x_range": (x_min, x_max),
-        "value": float(value),
-        "width": width,
-        "n_samples": width,
-        "sample_density": sample_density,
+        "input_score_range": (score_minimum, score_maximum),
+        "calibrated_value": float(value),
+        "n_observations": width,
+        "support": support,
     }

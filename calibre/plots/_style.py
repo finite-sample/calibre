@@ -1,6 +1,6 @@
 """Shared styling for calibre's plots.
 
-Colours are fixed here rather than left to matplotlib's cycle so that a given
+Colors are fixed here rather than left to matplotlib's cycle so that a given
 quantity keeps the same color across every figure in the documentation: ``MCB``
 is the same red whether it appears in a decomposition panel, a benchmark scatter
 or a notebook.
@@ -61,17 +61,17 @@ SEMANTIC: dict[str, str] = {
 }
 
 
-def color_cycle(n: int) -> list[str]:
-    """Return ``n`` distinguishable colors, cycling if more are asked for.
+def color_cycle(n_colors: int) -> list[str]:
+    """Return distinguishable colors, cycling if more are asked for.
 
     Args:
-        n: How many colors are needed.
+        n_colors: How many colors are needed.
 
     Returns:
         list of str: Hex color strings.
 
     Raises:
-        ValueError: If ``n`` is negative.
+        ValueError: If ``n_colors`` is negative.
 
     Examples:
         >>> color_cycle(3)
@@ -82,9 +82,9 @@ def color_cycle(n: int) -> list[str]:
         >>> len(color_cycle(12))
         12
     """
-    if n < 0:
-        raise ValueError(f"n must be non-negative, got {n}")
-    return [PALETTE[i % len(PALETTE)] for i in range(n)]
+    if n_colors < 0:
+        raise ValueError(f"n_colors must be non-negative, got {n_colors}")
+    return [PALETTE[i % len(PALETTE)] for i in range(n_colors)]
 
 
 def get_axes(

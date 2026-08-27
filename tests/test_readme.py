@@ -97,7 +97,8 @@ def test_readme_block_that_prints_declares_its_output(line_no, code):
     """A block that prints must say what it prints.
 
     Without this, ``test_readme_block_output_matches`` silently skips any block whose
-    `#>` annotation was never written -- which is how the ``min_slope`` recipe came to
+    `#>` annotation was never written -- which is how an earlier strict-increment
+    recipe came to
     print ``strictly increasing: False`` directly beneath prose promising the
     opposite. Executing the code is not enough; the claim has to be checked.
 

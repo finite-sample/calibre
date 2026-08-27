@@ -193,14 +193,13 @@ def resolution_barcode(dataset: str, model: str, seed: int) -> None:
         "sklearn_isotonic",
         "calibre_centered",
         "calibre_spline",
-        "calibre_relaxed_pava",
     ]
     outputs = {
         name: methods.calibrate(name, fit_scores, fit_labels, test_scores)
         for name in wanted
     }
     with style_context():
-        ax = plot_resolution_loss(outputs, test_scores)
+        ax = plot_resolution_loss(outputs, input_scores=test_scores)
         ax.set_title(f"what each calibrator did to resolution ({dataset}/{model})")
         _save(ax.figure, "resolution_loss")
         plt.close(ax.figure)
@@ -226,9 +225,9 @@ def decomposition(summary: list[dict[str, str]], dataset: str, model: str) -> No
             continue
         brier = _float(row["brier"])
         decompositions[row["method"]] = {
-            "MCB": mcb,
-            "DSC": dsc,
-            "UNC": brier - mcb + dsc,
+            "miscalibration": mcb,
+            "discrimination": dsc,
+            "uncertainty": brier - mcb + dsc,
             "mean_score": brier,
         }
     if len(decompositions) < 2:

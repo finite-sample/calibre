@@ -113,7 +113,10 @@ def plot_ece_bin_sensitivity(
         )
 
     if "plugin" in estimators:
-        values = [plugin_calibration_error(y_true, y_pred, b, norm) for b in counts]
+        values = [
+            plugin_calibration_error(y_true, y_pred, n_bins=b, norm=norm)
+            for b in counts
+        ]
         axes.plot(
             counts,
             values,
@@ -124,7 +127,7 @@ def plot_ece_bin_sensitivity(
         )
 
     if "debiased" in estimators:
-        values = [debiased_calibration_error(y_true, y_pred, b) for b in counts]
+        values = [debiased_calibration_error(y_true, y_pred, n_bins=b) for b in counts]
         axes.plot(
             counts,
             values,
@@ -136,7 +139,7 @@ def plot_ece_bin_sensitivity(
 
     if "sweep" in estimators:
         error, chosen = sweep_calibration_error(
-            y_true, y_pred, norm, return_n_bins=True
+            y_true, y_pred, norm=norm, return_n_bins=True
         )
         axes.axhline(
             error,

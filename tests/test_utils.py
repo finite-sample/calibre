@@ -221,7 +221,7 @@ class TestValidationEdgeCases:
     [
         IsotonicCalibrator(),
         CenteredIsotonicCalibrator(),
-        CDIIsotonicCalibrator(),
+        CDIIsotonicCalibrator(thresholds=[0.5]),
     ],
 )
 def test_check_fitted_distinguishes_unfitted_and_fitted_calibrators(calibrator):

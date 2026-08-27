@@ -27,13 +27,13 @@ def plot_miscalibration_profile(
     ax: Axes | None = None,
     class_names: Sequence[str] | None = None,
     highlight_worst: int = 3,
-    show_reading: bool = True,
-    reading_width: int = 72,
+    show_interpretation: bool = True,
+    interpretation_width: int = 72,
 ) -> Axes:
     """Show where multiclass miscalibration lives, and what to do about it.
 
     Per-class ``MCB`` as bars, with the worst classes picked out and the spread
-    in the title. When ``show_reading`` is on, the profile's plain-language
+    in the title. When ``show_interpretation`` is on, the profile's plain-language
     recommendation is printed beneath the axes.
 
     That caption is the point. calibre is the only Python calibration package
@@ -43,12 +43,13 @@ def plot_miscalibration_profile(
 
     Args:
         profile: A :func:`~calibre.miscalibration_profile` result, with
-            ``mcb``, ``spread``, ``worst_classes`` and ``reading``.
+            ``classwise_miscalibration``, ``relative_miscalibration_spread``,
+            ``worst_classes`` and ``interpretation``.
         ax: Axes to draw on. A new figure is created when omitted.
         class_names: Names for the classes. Defaults to their indices.
         highlight_worst: How many of the worst classes to draw in the accent color.
-        show_reading: Whether to print ``profile["reading"]`` below the axes.
-        reading_width: Column width to wrap the reading at.
+        show_interpretation: Whether to print the interpretation below the axes.
+        interpretation_width: Column width to wrap the interpretation at.
 
     Returns:
         Axes: The axes drawn on.
@@ -66,11 +67,16 @@ def plot_miscalibration_profile(
         >>> rng = np.random.default_rng(0)
         >>> truth = rng.dirichlet(np.ones(4), size=1500)
         >>> y = np.array([rng.choice(4, p=t) for t in truth])
-        >>> ax = plot_miscalibration_profile(miscalibration_profile(truth, y))
+        >>> ax = plot_miscalibration_profile(miscalibration_profile(y, truth))
         >>> ax.get_ylabel()
         'MCB (miscalibration)'
     """
-    missing = [k for k in ("mcb", "spread", "worst_classes") if k not in profile]
+    required = (
+        "classwise_miscalibration",
+        "relative_miscalibration_spread",
+        "worst_classes",
+    )
+    missing = [key for key in required if key not in profile]
     if missing:
         raise ValueError(
             f"profile is missing {missing}; expected the mapping returned by "
@@ -78,7 +84,7 @@ def plot_miscalibration_profile(
         )
 
     require_matplotlib()
-    mcb = np.asarray(profile["mcb"], dtype=float).ravel()
+    mcb = np.asarray(profile["classwise_miscalibration"], dtype=float).ravel()
     n_classes = mcb.size
 
     if class_names is None:
@@ -109,7 +115,7 @@ def plot_miscalibration_profile(
     axes.set_xticks(np.arange(n_classes))
     axes.set_xticklabels(labels)
 
-    spread = float(profile["spread"])
+    spread = float(profile["relative_miscalibration_spread"])
     finalize(
         axes,
         xlabel="class",
@@ -118,11 +124,11 @@ def plot_miscalibration_profile(
         legend=False,
     )
 
-    if show_reading and profile.get("reading"):
+    if show_interpretation and profile.get("interpretation"):
         axes.figure.text(
             0.02,
             -0.02,
-            textwrap.fill(str(profile["reading"]), reading_width),
+            textwrap.fill(str(profile["interpretation"]), interpretation_width),
             ha="left",
             va="top",
             fontsize="small",
@@ -170,7 +176,7 @@ def plot_classwise_reliability(
         >>> rng = np.random.default_rng(0)
         >>> truth = rng.dirichlet(np.ones(3), size=900)
         >>> y = np.array([rng.choice(3, p=t) for t in truth])
-        >>> fig = plot_classwise_reliability(classwise_reliability(truth, y))
+        >>> fig = plot_classwise_reliability(classwise_reliability(y, truth))
         >>> len(fig.axes)
         3
     """

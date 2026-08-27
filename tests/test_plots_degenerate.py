@@ -102,19 +102,19 @@ def _drew(result):
 @pytest.mark.parametrize("density", ["hist", "rug", "none"])
 def test_reliability_diagram_survives(_name, x, y, density):
     """A CORP diagram must draw for any binary sample."""
-    assert _drew(plot_reliability_diagram(corp_reliability(x, y), density=density))
+    assert _drew(plot_reliability_diagram(corp_reliability(y, x), density=density))
 
 
 @pytest.mark.parametrize(("_name", "x", "y"), CASES, ids=IDS)
 def test_score_decomposition_survives(_name, x, y):
     """The panels must draw whatever the decomposition returns."""
-    assert _drew(plot_score_decomposition(score_decomposition(x, y)))
+    assert _drew(plot_score_decomposition(score_decomposition(y, x)))
 
 
 @pytest.mark.parametrize(("_name", "x", "y"), CASES, ids=IDS)
 def test_mcb_dsc_plane_survives(_name, x, y):
     """A single point is a legitimate plane, with a degenerate range."""
-    assert _drew(plot_mcb_dsc_plane({"only": score_decomposition(x, y)}))
+    assert _drew(plot_mcb_dsc_plane({"only": score_decomposition(y, x)}))
 
 
 @pytest.mark.parametrize(("_name", "x", "y"), CASES, ids=IDS)
@@ -127,7 +127,9 @@ def test_ece_bin_sensitivity_survives(_name, x, y):
 def test_resolution_loss_survives(_name, x, y):
     """The barcode must draw even when every output is identical."""
     fitted = IsotonicCalibrator().fit(x, y)
-    assert _drew(plot_resolution_loss({"isotonic": fitted.transform(x)}, x))
+    assert _drew(
+        plot_resolution_loss({"isotonic": fitted.transform(x)}, input_scores=x)
+    )
 
 
 @pytest.mark.parametrize(("_name", "x", "y"), CASES, ids=IDS)
@@ -138,7 +140,7 @@ def test_calibrator_comparison_survives(_name, x, y):
         "centered": CenteredIsotonicCalibrator().fit(x, y),
     }
     assert _drew(
-        plot_calibrator_comparison(fitted, x, reference=corp_reliability(x, y))
+        plot_calibrator_comparison(fitted, x, reference=corp_reliability(y, x))
     )
 
 
@@ -149,8 +151,8 @@ def test_calibrator_comparison_survives(_name, x, y):
 
 def test_resolution_loss_rejects_empty_outputs():
     """Nothing to draw is a caller error worth naming."""
-    with pytest.raises(ValueError, match="outputs is empty"):
-        plot_resolution_loss({}, np.array([0.5]))
+    with pytest.raises(ValueError, match="calibrated_predictions is empty"):
+        plot_resolution_loss({}, input_scores=np.array([0.5]))
 
 
 def test_resolution_loss_rejects_ragged_outputs():
@@ -161,10 +163,13 @@ def test_resolution_loss_rejects_ragged_outputs():
         )
 
 
-def test_resolution_loss_rejects_mismatched_x():
-    """``x`` must line up with the outputs it labels."""
-    with pytest.raises(ValueError, match="but the outputs have"):
-        plot_resolution_loss({"a": np.array([0.1, 0.2])}, np.array([0.1, 0.2, 0.3]))
+def test_resolution_loss_rejects_mismatched_input_scores():
+    """Input scores must line up with the calibrated predictions."""
+    with pytest.raises(ValueError, match="calibrated predictions have"):
+        plot_resolution_loss(
+            {"a": np.array([0.1, 0.2])},
+            input_scores=np.array([0.1, 0.2, 0.3]),
+        )
 
 
 def test_resolution_frontier_rejects_empty_results():
@@ -182,7 +187,7 @@ def test_resolution_frontier_rejects_nonpositive_counts():
 def test_score_decomposition_rejects_a_missing_component():
     """A mapping that is not a decomposition must say so."""
     with pytest.raises(ValueError, match="is missing"):
-        plot_score_decomposition({"MCB": 0.1, "DSC": 0.2})
+        plot_score_decomposition({"miscalibration": 0.1, "discrimination": 0.2})
 
 
 def test_mcb_dsc_plane_rejects_empty_input():
@@ -197,9 +202,9 @@ def test_comparison_rejects_empty_calibrators():
         plot_calibrator_comparison({}, np.array([0.5]))
 
 
-def test_comparison_rejects_empty_x():
+def test_comparison_rejects_empty_input_scores():
     """No grid to evaluate the calibrators on."""
-    with pytest.raises(ValueError, match="x is empty"):
+    with pytest.raises(ValueError, match="input_scores is empty"):
         plot_calibrator_comparison(
             {
                 "iso": IsotonicCalibrator().fit(
@@ -263,8 +268,8 @@ def test_multiclass_plots_survive(n_classes):
     truth = rng.dirichlet(np.ones(n_classes), size=400)
     y = np.array([rng.choice(n_classes, p=t) for t in truth])
 
-    assert _drew(plot_miscalibration_profile(miscalibration_profile(truth, y)))
-    figure = plot_classwise_reliability(classwise_reliability(truth, y))
+    assert _drew(plot_miscalibration_profile(miscalibration_profile(y, truth)))
+    figure = plot_classwise_reliability(classwise_reliability(y, truth))
     assert isinstance(figure, Figure)
     assert len([a for a in figure.axes if a.get_visible()]) == n_classes
 
@@ -272,7 +277,7 @@ def test_multiclass_plots_survive(n_classes):
 def test_profile_rejects_a_missing_key():
     """A mapping that is not a profile must say so."""
     with pytest.raises(ValueError, match="profile is missing"):
-        plot_miscalibration_profile({"mcb": np.array([0.1, 0.2])})
+        plot_miscalibration_profile({"classwise_miscalibration": np.array([0.1, 0.2])})
 
 
 def test_profile_rejects_wrong_length_class_names():
@@ -282,7 +287,7 @@ def test_profile_rejects_wrong_length_class_names():
     y = np.array([rng.choice(3, p=t) for t in truth])
     with pytest.raises(ValueError, match="but the profile covers"):
         plot_miscalibration_profile(
-            miscalibration_profile(truth, y), class_names=["a", "b"]
+            miscalibration_profile(y, truth), class_names=["a", "b"]
         )
 
 
@@ -301,4 +306,4 @@ def test_classwise_reliability_rejects_wrong_axes_count():
 
     _, axes = plt.subplots(1, 2)
     with pytest.raises(ValueError, match="but there are 3 diagrams"):
-        plot_classwise_reliability(classwise_reliability(truth, y), axes=list(axes))
+        plot_classwise_reliability(classwise_reliability(y, truth), axes=list(axes))

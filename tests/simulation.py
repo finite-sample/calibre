@@ -529,7 +529,7 @@ DESIGNS = _build_designs()
 #
 # **They used a bare ``assert``.** ``python -O`` deletes ``assert`` statements
 # outright, so a module whose entire product is assertions passed everything
-# under optimisation -- the exact failure mode these gates exist to prevent,
+# under optimization -- the exact failure mode these gates exist to prevent,
 # occurring in the gates themselves. simcheck raises ``AssertionError``
 # explicitly for that reason, and so does ``assert_biased_upward`` below, which
 # has no simcheck counterpart yet and therefore stays here.

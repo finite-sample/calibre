@@ -16,7 +16,7 @@ Installing from PyPI
 This installs Calibre along with its runtime dependencies:
 
 - numpy >= 1.20.0
-- scipy >= 1.7.0
+- scipy >= 1.15.0
 - scikit-learn >= 1.6.0
 
 That is the whole list. pandas and matplotlib were runtime dependencies before
@@ -73,7 +73,7 @@ To build the documentation locally:
    make docs
 
 The docs group pulls Sphinx, Furo, MyST, myst-nb, sphinx-copybutton, ipykernel,
-and py-canon's documentation tooling. The example notebooks also use matplotlib
+and py-canon's documentation tooling. The executable tutorials also use matplotlib
 and pandas.
 
 Verifying Installation

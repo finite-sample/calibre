@@ -53,7 +53,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
         array([0.66666667, 0.66666667, 0.66666667])
     """
 
-    def __init__(self, enable_diagnostics: bool = False) -> None:
+    def __init__(self, *, enable_diagnostics: bool = False) -> None:
         self.enable_diagnostics = enable_diagnostics
         self.diagnostics_: dict | None = None
         self._fit_data_X: np.ndarray | None = None
@@ -81,8 +81,9 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             BaseCalibrator: Returns self for method chaining.
 
         Raises:
-            ValueError: If ``sample_weight`` is not one-dimensional, contains a
-                non-finite or negative value, or has no positive mass.
+            ValueError: If ``sample_weight`` is not one-dimensional, does not
+                have the same shape as ``y``, contains a non-finite or negative
+                value, or has no positive mass.
         """
         self._reset_fit_state()
         succeeded = False
@@ -92,6 +93,8 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
                 raw_weight = np.asarray(sample_weight)
                 if raw_weight.ndim != 1:
                     raise ValueError("sample_weight must be 1-dimensional")
+                if raw_weight.shape != np.asarray(y).shape:
+                    raise ValueError("sample_weight must have the same shape as y")
                 weight = np.asarray(sample_weight, dtype=float)
                 if not np.all(np.isfinite(weight)) or np.any(weight < 0.0):
                     raise ValueError(
@@ -311,8 +314,8 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             Detected 2 plateau(s):
             <BLANKLINE>
             Warnings:
-              ... Plateau 1 at [0.100, 0.300] has only 2 samples - may be unreliable
-              ... Plateau 2 at [0.500, 0.900] has only 3 samples - may be unreliable
+            ... Plateau 1 at [0.100, 0.300] has only 2 observations - may be unreliable
+            ... Plateau 2 at [0.500, 0.900] has only 3 observations - may be unreliable
         """
         if not self.enable_diagnostics or self.diagnostics_ is None:
             return "Diagnostics not available. Set enable_diagnostics=True to enable."

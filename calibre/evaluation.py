@@ -31,13 +31,19 @@ paper's R implementation (``reliabilitydiag``) in ``tests/test_r_reference.py``.
 
 from __future__ import annotations
 
+import warnings
+from numbers import Integral, Real
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import DegenerateDataWarning
+from scipy.stats import bootstrap as scipy_bootstrap
 
 from ._core import PiecewiseLinear, StepFunction, aggregate_ties, weighted_pava
-from .utils import check_arrays
+from .utils.validation import (
+    _validate_binary_probability_metric_inputs,
+    _validate_probability_vector,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -56,64 +62,93 @@ __all__ = [
 _LOG_EPS = np.finfo(float).eps
 
 
-def _brier(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Pointwise Brier score ``(x - y)**2``.
+def _brier(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
+    """Pointwise Brier score ``(y_pred - y_true)**2``.
 
     Args:
-        x: Forecast probabilities.
-        y: Binary outcomes.
+        y_true: Binary outcomes.
+        y_pred: Forecast probabilities.
 
     Returns:
         ndarray: Per-observation score.
     """
-    return (x - y) ** 2
+    return (y_pred - y_true) ** 2
 
 
-def _log_score(x: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """Pointwise logarithmic score ``-y log x - (1 - y) log(1 - x)``.
+def _log_score(y_true: np.ndarray, y_pred: np.ndarray) -> np.ndarray:
+    """Pointwise logarithmic score for binary probability forecasts.
 
     Args:
-        x: Forecast probabilities.
-        y: Binary outcomes.
+        y_true: Binary outcomes.
+        y_pred: Forecast probabilities.
 
     Returns:
         ndarray: Per-observation score.
     """
-    x = np.clip(x, _LOG_EPS, 1.0 - _LOG_EPS)
-    return -y * np.log(x) - (1.0 - y) * np.log1p(-x)
+    y_pred = np.clip(y_pred, _LOG_EPS, 1.0 - _LOG_EPS)
+    return -y_true * np.log(y_pred) - (1.0 - y_true) * np.log1p(-y_pred)
 
 
 _SCORES = {"brier": _brier, "log": _log_score}
 
 
-def _resolve_score(score: str):
-    """Look up a scoring rule by name.
+def _resolve_score(
+    score: str | Callable[[np.ndarray, np.ndarray], np.ndarray],
+) -> Callable[[np.ndarray, np.ndarray], np.ndarray]:
+    """Resolve a named or user-supplied pointwise scoring rule.
 
     Args:
-        score: ``"brier"`` or ``"log"``.
+        score: ``"brier"``, ``"log"``, or a vectorized scoring function
+            accepting ``(y_true, y_pred)``.
 
     Returns:
         callable: Pointwise scoring function.
 
     Raises:
-        ValueError: If the name is not a supported proper scoring rule.
+        ValueError: If ``score`` is neither a supported name nor callable.
     """
+    if callable(score):
+        return score
+    if not isinstance(score, str):
+        raise ValueError(
+            f"score must be one of {sorted(_SCORES)} or a callable, got {score!r}"
+        )
     try:
         return _SCORES[score]
     except KeyError:
         raise ValueError(
-            f"score must be one of {sorted(_SCORES)}, got {score!r}. "
+            f"score must be one of {sorted(_SCORES)} or a callable, got {score!r}. "
             "The decomposition requires a proper scoring rule."
         ) from None
+
+
+def _score_values(
+    score: Callable[[np.ndarray, np.ndarray], np.ndarray],
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+) -> np.ndarray:
+    """Evaluate and validate a vectorized pointwise scoring rule."""
+    try:
+        values = np.asarray(score(y_true, y_pred), dtype=float)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "score callable must return one finite numeric value per observation"
+        ) from error
+    if values.shape != y_true.shape or not np.all(np.isfinite(values)):
+        raise ValueError(
+            "score callable must return one finite numeric value per observation"
+        )
+    return values
 
 
 class ReliabilityDiagram:
     """A fitted CORP reliability diagram.
 
     Attributes:
-        x: The distinct forecast values, ascending.
-        cep: PAV-recalibrated conditional event probability at each forecast value.
-        weight: Number of observations carrying each forecast value.
+        prediction_values: The distinct forecast values, ascending.
+        event_probabilities: PAV-recalibrated conditional event probability at each
+            forecast value.
+        prediction_weights: Evaluation mass carrying each forecast value.
 
     Notes:
         Points where the diagram is flat are the CORP bins: the PAV algorithm chose
@@ -121,30 +156,39 @@ class ReliabilityDiagram:
         the forecaster.
     """
 
-    __slots__ = ("cep", "weight", "x")
+    __slots__ = (
+        "event_probabilities",
+        "prediction_values",
+        "prediction_weights",
+    )
 
-    def __init__(self, x: np.ndarray, cep: np.ndarray, weight: np.ndarray) -> None:
+    def __init__(
+        self,
+        prediction_values: np.ndarray,
+        event_probabilities: np.ndarray,
+        prediction_weights: np.ndarray,
+    ) -> None:
         """Store the diagram's three parallel arrays.
 
         Args:
-            x: Forecast value at each bin.
-            cep: Conditional event probability at each bin.
-            weight: Number of observations behind each bin.
+            prediction_values: Forecast value at each bin.
+            event_probabilities: Conditional event probability at each bin.
+            prediction_weights: Evaluation mass behind each bin.
         """
-        self.x = x
-        self.cep = cep
-        self.weight = weight
+        self.prediction_values = prediction_values
+        self.event_probabilities = event_probabilities
+        self.prediction_weights = prediction_weights
 
-    def __call__(self, x_new: np.ndarray) -> np.ndarray:
+    def __call__(self, new_predictions: np.ndarray) -> np.ndarray:
         """Recalibrate new forecast values through the diagram.
 
         Args:
-            x_new: Forecast values to recalibrate.
+            new_predictions: Forecast values to recalibrate.
 
         Returns:
             ndarray: Recalibrated probabilities.
         """
-        return self.as_function()(np.asarray(x_new, dtype=float).ravel())
+        return self.as_function()(np.asarray(new_predictions, dtype=float).ravel())
 
     def as_function(self) -> PiecewiseLinear | StepFunction:
         """Return the recalibration map as a callable.
@@ -155,9 +199,9 @@ class ReliabilityDiagram:
                 distinct forecast value gives a step function, since there is
                 nothing to interpolate between.
         """
-        if self.x.size == 1:
-            return StepFunction(self.x, self.cep)
-        return PiecewiseLinear(self.x, self.cep)
+        if self.prediction_values.size == 1:
+            return StepFunction(self.prediction_values, self.event_probabilities)
+        return PiecewiseLinear(self.prediction_values, self.event_probabilities)
 
     def plot(self, **kwargs: Any) -> Any:
         """Draw this diagram.
@@ -183,7 +227,7 @@ class ReliabilityDiagram:
             >>> rng = np.random.default_rng(0)
             >>> x = rng.uniform(0, 1, 200)
             >>> y = rng.binomial(1, x).astype(float)
-            >>> ax = corp_reliability(x, y).plot(density="none")
+            >>> ax = corp_reliability(y, x).plot(density="none")
             >>> ax.get_xlabel()
             'forecast probability'
         """
@@ -196,14 +240,15 @@ class ReliabilityDiagram:
     def __repr__(self) -> str:
         """Return a short summary of the diagram."""
         return (
-            f"ReliabilityDiagram(n_points={self.x.size}, "
-            f"n_bins={np.unique(self.cep).size})"
+            f"ReliabilityDiagram(n_points={self.prediction_values.size}, "
+            f"n_bins={np.unique(self.event_probabilities).size})"
         )
 
 
 def corp_reliability(
-    x: np.ndarray,
-    y: np.ndarray,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
     sample_weight: np.ndarray | None = None,
 ) -> ReliabilityDiagram:
     """Estimate conditional event probabilities by isotonic regression.
@@ -214,9 +259,11 @@ def corp_reliability(
     of the flat segments itself.
 
     Args:
-        x: Forecast probabilities.
-        y: Binary outcomes in ``{0, 1}``.
-        sample_weight: Non-negative per-observation weights. Defaults to 1.
+        y_true: Binary outcomes in ``{0, 1}`` from evaluation data not used to fit
+            the forecaster.
+        y_pred: Forecast probabilities in ``[0, 1]`` on the same evaluation data.
+        sample_weight: Non-negative frequency or evaluation-mass weights. Zero-weight
+            observations are ignored. Defaults to 1.
 
     Returns:
         ReliabilityDiagram: The fitted diagram.
@@ -226,53 +273,65 @@ def corp_reliability(
         >>> from calibre.evaluation import corp_reliability
         >>> x = np.array([0.2, 0.4, 0.6, 0.8])
         >>> y = np.array([0.0, 1.0, 0.0, 1.0])
-        >>> diagram = corp_reliability(x, y)
+        >>> diagram = corp_reliability(y, x)
 
         The middle pair violates monotonicity, so PAV pools it to its mean:
 
-        >>> diagram.cep
+        >>> diagram.event_probabilities
         array([0. , 0.5, 0.5, 1. ])
+
+    Notes:
+        The unweighted estimator follows Dimitriadis, Gneiting & Jordan (2021) and
+        is pinned against their ``reliabilitydiag`` R package. ``sample_weight`` is
+        calibre's frequency-weight extension: integer weights give exactly the same
+        diagram as literal row replication.
 
     See Also:
         score_decomposition : The score decomposition built on this estimate.
         calibre.CenteredIsotonicCalibrator : Recalibration, rather than diagnosis.
     """
-    x, y = check_arrays(x, y)
+    y_true, y_pred, weights = _validate_binary_probability_metric_inputs(
+        y_true, y_pred, sample_weight
+    )
 
     # Tied forecasts are one point, carrying their pooled weight.
-    x_unique, y_mean, weight = aggregate_ties(x, y, sample_weight)
-    cep = weighted_pava(y_mean, weight)
-    return ReliabilityDiagram(x_unique, cep, weight)
+    prediction_values, y_mean, weights = aggregate_ties(y_pred, y_true, weights)
+    event_probabilities = weighted_pava(y_mean, weights)
+    return ReliabilityDiagram(prediction_values, event_probabilities, weights)
 
 
 def score_decomposition(
-    x: np.ndarray,
-    y: np.ndarray,
-    score: str = "brier",
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    score: str | Callable[[np.ndarray, np.ndarray], np.ndarray] = "brier",
     sample_weight: np.ndarray | None = None,
 ) -> dict[str, float]:
     """Decompose a mean score into miscalibration, discrimination and uncertainty.
 
-    Returns the CORP decomposition ``mean_score = MCB - DSC + UNC``, where the
-    calibrated forecasts are the PAV-recalibrated probabilities and the reference
-    forecast is the marginal event frequency.
+    Returns the CORP decomposition ``mean_score = miscalibration - discrimination +
+    uncertainty``, where the calibrated forecasts are the PAV-recalibrated
+    probabilities and the reference forecast is the marginal event frequency.
 
-    Read it as: ``MCB`` is what recalibration would save you, ``DSC`` is what your
-    forecasts buy over always predicting the base rate, and ``UNC`` is the
+    Miscalibration is what recalibration would save you, discrimination is what your
+    forecasts buy over always predicting the base rate, and uncertainty is the
     difficulty of the problem, which no forecaster can change.
 
     Args:
-        x: Forecast probabilities.
-        y: Binary outcomes in ``{0, 1}``.
-        score: Proper scoring rule: ``"brier"`` (default) or ``"log"``.
-        sample_weight: Non-negative per-observation weights. Defaults to 1.
+        y_true: Binary outcomes in ``{0, 1}`` from evaluation data not used to fit
+            the forecaster or calibrator.
+        y_pred: Forecast probabilities in ``[0, 1]`` on the same evaluation data.
+        score: Proper scoring rule: ``"brier"`` (default), ``"log"``, or a
+            vectorized callable accepting ``(y_true, y_pred)`` and returning one
+            finite loss per observation. The caller is responsible for ensuring a
+            custom score is proper for binary probability forecasts.
+        sample_weight: Non-negative frequency or evaluation-mass weights. Zero-weight
+            observations are ignored. Defaults to 1.
 
     Returns:
-        dict: ``mean_score``, ``MCB``, ``DSC``, ``UNC``. ``MCB`` and ``DSC``
-            are non-negative, guaranteed by the optimality of the PAV solution.
-
-    Raises:
-        ValueError: If ``score`` is not a supported proper scoring rule.
+        dict: ``mean_score``, ``miscalibration``, ``discrimination``, and
+            ``uncertainty``. Miscalibration and discrimination are non-negative for
+            proper scoring rules, guaranteed by the optimality of the PAV solution.
 
     Examples:
         >>> import numpy as np
@@ -284,68 +343,82 @@ def score_decomposition(
         These forecasts are calibrated by construction, so miscalibration is small
         while discrimination is substantial:
 
-        >>> d = score_decomposition(x, y)
-        >>> bool(d["MCB"] < 0.01), bool(d["DSC"] > 0.05)
+        >>> d = score_decomposition(y, x)
+        >>> bool(d["miscalibration"] < 0.01), bool(d["discrimination"] > 0.05)
         (True, True)
 
         The identity holds exactly:
 
-        >>> bool(abs(d["mean_score"] - (d["MCB"] - d["DSC"] + d["UNC"])) < 1e-12)
+        >>> reconstructed = (
+        ...     d["miscalibration"]
+        ...     - d["discrimination"]
+        ...     + d["uncertainty"]
+        ... )
+        >>> bool(abs(d["mean_score"] - reconstructed) < 1e-12)
         True
+
+    Warnings:
+        Evaluate held-out or out-of-fold predictions. For an isotonic-family
+        calibrator, in-sample miscalibration is zero by construction because the
+        calibrator and this diagnostic use the same idempotent PAV projection.
+
+    Notes:
+        This follows Dimitriadis, Gneiting & Jordan (2021) and is pinned against
+        their ``reliabilitydiag`` R package for the Brier score. Evaluation weights
+        are calibre's extension; integer weights are equivalent to row replication.
 
     See Also:
         corp_reliability : The recalibration this decomposition is built on.
     """
     scoring = _resolve_score(score)
-    x, y = check_arrays(x, y)
-    w = (
-        np.ones_like(y)
-        if sample_weight is None
-        else np.asarray(sample_weight, dtype=float).ravel()
+    y_true, y_pred, weights = _validate_binary_probability_metric_inputs(
+        y_true, y_pred, sample_weight
     )
-    if w.shape != y.shape:
-        raise ValueError(f"sample_weight shape {w.shape} does not match y {y.shape}")
-
-    total = w.sum()
-    if total <= 0.0:
-        raise ValueError("sample_weight must include some positive weight")
+    total = weights.sum()
 
     def mean_score(forecast: np.ndarray) -> float:
-        return float(np.sum(scoring(forecast, y) * w) / total)
+        values = _score_values(scoring, y_true, forecast)
+        return float(np.sum(values * weights) / total)
 
     # Recalibrated forecasts, evaluated at each observation's own forecast value.
-    diagram = corp_reliability(x, y, w)
-    recalibrated = np.interp(x, diagram.x, diagram.cep)
+    diagram = corp_reliability(y_true, y_pred, sample_weight=weights)
+    recalibrated = np.interp(
+        y_pred, diagram.prediction_values, diagram.event_probabilities
+    )
 
     # Reference forecast: the marginal event frequency, held constant.
-    reference = float(np.sum(y * w) / total)
+    reference = float(np.sum(y_true * weights) / total)
 
-    s_x = mean_score(x)
+    s_x = mean_score(y_pred)
     s_c = mean_score(recalibrated)
-    s_r = mean_score(np.full_like(y, reference))
+    s_r = mean_score(np.full_like(y_true, reference))
 
     return {
         "mean_score": s_x,
-        "MCB": s_x - s_c,
-        "DSC": s_r - s_c,
-        "UNC": s_r,
+        "miscalibration": s_x - s_c,
+        "discrimination": s_r - s_c,
+        "uncertainty": s_r,
     }
 
 
-def _band_from_draws(draws: np.ndarray, level: float) -> tuple[np.ndarray, np.ndarray]:
+def _band_from_draws(
+    draws: np.ndarray, level: float, *, ignore_missing: bool = False
+) -> tuple[np.ndarray, np.ndarray]:
     """Take pointwise resampling percentiles as a band.
 
     Args:
         draws: Array of shape ``(n_resamples, n_points)``.
         level: Nominal coverage in ``(0, 1)``.
+        ignore_missing: Ignore grid points outside a resampled forecast range.
 
     Returns:
         lower: Lower band.
         upper: Upper band.
     """
     tail = (1.0 - level) / 2.0
-    lower = np.quantile(draws, tail, axis=0)
-    upper = np.quantile(draws, 1.0 - tail, axis=0)
+    quantile = np.nanquantile if ignore_missing else np.quantile
+    lower = quantile(draws, tail, axis=0)
+    upper = quantile(draws, 1.0 - tail, axis=0)
     return lower, upper
 
 
@@ -356,8 +429,10 @@ def _resample_bands(
     level: float,
     n_resamples: int,
     random_state: int | None,
+    *,
+    resample_forecasts: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Draw outcomes from ``probabilities`` and refit the diagram each time.
+    """Resample forecasts when requested, draw outcomes, and refit the diagram.
 
     Args:
         x: Original forecast values, one per observation.
@@ -366,431 +441,355 @@ def _resample_bands(
         level: Nominal coverage in ``(0, 1)``.
         n_resamples: Number of resamples.
         random_state: Seed.
+        resample_forecasts: Bootstrap forecast rows before drawing outcomes.
 
     Returns:
         lower: Lower band on ``grid``.
         upper: Upper band on ``grid``.
+
+    Raises:
+        RuntimeError: If no resample covers part of the original forecast support.
     """
+    if resample_forecasts:
+        order = np.argsort(x, kind="stable")
+        x = x[order]
+        probabilities = probabilities[order]
+
     rng = np.random.default_rng(random_state)
-    draws = np.empty((n_resamples, grid.size), dtype=float)
+    fill = np.nan if resample_forecasts else 0.0
+    draws = np.full((n_resamples, grid.size), fill, dtype=float)
     for i in range(n_resamples):
-        y_star = rng.binomial(1, probabilities).astype(float)
-        diagram = corp_reliability(x, y_star)
-        draws[i] = diagram.as_function()(grid)
-    return _band_from_draws(draws, level)
+        if resample_forecasts:
+            indices = rng.integers(0, x.size, size=x.size)
+            x_star = x[indices]
+            probabilities_star = probabilities[indices]
+        else:
+            x_star = x
+            probabilities_star = probabilities
+        y_star = rng.binomial(1, probabilities_star).astype(float)
+        diagram = corp_reliability(y_star, x_star)
+        if resample_forecasts:
+            draws[i] = np.interp(
+                grid,
+                diagram.prediction_values,
+                diagram.event_probabilities,
+                left=np.nan,
+                right=np.nan,
+            )
+        else:
+            draws[i] = diagram.as_function()(grid)
+
+    if resample_forecasts and np.any(np.all(np.isnan(draws), axis=0)):
+        raise RuntimeError(
+            "n_resamples produced no estimate at part of the forecast support; "
+            "increase n_resamples"
+        )
+    return _band_from_draws(draws, level, ignore_missing=resample_forecasts)
 
 
-def _validate_band_args(level: float, n_resamples: int) -> None:
+def _validate_band_args(
+    level: float, n_resamples: int, random_state: int | None
+) -> None:
     """Check band arguments.
 
     Args:
         level: Nominal coverage.
         n_resamples: Number of resamples.
+        random_state: Non-negative integer seed or ``None``.
 
     Raises:
-        ValueError: If ``level`` is outside ``(0, 1)`` or ``n_resamples`` is below 2.
+        ValueError: If an argument is outside its documented domain.
     """
+    if isinstance(level, (bool, np.bool_)) or not isinstance(level, Real):
+        raise ValueError(f"level must be a real number in (0, 1), got {level!r}")
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be in (0, 1), got {level}")
+    if isinstance(n_resamples, (bool, np.bool_)) or not isinstance(
+        n_resamples, Integral
+    ):
+        raise ValueError(f"n_resamples must be an integer, got {n_resamples!r}")
     if n_resamples < 2:
         raise ValueError(f"n_resamples must be at least 2, got {n_resamples}")
+    if random_state is not None and (
+        isinstance(random_state, (bool, np.bool_))
+        or not isinstance(random_state, Integral)
+        or random_state < 0
+    ):
+        raise ValueError(
+            f"random_state must be a non-negative integer or None, got {random_state!r}"
+        )
 
 
 def consistency_bands(
-    x: np.ndarray,
-    y: np.ndarray,
+    y_pred: np.ndarray,
+    *,
     level: float = 0.9,
     n_resamples: int = 1000,
     random_state: int | None = 0,
 ) -> dict[str, np.ndarray]:
-    """Bands showing how a *calibrated* forecaster's diagram would scatter.
+    """Pointwise null bands for a perfectly calibrated reliability diagram.
 
-    Outcomes are redrawn as ``y* ~ Bernoulli(x)``, taking the original forecasts
-    at face value, and the diagram is refit each time. The bands therefore sit
-    around the diagonal and answer: if these forecasts were perfectly calibrated,
-    how far from the diagonal would the estimate wander by chance alone? An
-    observed diagram leaving the band is the analogue of a small p-value.
+    Forecast rows are sampled with replacement from their empirical distribution.
+    For each sample, outcomes are drawn as ``y* ~ Bernoulli(y_pred)`` and the CORP
+    diagram is refit. Pointwise percentiles of those refits show how far the
+    estimated diagram can wander under the calibration hypothesis.
 
     Use :func:`confidence_bands` instead for an interval around the estimate.
 
     Args:
-        x: Forecast probabilities.
-        y: Binary outcomes in ``{0, 1}``. Used for the grid and for
-            validation; the bands themselves are generated under the
-            calibration hypothesis and do not depend on the observed outcomes.
+        y_pred: Forecast probabilities in ``[0, 1]``. Observed outcomes are not
+            needed because the calibration null supplies their distribution.
         level: Nominal coverage, default 0.9.
         n_resamples: Number of resamples, default 1000.
         random_state: Seed. Defaults to 0 so results are reproducible.
 
     Returns:
-        dict: ``x`` (the grid), ``lower`` and ``upper``.
+        dict: ``prediction_values`` (the original forecast support), ``lower`` and
+            ``upper`` pointwise bounds.
 
     Notes:
-        **These are pointwise bands, not a simultaneous envelope.** Coverage holds at
-        each forecast value separately. It does *not* hold at all of them at once, and
-        the difference is not subtle: on perfectly calibrated data the observed
-        diagram leaves a nominal 90% band *somewhere* on essentially every sample.
-        Measured over 150 replications (``tests/test_monte_carlo.py``):
+        These are pointwise bands, not a simultaneous envelope or a global
+        calibration test.
 
-        ======  ====================  =======================
-        ``n``   pointwise coverage    simultaneous coverage
-        ======  ====================  =======================
-        300     90.1%                 1.3%
-        1200    89.6%                 0.0%
-        4800    89.4%                 0.0%
-        ======  ====================  =======================
+        The method follows Dimitriadis, Gneiting & Jordan (2021), "Stable
+        reliability diagrams for probabilistic classifiers", and their
+        ``reliabilitydiag`` R implementation. Only its resampling method is
+        implemented here; the paper also derives asymptotic bands.
 
-        So "my curve stayed inside the band, therefore it is calibrated" is a test
-        with a false-positive rate near one. Read the band at a forecast value you
-        care about, or count excursions and compare that count against the nominal
-        miss rate -- do not read it as an envelope.
-
-        Resampling only. The paper also derives asymptotic bands from isotonic
-        regression theory (a Chernoff limit for continuous forecasts), which is not
-        implemented here; at large sample sizes this function is the expensive
-        option rather than the unavailable one.
+        Each resampled fit contributes only on its observed forecast support.
+        This also applies to singleton fits, avoiding extrapolation to forecast
+        values absent from that resample.
     """
-    _validate_band_args(level, n_resamples)
-    x, y = check_arrays(x, y)
-    grid = np.unique(x)
-    lower, upper = _resample_bands(x, x, grid, level, n_resamples, random_state)
-    return {"x": grid, "lower": lower, "upper": upper}
+    _validate_band_args(level, n_resamples, random_state)
+    y_pred = _validate_probability_vector(y_pred)
+    grid = np.unique(y_pred)
+    lower, upper = _resample_bands(
+        y_pred,
+        y_pred,
+        grid,
+        level,
+        n_resamples,
+        random_state,
+        resample_forecasts=True,
+    )
+    return {"prediction_values": grid, "lower": lower, "upper": upper}
+
+
+def _correct_boundary_plateaus(
+    endpoint: np.ndarray,
+    prediction_values: np.ndarray,
+    event_probabilities: np.ndarray,
+) -> np.ndarray:
+    """Interpolate a band endpoint across interior PAV estimates at zero or one."""
+    if prediction_values.size == 1:
+        return endpoint
+    interior_boundary = (event_probabilities == 0.0) | (event_probabilities == 1.0)
+    interior_boundary[[0, -1]] = False
+    if not np.any(interior_boundary):
+        return endpoint
+    keep = ~interior_boundary
+    return np.interp(prediction_values, prediction_values[keep], endpoint[keep])
 
 
 def confidence_bands(
-    x: np.ndarray,
-    y: np.ndarray,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
     level: float = 0.9,
     n_resamples: int = 1000,
     random_state: int | None = 0,
 ) -> dict[str, np.ndarray]:
-    """Bands around the estimated conditional event probabilities.
+    """Pointwise bootstrap intervals around a CORP reliability estimate.
 
-    Outcomes are redrawn from the PAV-recalibrated probabilities rather than the
-    original forecasts, so the bands cluster around the CORP estimate and carry
-    the usual frequentist reading: over repeated experiments, about ``level`` of
-    such bands contain the true conditional event probability.
+    Forecast rows are sampled with replacement. Outcomes are then drawn from the
+    PAV-recalibrated probabilities and a CORP diagram is refit. The returned
+    bounds are pointwise percentiles of those refits, with the boundary correction
+    used by the authors' reference implementation.
 
     Args:
-        x: Forecast probabilities.
-        y: Binary outcomes in ``{0, 1}``.
+        y_true: Binary outcomes in ``{0, 1}``.
+        y_pred: Forecast probabilities in ``[0, 1]``.
         level: Nominal coverage, default 0.9.
         n_resamples: Number of resamples, default 1000.
         random_state: Seed. Defaults to 0 so results are reproducible.
 
     Returns:
-        dict: ``x`` (the grid), ``lower`` and ``upper``.
+        dict: ``prediction_values`` (the original forecast support), ``lower`` and
+            ``upper`` pointwise bounds.
+
+    Warnings:
+        Evaluate held-out or out-of-fold predictions. These are pointwise
+        bootstrap intervals, not a simultaneous envelope. Their finite-sample
+        coverage can differ from ``level`` and should be validated for the
+        intended data-generating setting.
 
     Notes:
-        **Pointwise, not simultaneous**, exactly as for :func:`consistency_bands`;
-        see the table there.
-
-        **Coverage of the truth is below nominal on small samples.** These bands are
-        centered on the PAV-recalibrated estimate, and isotonic regression is biased at
-        finite sample size, so the band is centered slightly off the true conditional
-        event probability curve. Coverage of that true curve, measured against a
-        known data-generating process over 150 replications at a nominal 90%:
-
-        ======  ==========================
-        ``n``   coverage of the true curve
-        ======  ==========================
-        300     78.2%
-        1200    86.9%
-        4800    90.5%
-        ======  ==========================
-
-        The shortfall is a property of centring on an isotonic fit, not a defect in
-        the resampling, and it vanishes as the centring bias does. Treat a 90% band
-        on a few hundred observations as closer to an 80% one.
-
-        Resampling only; see :func:`consistency_bands`.
+        This implements the resampling confidence-region method of Dimitriadis,
+        Gneiting & Jordan (2021), "Stable reliability diagrams for probabilistic
+        classifiers", following their ``reliabilitydiag`` R implementation.
+        Each resampled fit contributes only on its observed forecast support,
+        including when that fit contains a single forecast value.
     """
-    _validate_band_args(level, n_resamples)
-    x, y = check_arrays(x, y)
-    diagram = corp_reliability(x, y)
-    recalibrated = np.interp(x, diagram.x, diagram.cep)
-    grid = np.unique(x)
-    lower, upper = _resample_bands(
-        x, recalibrated, grid, level, n_resamples, random_state
+    _validate_band_args(level, n_resamples, random_state)
+    y_true, y_pred, _ = _validate_binary_probability_metric_inputs(y_true, y_pred, None)
+    diagram = corp_reliability(y_true, y_pred)
+    recalibrated = np.interp(
+        y_pred, diagram.prediction_values, diagram.event_probabilities
     )
-    return {"x": grid, "lower": lower, "upper": upper}
+    grid = diagram.prediction_values
+    lower, upper = _resample_bands(
+        y_pred,
+        recalibrated,
+        grid,
+        level,
+        n_resamples,
+        random_state,
+        resample_forecasts=True,
+    )
+    lower = _correct_boundary_plateaus(lower, grid, diagram.event_probabilities)
+    upper = _correct_boundary_plateaus(upper, grid, diagram.event_probabilities)
+    return {"prediction_values": grid, "lower": lower, "upper": upper}
 
 
-_CI_METHODS = ("bc", "bca", "basic", "percentile")
+_CI_METHODS = ("bca", "basic", "percentile")
+_BOOTSTRAP_BATCH_MEMORY = 8 * 1024**2
 
 
-def _bias_correction(draws: np.ndarray, observed: float) -> float:
-    r"""Estimate the median bias of the bootstrap distribution, on the z scale.
-
-    Args:
-        draws: Bootstrap draws of the statistic.
-        observed: The statistic on the observed data.
-
-    Returns:
-        float: ``z0 = Phi^-1(fraction of draws below the observed value)``.
-            Zero when the bootstrap distribution is centered on the estimate;
-            strongly negative when the draws sit above it, which is the case
-            this function exists for.
-
-    Notes:
-        Draws exactly equal to the estimate count as half, the usual tie correction
-        for a statistic with an atom at a boundary. Without it this degenerates on
-        precisely the data it matters most for: a floored estimator such as
-        :func:`~calibre.debiased_calibration_error` returns exactly zero on well over
-        half of well-calibrated samples, no resample can fall strictly below zero,
-        and the interval collapses to ``[0, 0]`` -- zero width, asserting certainty
-        rather than admitting ignorance.
-    """
-    below = float(np.mean(draws < observed) + 0.5 * np.mean(draws == observed))
-    # Clamp away from 0 and 1, where the normal quantile is infinite. A draw
-    # count of n_resamples cannot resolve tails finer than 1/(n_resamples + 1).
-    eps = 1.0 / (draws.size + 1)
-    below = min(max(below, eps), 1.0 - eps)
-    return float(norm.ppf(below))
+def _bootstrap_batch_size(n_observations: int, n_resamples: int) -> int:
+    """Bound SciPy's resampling and jackknife index matrices near 8 MiB."""
+    bytes_per_index_row = n_observations * np.dtype(np.intp).itemsize
+    return min(n_resamples, max(1, _BOOTSTRAP_BATCH_MEMORY // bytes_per_index_row))
 
 
-def _acceleration(
+def _finite_metric_value(
     metric: Callable[[np.ndarray, np.ndarray], float],
     y_true: np.ndarray,
     y_pred: np.ndarray,
 ) -> float:
-    """Estimate the acceleration constant by the jackknife.
-
-    Args:
-        metric: The statistic.
-        y_true: Ground truth values.
-        y_pred: Predicted probabilities.
-
-    Returns:
-        float: Efron's acceleration, from the skewness of the leave-one-out
-            values. Costs ``n`` evaluations of ``metric``, which is why
-            ``"bca"`` is offered rather than defaulted.
-    """
-    n = y_true.size
-    keep = np.ones(n, dtype=bool)
-    values = np.empty(n, dtype=float)
-    for i in range(n):
-        keep[i] = False
-        values[i] = float(metric(y_true[keep], y_pred[keep]))
-        keep[i] = True
-
-    centered = values.mean() - values
-    denominator = 6.0 * float(np.sum(centered**2)) ** 1.5
-    if denominator == 0.0:
-        return 0.0
-    return float(np.sum(centered**3) / denominator)
-
-
-def _interval(
-    draws: np.ndarray,
-    observed: float,
-    level: float,
-    method: str,
-    acceleration: float,
-) -> tuple[float, float]:
-    """Turn bootstrap draws into an interval by the requested method.
-
-    Args:
-        draws: Bootstrap draws.
-        observed: The statistic on the observed data.
-        level: Nominal coverage.
-        method: One of ``"percentile"``, ``"basic"``, ``"bc"``, ``"bca"``.
-        acceleration: Acceleration constant; ignored unless ``method="bca"``.
-
-    Returns:
-        tuple of float: ``(lower, upper)``.
-    """
-    tail = (1.0 - level) / 2.0
-    if method == "percentile":
-        lower, upper = np.quantile(draws, [tail, 1.0 - tail])
-        return float(lower), float(upper)
-
-    if method == "basic":
-        lower, upper = np.quantile(draws, [tail, 1.0 - tail])
-        return float(2.0 * observed - upper), float(2.0 * observed - lower)
-
-    z0 = _bias_correction(draws, observed)
-    a = acceleration if method == "bca" else 0.0
-    adjusted = []
-    for z in (norm.ppf(tail), norm.ppf(1.0 - tail)):
-        shifted = z0 + z
-        adjusted.append(norm.cdf(z0 + shifted / (1.0 - a * shifted)))
-    lower, upper = np.quantile(draws, np.clip(adjusted, 0.0, 1.0))
-    return float(lower), float(upper)
+    """Evaluate a metric and require a finite scalar result."""
+    result = np.asarray(metric(y_true, y_pred))
+    if result.ndim != 0:
+        raise ValueError("metric must return a finite scalar")
+    try:
+        value = float(result)
+    except (TypeError, ValueError) as error:
+        raise ValueError("metric must return a finite scalar") from error
+    if not np.isfinite(value):
+        raise ValueError("metric must return a finite scalar")
+    return value
 
 
 def bootstrap_ci(
     metric: Callable[[np.ndarray, np.ndarray], float],
     y_true: np.ndarray,
     y_pred: np.ndarray,
+    *,
     level: float = 0.95,
     n_resamples: int = 1000,
     random_state: int | None = 0,
-    method: str = "bc",
+    method: str = "bca",
 ) -> dict[str, Any]:
-    r"""Put a confidence interval on any calibration metric.
+    """Bootstrap an interval for a regular scalar evaluation metric.
 
-    Resamples observations with replacement, recomputes the metric on each
-    resample, and turns the resulting draws into an interval. Works with any
-    callable of ``(y_true, y_pred)``, so it covers the estimators in
-    :mod:`calibre.metrics` and anything you write yourself.
-
-    Calibration metrics are usually reported as bare numbers, which invites
-    reading a difference of 0.002 between two models as real. On a few thousand
-    observations the interval is often wider than that.
+    Observation pairs are sampled with replacement and passed to ``metric``.
+    Interval construction delegates to :func:`scipy.stats.bootstrap` with paired
+    resampling. BCa is the standard default; percentile and basic intervals are
+    also available.
 
     Args:
-        metric: Callable taking ``(y_true, y_pred)`` and returning a float.
-        y_true: Ground truth values.
-        y_pred: Predicted probabilities.
+        metric: Callable taking ``(y_true, y_pred)`` and returning a finite scalar.
+        y_true: Binary outcomes in ``{0, 1}``.
+        y_pred: Forecast probabilities in ``[0, 1]``.
         level: Nominal coverage in ``(0, 1)``. Defaults to 0.95.
         n_resamples: Number of bootstrap resamples. Defaults to 1000.
         random_state: Seed. Defaults to 0 so results are reproducible.
-        method: How to build the interval from the draws:
-
-            - ``"bc"`` (default) -- bias-corrected percentile. Shifts the
-              quantiles by how far the draws sit above the estimate. Costs
-              nothing extra and, being a percentile method, can never return
-              a bound outside the range of the statistic.
-            - ``"bca"`` -- adds Efron's acceleration for skewness. Costs ``n``
-              extra evaluations of ``metric`` for the jackknife, so it is
-              offered rather than defaulted.
-            - ``"basic"`` -- the reverse-percentile interval
-              ``2*theta - quantiles``. Corrects the bias but routinely returns
-              a **negative** lower bound for a non-negative statistic.
-            - ``"percentile"`` -- the raw quantiles. Documented, and wrong
-              here; see below.
+        method: ``"bca"`` (default), ``"basic"`` or ``"percentile"``.
 
     Returns:
         dict: ``estimate`` (the metric on the observed data), ``lower``,
-            ``upper``, ``level``, ``n_resamples``, ``method``, ``bias`` (the
-            bootstrap mean minus the estimate, so the distortion is visible
-            rather than hidden), and ``degenerate`` (whether the interval
-            collapsed to a point).
+            ``upper``, ``level``, ``n_resamples``, ``method`` and ``bias`` (the
+            bootstrap mean minus the estimate).
 
     Raises:
-        ValueError: If ``level`` is outside ``(0, 1)``, ``n_resamples`` is
-            below 2, the arrays disagree in length, or ``method`` is unknown.
+        ValueError: If the data, bootstrap arguments, method, or a metric result is
+            invalid.
+        TypeError: If ``metric`` is not callable.
+        RuntimeError: If the resampling distribution is degenerate or SciPy cannot
+            define finite endpoints.
+
+    Warnings:
+        Rows must be independent held-out evaluation units. Resample clusters or
+        time blocks instead when observations are dependent; this function does
+        not implement those designs.
+
+        Ordinary bootstrap intervals need a regular statistic. Calibration-error
+        metrics are non-smooth at perfect calibration, and percentile, basic and
+        BCa intervals need not attain nominal coverage there. Use this function for
+        regular quantities such as held-out mean proper scores, not as a test that
+        calibration error equals zero.
 
     Notes:
-        **Why the default is not the percentile interval.**
-
-        The bootstrap resamples from the empirical measure, so ``E[F*] = F``. What
-        happens to an estimator ``theta = g(F)`` is then decided entirely by the
-        shape of ``g``:
-
-        - ``g`` **linear** in ``F`` -- a plain mean, such as the Brier score --
-          gives ``E[g(F*)] = g(F)`` exactly, by Jensen with equality.
-        - ``g`` **convex** in ``F`` gives ``E[g(F*)] >= g(F)``, strictly. Every
-          calibration error is convex: each bin's contribution is an absolute value
-          of a linear functional of ``F``, and norms of those stay convex.
-
-        The size of the gap is set by curvature at ``F``, which is unbounded at the
-        kink ``||delta|| = 0`` and negligible far from it. **So the distortion is
-        worst exactly when the model is well calibrated** -- the case the user most
-        wants an honest answer for. Measured (see
-        ``experiments/bootstrap_bias/investigate.py``), bootstrap mean over observed:
-
-        ========================  ================  ==================
-        statistic                 calibrated data   miscalibrated data
-        ========================  ================  ==================
-        Brier score (linear)      1.00x             1.00x
-        plugin ECE (convex)       1.42x             1.01x
-        smECE                     1.33x             1.04x
-        ``MCB``                   1.52x             1.09x
-        ========================  ================  ==================
-
-        The plugin figure of 1.42 is the predicted ``sqrt(2)``: the observed value is
-        ``||delta||`` for sampling noise ``delta``, while the resample gives
-        ``||delta + eps||`` with ``eps`` of comparable variance, doubling the
-        variance inside the norm. The effect **does not shrink with sample size** --
-        measured at 1.43, 1.44, 1.44, 1.42 for ``n`` of 250, 1000, 4000 and 16000 --
-        because both terms scale as ``1/sqrt(n)``. More data will not save you; a
-        better interval will.
-
-        Coverage of a true calibration error of exactly zero, at a nominal 95%,
-        using :func:`~calibre.debiased_calibration_error` (whose estimand really is
-        the true error):
-
-        ==============  ========
-        method          coverage
-        ==============  ========
-        ``percentile``  77%
-        ``basic``       98%
-        ``bc``          **95%**
-        ==============  ========
-
-        Hence the default, which is also **3.6 times tighter**: mean width 0.017
-        against the percentile interval's 0.063. ``basic`` over-covers at 98% and
-        returns negative lower bounds for a non-negative quantity.
-
-        **One caveat on the default.** ``bc`` reads the bias off how many draws fall
-        below the estimate, so it degenerates when the statistic has an atom at the
-        estimate. :func:`~calibre.debiased_calibration_error` floors at zero and
-        returns exactly zero on 59% of well-calibrated samples, and in 30% of those
-        the interval collapses to ``[0, 0]``; the returned ``degenerate`` flag says
-        when that happened. No such collapse occurs for the plugin error, smECE, the
-        Brier score or ``MCB``, none of which are censored. If you want an interval
-        that stays non-degenerate near zero, measure with
-        :func:`~calibre.smooth_calibration_error`, which never floors.
-
-        **A separate point about plugin estimators.** The uncorrected binned error is
-        biased, so its estimand is ``E[plugin] > 0`` rather than the true error. An
-        interval for it *correctly* excludes zero, and no choice of interval method
-        changes that. If you want an interval that can cover zero, measure with an
-        estimator that targets zero -- :func:`~calibre.debiased_calibration_error` or
-        :func:`~calibre.smooth_calibration_error`.
-
-        **``MCB`` and ``DSC`` carry an extra problem.** They are functionals of an
-        isotonic fit, and a resample leaves only about 63% of rows distinct
-        (measured: 0.630 against a theoretical 0.632), so PAV overfits the
-        duplicates. Their inflation tracks effective sample size rather than
-        convexity alone: subsampling without replacement gives ``MCB`` of 0.0155,
-        0.0088 and 0.0056 at ``m`` of 200, 500 and 1000 against 0.0036 observed at
-        ``n = 2000``. Prefer :func:`consistency_bands` or :func:`confidence_bands`
-        there, which resample *outcomes* rather than rows.
+        BCa follows Efron (1987), "Better Bootstrap Confidence Intervals". The
+        resampling and interval endpoints are computed by SciPy rather than a
+        package-local implementation.
 
     Examples:
         >>> import numpy as np
-        >>> from calibre.metrics import debiased_calibration_error
+        >>> from calibre.metrics import brier_score
         >>> rng = np.random.default_rng(0)
-        >>> p = rng.uniform(0, 1, 2000)
+        >>> p = rng.uniform(0, 1, 500)
         >>> y = rng.binomial(1, p).astype(float)
-        >>> ci = bootstrap_ci(debiased_calibration_error, y, p, n_resamples=200)
-
-        The data are calibrated by construction, so the interval should reach zero:
-
-        >>> bool(ci["lower"] <= 0.001)
-        True
-
-        The reported bias is how far the resampling pushed the statistic up:
-
-        >>> bool(ci["bias"] > 0.0)
-        True
-
-        A percentile interval on the same draws sits higher:
-
-        >>> percentile = bootstrap_ci(
-        ...     debiased_calibration_error, y, p, n_resamples=200, method="percentile"
-        ... )
-        >>> bool(percentile["lower"] >= ci["lower"])
+        >>> ci = bootstrap_ci(brier_score, y, p, n_resamples=200)
+        >>> bool(ci["lower"] <= ci["estimate"] <= ci["upper"])
         True
     """
+    if not callable(metric):
+        raise TypeError("metric must be callable")
     if method not in _CI_METHODS:
         raise ValueError(f"method must be one of {list(_CI_METHODS)}, got {method!r}")
-    _validate_band_args(level, n_resamples)
-    y_true, y_pred = check_arrays(y_true, y_pred)
+    _validate_band_args(level, n_resamples, random_state)
+    y_true, y_pred, _ = _validate_binary_probability_metric_inputs(y_true, y_pred, None)
+    if y_true.size < 2:
+        raise ValueError("y_true and y_pred must contain at least two observations")
 
-    n = y_true.size
-    rng = np.random.default_rng(random_state)
-    draws = np.empty(n_resamples, dtype=float)
-    for i in range(n_resamples):
-        index = rng.integers(0, n, size=n)
-        draws[i] = float(metric(y_true[index], y_pred[index]))
+    def statistic(true: np.ndarray, pred: np.ndarray) -> float:
+        return _finite_metric_value(metric, true, pred)
 
-    observed = float(metric(y_true, y_pred))
-    acceleration = _acceleration(metric, y_true, y_pred) if method == "bca" else 0.0
-    lower, upper = _interval(draws, observed, level, method, acceleration)
+    observed = statistic(y_true, y_pred)
+    indices = np.arange(y_true.size)
+
+    def indexed_statistic(row_indices: np.ndarray) -> float:
+        selected = np.asarray(row_indices, dtype=np.intp)
+        return statistic(y_true[selected], y_pred[selected])
+
+    random_generator = np.random.default_rng(random_state)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=DegenerateDataWarning)
+        warnings.filterwarnings(
+            "ignore",
+            message="invalid value encountered in scalar divide",
+            category=RuntimeWarning,
+            module=r"scipy\.stats\._resampling",
+        )
+        result = scipy_bootstrap(
+            (indices,),
+            indexed_statistic,
+            vectorized=False,
+            confidence_level=level,
+            n_resamples=n_resamples,
+            batch=_bootstrap_batch_size(y_true.size, n_resamples),
+            method=method,
+            rng=random_generator,
+        )
+    draws = np.asarray(result.bootstrap_distribution, dtype=float)
+    if np.all(draws == draws[0]):
+        raise RuntimeError(
+            "bootstrap distribution is degenerate; uncertainty cannot be estimated"
+        )
+    lower = float(result.confidence_interval.low)
+    upper = float(result.confidence_interval.high)
+    if not np.isfinite(lower) or not np.isfinite(upper):
+        raise RuntimeError("bootstrap interval is undefined for this metric and sample")
 
     return {
         "estimate": observed,
@@ -800,10 +799,4 @@ def bootstrap_ci(
         "n_resamples": int(n_resamples),
         "method": method,
         "bias": float(draws.mean() - observed),
-        # True when the interval has collapsed to a point, which happens when a
-        # censored statistic sits on its boundary and most resamples do too. The
-        # reading is "no detectable miscalibration at this resolution", but a
-        # zero-width interval should never pass for a measurement without being
-        # named as one.
-        "degenerate": bool(upper - lower < 1e-12),
     }

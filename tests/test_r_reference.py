@@ -524,8 +524,8 @@ def test_corp_cep_matches_reliabilitydiag(name):
     x = np.asarray(case["x"], dtype=float)
     y = np.asarray(case["y"], dtype=float)
 
-    diagram = corp_reliability(x, y)
-    ours = np.interp(x, diagram.x, diagram.cep)
+    diagram = corp_reliability(y, x)
+    ours = np.interp(x, diagram.prediction_values, diagram.event_probabilities)
 
     np.testing.assert_allclose(
         ours, np.asarray(case["cep_pav"], dtype=float), atol=1e-12
@@ -549,13 +549,13 @@ def test_corp_brier_decomposition_matches_reliabilitydiag(name):
     y = np.asarray(case["y"], dtype=float)
     reference = case["brier"]
 
-    ours = score_decomposition(x, y, score="brier")
+    ours = score_decomposition(y, x, score="brier")
 
     for ours_key, r_key in (
         ("mean_score", "mean_score"),
-        ("MCB", "miscalibration"),
-        ("DSC", "discrimination"),
-        ("UNC", "uncertainty"),
+        ("miscalibration", "miscalibration"),
+        ("discrimination", "discrimination"),
+        ("uncertainty", "uncertainty"),
     ):
         assert ours[ours_key] == pytest.approx(_scalar(reference[r_key]), abs=1e-12), (
             f"{name}: {ours_key} differs from reliabilitydiag"

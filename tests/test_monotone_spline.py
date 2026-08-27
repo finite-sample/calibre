@@ -33,10 +33,26 @@ ALL_CALIBRATORS = [
     "RelaxedPAVACalibrator",
 ]
 
-# NearlyIsotonicCalibrator is deliberately absent: it penalises monotonicity
-# violations rather than forbidding them, so a violation there is the estimator
-# working, not failing.
-MONOTONE_CALIBRATORS = [c for c in ALL_CALIBRATORS if c != "NearlyIsotonicCalibrator"]
+# Nearly-isotonic penalises monotonicity violations, while CDI-ISO permits bounded
+# decreases away from operating thresholds. A violation in either estimator can
+# therefore be the documented constraint working rather than a regression.
+MONOTONE_CALIBRATORS = [
+    c
+    for c in ALL_CALIBRATORS
+    if c not in {"CDIIsotonicCalibrator", "NearlyIsotonicCalibrator"}
+]
+
+
+def _make_calibrator(cls_name, **kwargs):
+    """Construct a public calibrator, supplying required domain parameters."""
+    import calibre
+
+    cls = getattr(calibre, cls_name)
+    if cls_name == "CDIIsotonicCalibrator":
+        kwargs.setdefault("thresholds", [0.5])
+    if cls_name == "RelaxedPAVACalibrator":
+        kwargs.setdefault("min_increment", 0.0)
+    return cls(**kwargs)
 
 
 def _dataset(seed: int, n: int = 500, shape: str = "logistic"):
@@ -595,12 +611,9 @@ def test_fit_does_not_mutate_constructor_params(cls_name):
     Fitting must not rewrite constructor arguments, or a cloned estimator will
     not match the one it was cloned from.
     """
-    import calibre
-
-    cls = getattr(calibre, cls_name)
     x, y = _dataset(13, n=300)
 
-    cal = cls()
+    cal = _make_calibrator(cls_name)
     before = dict(cal.get_params())
     cal.fit(x, y)
     assert _same_params(before, cal.get_params())
@@ -615,20 +628,17 @@ def test_fit_does_not_mutate_out_of_range_params(cls_name):
     """
     from sklearn.base import clone
 
-    import calibre
-
-    cls = getattr(calibre, cls_name)
     x, y = _dataset(15, n=300)
 
     # Only some calibrators take these; the rest exercise the default path.
     kwargs = {}
-    params = cls().get_params()
+    params = _make_calibrator(cls_name).get_params()
     if "poly_order" in params:
         kwargs["poly_order"] = 0
     if "min_window" in params:
         kwargs["min_window"] = 1
 
-    cal = cls(**kwargs)
+    cal = _make_calibrator(cls_name, **kwargs)
     before = dict(cal.get_params())
     cal.fit(x, y)
     assert _same_params(before, cal.get_params())
@@ -842,12 +852,9 @@ def test_monotone_under_tied_scores(cls_name, decimals):
     Zero violations, not a tolerance: every calibrator here is monotone by
     construction.
     """
-    import calibre
-
-    cls = getattr(calibre, cls_name)
     x, y = _tied_dataset(seed=7, decimals=decimals)
 
-    cal = cls().fit(x, y)
+    cal = _make_calibrator(cls_name).fit(x, y)
     grid = np.linspace(0.0, 1.0, 4000)
     diffs = np.diff(cal.transform(grid))
 
@@ -864,7 +871,11 @@ def test_monotone_under_tied_scores(cls_name, decimals):
     # KFold assigns folds by row position, so shuffling legitimately changes
     # which candidate wins. That is CV behavior, not tie handling.
     # Automatic spline selection depends on the CV row partition.
-    [c for c in MONOTONE_CALIBRATORS if c != "SplineCalibrator"],
+    [
+        c
+        for c in ALL_CALIBRATORS
+        if c not in {"NearlyIsotonicCalibrator", "SplineCalibrator"}
+    ],
 )
 def test_ties_do_not_depend_on_input_order(cls_name):
     """Shuffling the training rows must not change the fit.
@@ -873,16 +884,13 @@ def test_ties_do_not_depend_on_input_order(cls_name):
     survived the sort, which makes the result depend on row order. Pooling ties
     first removes that dependence.
     """
-    import calibre
-
-    cls = getattr(calibre, cls_name)
     x, y = _tied_dataset(seed=11)
 
     grid = np.linspace(0.0, 1.0, 500)
-    first = cls().fit(x, y).transform(grid)
+    first = _make_calibrator(cls_name).fit(x, y).transform(grid)
 
     rng = np.random.default_rng(3)
     perm = rng.permutation(len(x))
-    second = cls().fit(x[perm], y[perm]).transform(grid)
+    second = _make_calibrator(cls_name).fit(x[perm], y[perm]).transform(grid)
 
     np.testing.assert_allclose(first, second, atol=1e-9)

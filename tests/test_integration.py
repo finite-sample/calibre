@@ -76,7 +76,7 @@ class TestFullCalibrationWorkflow:
             },
             {
                 "class": RelaxedPAVACalibrator,
-                "kwargs": {"epsilon": 0.01},
+                "kwargs": {"min_increment": -0.01},
                 "name": "relaxed_pava",
             },
             {
@@ -115,9 +115,11 @@ class TestFullCalibrationWorkflow:
         elif name == "spline":
             # Check correlation preservation
             corr_metrics = correlation_metrics(
-                data["y_test"], y_calib, y_orig=data["y_proba_test"]
+                data["y_test"],
+                y_calib,
+                original_predictions=data["y_proba_test"],
             )
-            assert corr_metrics["spearman_corr_to_y_orig"] > 0.5
+            assert corr_metrics["spearman_corr_to_original_predictions"] > 0.5
 
         elif name == "spline_pinned":
             # Monotonicity is a hard constraint here, so nothing may go backwards.
@@ -131,7 +133,7 @@ class TestFullCalibrationWorkflow:
         elif name == "relaxed_pava":
             # This estimator deliberately permits decreases, so counting them is
             # not the test. What it guarantees is their *size*: no single decrease
-            # between adjacent unique scores may exceed epsilon. A rate-based
+            # between adjacent unique scores may exceed the permitted drop.
             # bound only ever passed here because the old percentile threshold
             # collapsed to zero on binary labels, making the estimator silently
             # equal to plain PAVA and hence trivially monotone.
@@ -139,11 +141,12 @@ class TestFullCalibrationWorkflow:
             # increment constraint lives. Measuring between arbitrary test scores
             # would be wrong: two neighbouring test scores can span many knot
             # intervals, and the permitted decreases accumulate across them.
-            epsilon = calibrator.get_params()["epsilon"]
+            min_increment = calibrator.get_params()["min_increment"]
             knots = calibrator.calibration_curve_.y
             worst_drop = float(np.max(np.maximum(0.0, -np.diff(knots))))
-            assert worst_drop <= epsilon + 1e-9, (
-                f"largest per-knot decrease {worst_drop:.6f} exceeds epsilon={epsilon}"
+            assert worst_drop <= -min_increment + 1e-9, (
+                "largest per-knot decrease "
+                f"{worst_drop:.6f} exceeds bound={min_increment}"
             )
 
 
@@ -157,7 +160,7 @@ class TestCalibratorComparison:
         calibrators = {
             "nearly_isotonic": NearlyIsotonicCalibrator(lam=0.5),
             "spline": SplineCalibrator(n_knots=10, degree=3, cv=3),
-            "relaxed_pava": RelaxedPAVACalibrator(epsilon=0.01),
+            "relaxed_pava": RelaxedPAVACalibrator(min_increment=-0.01),
             "spline_pinned": SplineCalibrator(alpha=0.1),
         }
 
@@ -191,7 +194,7 @@ class TestEdgeCasesAndRobustness:
         """Common set of calibrators for edge case testing."""
         return [
             NearlyIsotonicCalibrator(lam=0.5),
-            RelaxedPAVACalibrator(epsilon=0.01),
+            RelaxedPAVACalibrator(min_increment=-0.01),
             SplineCalibrator(alpha=0.1),
         ]
 
@@ -326,18 +329,8 @@ class TestSklearnCompatibility:
             ),
             (
                 RelaxedPAVACalibrator,
-                {"epsilon": -0.5},
-                r"epsilon must be finite and non-negative",
-            ),
-            (
-                RelaxedPAVACalibrator,
-                {"min_slope": -0.5},
-                r"min_slope must be non-negative",
-            ),
-            (
-                RelaxedPAVACalibrator,
-                {"epsilon": 0.1, "min_slope": 0.1},
-                r"opposite directions",
+                {"min_increment": np.inf},
+                r"min_increment must be finite",
             ),
             (
                 SplineCalibrator,
@@ -369,16 +362,16 @@ class TestErrorHandling:
     """Test error handling and input validation."""
 
     @pytest.mark.parametrize(
-        "calibrator_class",
+        "factory",
         [
             NearlyIsotonicCalibrator,
-            RelaxedPAVACalibrator,
+            lambda: RelaxedPAVACalibrator(min_increment=0.0),
             SplineCalibrator,
         ],
     )
-    def test_input_validation_errors(self, calibrator_class):
+    def test_input_validation_errors(self, factory):
         """Test various input validation scenarios."""
-        calibrator = calibrator_class()
+        calibrator = factory()
 
         # Test mismatched array lengths
         with pytest.raises(ValueError, match=r"(?i)must|length|shape|empty"):

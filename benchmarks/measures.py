@@ -26,7 +26,7 @@ COLUMNS: tuple[str, ...] = (
     "sweep_ece",
     "sweep_bins",
     "smece",
-    "smece_sigma",
+    "smece_bandwidth",
     "n_distinct",
     "distinct_ratio",
     "spearman_to_raw",
@@ -92,10 +92,10 @@ def evaluate(
     y_pred = np.asarray(y_pred, dtype=float)
     raw_scores = np.asarray(raw_scores, dtype=float)
 
-    brier = score_decomposition(y_pred, y_true, score="brier")
-    logs = score_decomposition(y_pred, y_true, score="log")
+    brier = score_decomposition(y_true, y_pred, score="brier")
+    logs = score_decomposition(y_true, y_pred, score="log")
     sweep, sweep_bins = sweep_calibration_error(y_true, y_pred, return_n_bins=True)
-    smece, sigma = smooth_calibration_error(y_true, y_pred, return_sigma=True)
+    smece, bandwidth = smooth_calibration_error(y_true, y_pred, return_bandwidth=True)
 
     n = y_true.size
     n_distinct = int(np.unique(np.round(y_pred, 6)).size)
@@ -110,18 +110,18 @@ def evaluate(
     return {
         "brier": brier_score(y_true, y_pred),
         "log_loss": _log_loss(y_true, y_pred),
-        "mcb": float(brier["MCB"]),
-        "dsc": float(brier["DSC"]),
-        "unc": float(brier["UNC"]),
-        "mcb_log": float(logs["MCB"]),
-        "dsc_log": float(logs["DSC"]),
-        "unc_log": float(logs["UNC"]),
-        "plugin_ece": plugin_calibration_error(y_true, y_pred, n_bins, 2),
-        "debiased_ece": debiased_calibration_error(y_true, y_pred, n_bins),
+        "mcb": float(brier["miscalibration"]),
+        "dsc": float(brier["discrimination"]),
+        "unc": float(brier["uncertainty"]),
+        "mcb_log": float(logs["miscalibration"]),
+        "dsc_log": float(logs["discrimination"]),
+        "unc_log": float(logs["uncertainty"]),
+        "plugin_ece": plugin_calibration_error(y_true, y_pred, n_bins=n_bins, norm=2),
+        "debiased_ece": debiased_calibration_error(y_true, y_pred, n_bins=n_bins),
         "sweep_ece": float(sweep),
         "sweep_bins": float(sweep_bins),
         "smece": float(smece),
-        "smece_sigma": float(sigma),
+        "smece_bandwidth": float(bandwidth),
         "n_distinct": float(n_distinct),
         "distinct_ratio": float(n_distinct / n) if n else float("nan"),
         "spearman_to_raw": _spearman(raw_scores, y_pred),

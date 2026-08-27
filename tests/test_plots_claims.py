@@ -100,7 +100,7 @@ def test_barcode_tick_count_equals_distinct_value_count(precision):
             CenteredIsotonicCalibrator().fit(scores, labels).transform(scores)
         ),
     }
-    ax = plot_resolution_loss(outputs, scores, precision=precision)
+    ax = plot_resolution_loss(outputs, input_scores=scores, precision=precision)
 
     for name, values in outputs.items():
         drawn = [a for a in artists(ax) if a.get_label() == f"_calibre:ticks:{name}"]
@@ -140,16 +140,16 @@ def test_decomposition_panels_carry_the_exact_components():
     rng = np.random.default_rng(0)
     x = rng.uniform(0, 1, 2000)
     y = rng.binomial(1, x).astype(float)
-    d = score_decomposition(x, y)
+    d = score_decomposition(y, x)
 
     fig = plot_score_decomposition(d)
     mcb_panel, dsc_panel, score_panel = fig.axes
 
     assert _bars(mcb_panel, "_calibre:mcb")[0].get_width() == pytest.approx(
-        d["MCB"], abs=1e-12
+        d["miscalibration"], abs=1e-12
     )
     assert _bars(dsc_panel, "_calibre:dsc")[0].get_width() == pytest.approx(
-        d["DSC"], abs=1e-12
+        d["discrimination"], abs=1e-12
     )
     assert _bars(score_panel, "_calibre:mean_score")[0].get_width() == pytest.approx(
         d["mean_score"], abs=1e-12
@@ -161,7 +161,7 @@ def test_decomposition_identity_holds_across_the_panels():
     rng = np.random.default_rng(3)
     x = rng.uniform(0, 1, 1500)
     y = rng.binomial(1, np.clip(x**1.3, 0, 1)).astype(float)
-    d = score_decomposition(x, y)
+    d = score_decomposition(y, x)
 
     fig = plot_score_decomposition(d)
     mcb_panel, dsc_panel, score_panel = fig.axes
@@ -169,7 +169,7 @@ def test_decomposition_identity_holds_across_the_panels():
     dsc = _bars(dsc_panel, "_calibre:dsc")[0].get_width()
     score = _bars(score_panel, "_calibre:mean_score")[0].get_width()
 
-    assert d["UNC"] + mcb - dsc == pytest.approx(score, abs=1e-12)
+    assert d["uncertainty"] + mcb - dsc == pytest.approx(score, abs=1e-12)
 
 
 def test_every_decomposition_panel_starts_at_zero():
@@ -181,7 +181,7 @@ def test_every_decomposition_panel_starts_at_zero():
     rng = np.random.default_rng(0)
     x = rng.uniform(0, 1, 1200)
     y = rng.binomial(1, x).astype(float)
-    fig = plot_score_decomposition(score_decomposition(x, y))
+    fig = plot_score_decomposition(score_decomposition(y, x))
     for panel in fig.axes:
         assert panel.get_xlim()[0] == 0.0
 
@@ -196,8 +196,10 @@ def test_mcb_is_visible_next_to_a_much_larger_dsc():
     rng = np.random.default_rng(0)
     x = rng.uniform(0, 1, 3000)
     y = rng.binomial(1, x).astype(float)
-    d = score_decomposition(x, y)
-    assert d["DSC"] > 20 * d["MCB"], "fixture no longer exercises the hard case"
+    d = score_decomposition(y, x)
+    assert d["discrimination"] > 20 * d["miscalibration"], (
+        "fixture no longer exercises the hard case"
+    )
 
     fig = plot_score_decomposition(d)
     mcb_panel = fig.axes[0]
@@ -212,8 +214,8 @@ def test_decomposition_draws_one_row_per_forecaster_in_every_panel():
     x = rng.uniform(0, 1, 1200)
     y = rng.binomial(1, x).astype(float)
     named = {
-        "honest": score_decomposition(x, y),
-        "squashed": score_decomposition(0.25 + 0.5 * x, y),
+        "honest": score_decomposition(y, x),
+        "squashed": score_decomposition(y, 0.25 + 0.5 * x),
     }
     fig = plot_score_decomposition(named)
     mcb_panel, dsc_panel, score_panel = fig.axes
@@ -232,9 +234,9 @@ def test_decomposition_reports_uncertainty_in_the_title():
     rng = np.random.default_rng(0)
     x = rng.uniform(0, 1, 1200)
     y = rng.binomial(1, x).astype(float)
-    d = score_decomposition(x, y)
+    d = score_decomposition(y, x)
     fig = plot_score_decomposition(d)
-    assert f"{d['UNC']:.4f}" in fig.get_suptitle()
+    assert f"{d['uncertainty']:.4f}" in fig.get_suptitle()
 
 
 def test_mcb_dsc_plane_places_each_method_at_its_components():
@@ -243,15 +245,17 @@ def test_mcb_dsc_plane_places_each_method_at_its_components():
     x = rng.uniform(0, 1, 1500)
     y = rng.binomial(1, x).astype(float)
     named = {
-        "honest": score_decomposition(x, y),
-        "squashed": score_decomposition(0.25 + 0.5 * x, y),
+        "honest": score_decomposition(y, x),
+        "squashed": score_decomposition(y, 0.25 + 0.5 * x),
     }
     ax = plot_mcb_dsc_plane(named)
     points = next(
         a for a in ax.collections if a.get_label() == "_calibre:methods"
     ).get_offsets()
 
-    expected = np.array([[named[n]["DSC"], named[n]["MCB"]] for n in named])
+    expected = np.array(
+        [[named[n]["discrimination"], named[n]["miscalibration"]] for n in named]
+    )
     np.testing.assert_allclose(np.asarray(points), expected)
 
 
@@ -302,11 +306,11 @@ def test_drawn_series_are_the_estimators_themselves(calibrated):
 
     np.testing.assert_allclose(
         lines["plugin (uncorrected)"],
-        [plugin_calibration_error(y, p, b, 2) for b in counts],
+        [plugin_calibration_error(y, p, n_bins=b, norm=2) for b in counts],
     )
     np.testing.assert_allclose(
         lines["debiased"],
-        [debiased_calibration_error(y, p, b) for b in counts],
+        [debiased_calibration_error(y, p, n_bins=b) for b in counts],
     )
 
 
@@ -338,10 +342,10 @@ def test_profile_bars_are_the_per_class_mcb():
     skewed = truth ** np.linspace(0.6, 2.4, 5)
     scores = skewed / skewed.sum(axis=1, keepdims=True)
 
-    profile = miscalibration_profile(scores, y)
+    profile = miscalibration_profile(y, scores)
     ax = plot_miscalibration_profile(profile)
     heights = [bar.get_height() for bar in _bars(ax, "_calibre:mcb")]
-    np.testing.assert_allclose(heights, profile["mcb"])
+    np.testing.assert_allclose(heights, profile["classwise_miscalibration"])
 
 
 def test_profile_highlights_the_worst_classes():
@@ -352,7 +356,7 @@ def test_profile_highlights_the_worst_classes():
     skewed = truth ** np.linspace(0.6, 2.4, 5)
     scores = skewed / skewed.sum(axis=1, keepdims=True)
 
-    profile = miscalibration_profile(scores, y)
+    profile = miscalibration_profile(y, scores)
     ax = plot_miscalibration_profile(profile, highlight_worst=2)
 
     accented = {
@@ -368,9 +372,9 @@ def test_profile_reports_the_spread_in_the_title():
     rng = np.random.default_rng(0)
     truth = rng.dirichlet(np.ones(4), size=1200)
     y = np.array([rng.choice(4, p=t) for t in truth])
-    profile = miscalibration_profile(truth, y)
+    profile = miscalibration_profile(y, truth)
     ax = plot_miscalibration_profile(profile)
-    assert f"{profile['spread']:.2f}" in ax.get_title()
+    assert f"{profile['relative_miscalibration_spread']:.2f}" in ax.get_title()
 
 
 def test_frontier_labels_never_land_on_a_marker():

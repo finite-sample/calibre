@@ -42,9 +42,9 @@ def _distinct_positions(values: np.ndarray, precision: int) -> np.ndarray:
 
 
 def plot_resolution_loss(
-    outputs: Mapping[str, np.ndarray],
-    x: np.ndarray | None = None,
+    calibrated_predictions: Mapping[str, np.ndarray],
     *,
+    input_scores: np.ndarray | None = None,
     ax: Axes | None = None,
     annotate_counts: bool = True,
     precision: int = 6,
@@ -62,10 +62,10 @@ def plot_resolution_loss(
     this package is built on, drawn rather than asserted, and it needs no legend.
 
     Args:
-        outputs: Mapping from method name to that method's calibrated outputs.
+        calibrated_predictions: Mapping from method name to calibrated predictions.
             Every array must be the same length, being the same observations
             calibrated different ways.
-        x: The input scores the outputs came from, used for the horizontal
+        input_scores: Scores the outputs came from, used for the horizontal
             axis. When omitted, rank position is used instead.
         ax: Axes to draw on. A new figure is created when omitted.
         annotate_counts: Whether to print the distinct-value count at the
@@ -77,8 +77,8 @@ def plot_resolution_loss(
         Axes: The axes drawn on.
 
     Raises:
-        ValueError: If ``outputs`` is empty, the arrays disagree in length, or
-            ``x`` does not match them.
+        ValueError: If ``calibrated_predictions`` is empty, the arrays disagree in
+            length, or ``input_scores`` does not match them.
 
     Examples:
         >>> import matplotlib
@@ -94,15 +94,18 @@ def plot_resolution_loss(
         ...     "centered": (
         ...         CenteredIsotonicCalibrator().fit(scores, labels).transform(scores)
         ...     ),
-        ... }, scores)
+        ... }, input_scores=scores)
         >>> ax.get_xlabel()
         'input score'
     """
     require_matplotlib()
-    if not outputs:
-        raise ValueError("outputs is empty; nothing to plot")
+    if not calibrated_predictions:
+        raise ValueError("calibrated_predictions is empty; nothing to plot")
 
-    arrays = {name: np.asarray(v, dtype=float).ravel() for name, v in outputs.items()}
+    arrays = {
+        name: np.asarray(values, dtype=float).ravel()
+        for name, values in calibrated_predictions.items()
+    }
     lengths = {v.size for v in arrays.values()}
     if len(lengths) > 1:
         raise ValueError(
@@ -110,14 +113,15 @@ def plot_resolution_loss(
         )
     n = lengths.pop()
 
-    if x is None:
+    if input_scores is None:
         axis_values = np.arange(n, dtype=float)
         xlabel = "rank position"
     else:
-        axis_values = np.asarray(x, dtype=float).ravel()
+        axis_values = np.asarray(input_scores, dtype=float).ravel()
         if axis_values.size != n:
             raise ValueError(
-                f"x has {axis_values.size} entries but the outputs have {n}"
+                f"input_scores has {axis_values.size} entries but the calibrated "
+                f"predictions have {n}"
             )
         xlabel = "input score"
 
@@ -184,7 +188,7 @@ def plot_resolution_frontier(
     results: Mapping[str, tuple[int, float]],
     *,
     ax: Axes | None = None,
-    errorbars: Mapping[str, tuple[float, float]] | None = None,
+    error_bars: Mapping[str, tuple[float, float]] | None = None,
     score_label: str = "held-out Brier score",
     highlight: Sequence[str] = (),
 ) -> Axes:
@@ -198,7 +202,7 @@ def plot_resolution_frontier(
     Args:
         results: Mapping from method name to ``(n_distinct, score)``.
         ax: Axes to draw on. A new figure is created when omitted.
-        errorbars: Optional mapping from method name to ``(low, high)``
+        error_bars: Optional mapping from method name to ``(low, high)``
             absolute score bounds, for instance a bootstrap interval.
         score_label: Label for the y-axis.
         highlight: Names to draw in the accent color.
@@ -302,8 +306,8 @@ def plot_resolution_frontier(
 
     for name, (n_distinct, score) in ordered:
         color = SEMANTIC["highlight"] if name in highlighted else SEMANTIC["calibre"]
-        if errorbars is not None and name in errorbars:
-            low, high = errorbars[name]
+        if error_bars is not None and name in error_bars:
+            low, high = error_bars[name]
             axes.plot(
                 [n_distinct, n_distinct],
                 [low, high],

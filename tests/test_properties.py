@@ -32,7 +32,7 @@ def core_calibrators():
     return {
         "nearly_isotonic": NearlyIsotonicCalibrator(lam=0.5),
         "spline": SplineCalibrator(n_knots=10, degree=3, cv=3),
-        "relaxed_pava": RelaxedPAVACalibrator(epsilon=0.02),
+        "relaxed_pava": RelaxedPAVACalibrator(min_increment=-0.02),
         "spline_pinned": SplineCalibrator(alpha=0.1),
     }
 
@@ -408,19 +408,19 @@ class TestParameterSensitivity:
                 "Lambda trend check failed"
             )
 
-        # Epsilon sensitivity for RelaxedPAVACalibrator. A larger tolerance means
+        # Bound sensitivity for RelaxedPAVACalibrator. A more negative bound means
         # less pooling, hence at least as many distinct calibrated values. No
         # try/except here: if the fit raises, that is the finding.
         y_pred2, y_true2 = data_generator.generate_dataset("multi_modal", n_samples=300)
-        epsilon_results = {}
-        for eps in [0.0, 0.05]:
-            calibrator = RelaxedPAVACalibrator(epsilon=eps)
+        increment_results = {}
+        for bound in [0.0, -0.05]:
+            calibrator = RelaxedPAVACalibrator(min_increment=bound)
             calibrator.fit(y_pred2, y_true2)
             y_calib = calibrator.transform(y_pred2)
-            epsilon_results[eps] = len(np.unique(np.round(y_calib, 6)))
+            increment_results[bound] = len(np.unique(np.round(y_calib, 6)))
 
-        assert epsilon_results[0.05] >= epsilon_results[0.0], (
-            f"a larger epsilon pooled more, not less: {epsilon_results}"
+        assert increment_results[-0.05] >= increment_results[0.0], (
+            f"a looser bound pooled more, not less: {increment_results}"
         )
 
 

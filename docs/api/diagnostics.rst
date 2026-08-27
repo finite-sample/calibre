@@ -37,10 +37,10 @@ Usage
 
    print(f"{report['n_plateaus']} plateaus")
    for plateau in report["plateaus"][:3]:
-       low, high = plateau["x_range"]
+       low, high = plateau["input_score_range"]
        print(
-           f"  [{low:.3f}, {high:.3f}] -> {plateau['value']:.3f} "
-           f"({plateau['n_samples']} samples, {plateau['sample_density']})"
+           f"  [{low:.3f}, {high:.3f}] -> {plateau['calibrated_value']:.3f} "
+           f"({plateau['n_observations']} observations, {plateau['support']})"
        )
 
 Plateaus flagged ``very_sparse`` rest on few observations.

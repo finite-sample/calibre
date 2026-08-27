@@ -11,6 +11,9 @@ without anyone noticing.
 
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -18,12 +21,34 @@ from benchmarks import (
     aggregate,
     config,
     datasets,
+    figures,
     measures,
     methods,
     models,
     protocol,
     run,
 )
+
+
+def test_decomposition_figure_accepts_committed_benchmark_schema(monkeypatch):
+    """The benchmark's compact column names must reach the public plotting API."""
+    summary = [
+        {
+            "dataset": "example",
+            "model": "identity",
+            "method": method,
+            "brier": brier,
+            "mcb": mcb,
+            "dsc": dsc,
+        }
+        for method, brier, mcb, dsc in (
+            ("uncalibrated", "0.20", "0.03", "0.08"),
+            ("calibre_isotonic", "0.18", "0.01", "0.07"),
+        )
+    ]
+    monkeypatch.setattr(figures, "_save", lambda figure, stem: None)
+
+    figures.decomposition(summary, "example", "identity")
 
 
 @pytest.mark.parametrize(
@@ -47,6 +72,16 @@ def test_the_quick_configuration_is_offline():
         assert name not in config.REMOTE_DATASETS, (
             f"{name} needs a network fetch but is in the quick set"
         )
+
+
+def test_committed_quick_artifact_uses_current_default_methods():
+    """A removed method must not survive in the reproducibility artifact."""
+    path = Path(__file__).resolve().parents[1] / "benchmarks/results/quick.csv"
+    with path.open() as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert {row["method"] for row in rows} == set(methods.available())
+    aggregate.check_completeness(rows, len(config.QUICK_SEEDS))
 
 
 def test_every_method_name_has_a_family():
