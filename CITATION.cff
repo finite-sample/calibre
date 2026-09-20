@@ -9,7 +9,6 @@ repository-code: "https://github.com/finite-sample/calibre"
 authors:
   - family-names: "Sood"
     given-names: "Gaurav"
-    email: "gsood07@gmail.com"
 license: MIT
 abstract: "A Python package for advanced probability calibration techniques in machine learning. Provides alternative calibration methods to traditional isotonic regression that better preserve probability granularity while maintaining monotonicity constraints."
 keywords:
