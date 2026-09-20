@@ -372,3 +372,12 @@ def test_probability_score_and_payoff_can_rank_candidates_differently():
         policies={key: DecisionPolicy(prediction=key) for key in predictions},
     )
     assert result.values["useful"] > result.values["accurate"]
+
+
+@pytest.mark.parametrize("missing", [None, float("nan")])
+def test_direct_selection_rejects_missing_validation_ids(missing):
+    from calibre import DecisionSelection
+
+    validation = report([0, 1], {"p": [0.2, 0.8]})
+    with pytest.raises(ValueError, match="case_ids cannot be missing"):
+        DecisionSelection("model", validation, frozenset([missing, "validation-1"]))

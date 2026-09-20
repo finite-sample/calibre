@@ -374,8 +374,8 @@ threshold policies and explicit act-all/none comparators.
 `evaluate_decision_policy` evaluates that frozen choice on disjoint test cases.
 The default paired bootstrap conditions on fitting and selection and assumes
 independent cases. These additions do not change `select_by_cv` or
-`calibration_report`. See the [complete four-sample example](https://github.com/finite-sample/calibre/blob/main/docs/examples/decision_example.py)
-and [decision evaluation guide](https://finite-sample.github.io/calibre/examples/decisions.html) for the data split,
+`calibration_report`. See the decision evaluation guide and its complete four-sample example in the
+[documentation](https://finite-sample.github.io/calibre/examples/index.html) for the data split,
 tie rules, capacity convention, and uncertainty assumptions.
 
 ### Put an interval on it

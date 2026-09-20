@@ -153,11 +153,13 @@ class DecisionSelection:
         Raises:
             ValueError: If the specification is invalid.
         """
-        object.__setattr__(self, "case_ids", frozenset(self.case_ids))
+        object.__setattr__(
+            self,
+            "case_ids",
+            _ids(tuple(self.case_ids), self.validation.n_observations),
+        )
         if self.selected not in self.validation.policies:
             raise ValueError("selected must name a validation policy")
-        if len(self.case_ids) != self.validation.n_observations:
-            raise ValueError("case_ids must match the validation sample")
 
 
 def _vector(value: ArrayLike, n: int | None = None) -> NDArray[np.float64]:
