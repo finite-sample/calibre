@@ -18,12 +18,15 @@ Calibrators fit on out-of-fold scores from ``cross_val_predict``, because a
 model's scores on its own training rows are already too good and a calibrator
 fitted there learns the wrong correction.
 
-Library defaults only. Tuning calibre's methods against an untuned isotonic
-baseline would settle the comparison by construction. One asymmetry is worth
-naming rather than hiding: :class:`~calibre.SplineCalibrator` chooses its penalty
-by internal cross-validation. That is a real advantage over a fixed competitor,
-and it is paid for in the fit time the benchmark also records. Relaxed PAVA is
-excluded because its increment bound is deliberately required.
+Calibrators run at library defaults. Both :class:`~calibre.SplineCalibrator` and
+:class:`~calibre.NearlyIsotonicCalibrator` select hyperparameters by internal
+cross-validation. Defaults therefore have different tuning costs, included in
+fit-and-transform time. Relaxed PAVA and CDI-ISO require application-specific
+inputs and are excluded from this grid.
+
+The logistic comparator fits scikit-learn logistic regression on log-odds; the
+temperature comparator optimizes a scalar log-temperature directly. These are
+not calls to ``CalibratedClassifierCV``.
 
 Everything that could be tuned to flatter calibre — datasets, seeds, model and
 calibrator settings, the baseline, which metrics are primary — lives in
@@ -48,12 +51,10 @@ Three things to read off it.
 around 1,500 distinct values instead of 49, at a Brier difference in the fourth
 decimal.
 
-**scikit-learn's parametric methods win this design outright.** Both score better
-than anything in calibre and land four times closer to the known truth. That is
-not an artifact: the distortion here *is* a pure temperature change, so a
-one-parameter model is exactly specified and a non-parametric one is paying for
-flexibility it does not need. This is a regime where calibre loses, and it is a
-real one.
+**The parametric comparators have the lowest mean Brier scores in this design.**
+Temperature scaling also estimates the known probabilities most accurately.
+Here the distortion is a pure temperature change, so the parametric family
+contains the inverse map. These results do not establish a general ranking.
 
 **smECE barely separates the methods**, because it is a calibration measure and
 resolution is not miscalibration. No single number settles this comparison, which
@@ -69,15 +70,16 @@ input range. The number of ticks *is* the number of distinct values.
    :alt: One tick per distinct calibrated value, one strip per calibrator
    :width: 100%
 
-The obvious objection is that the extra values might be noise. If they were, the
-methods keeping them would sit higher on the score axis:
+The score axis shows whether retaining more distinct values accompanies better
+held-out predictions in this design:
 
 .. image:: ../_static/bench/resolution_frontier.svg
    :alt: Held-out Brier score against distinct calibrated values retained
    :width: 100%
 
-They do not. The frontier is flat: two clusters more than a decade apart in
-resolution, at the same height.
+Centered isotonic and the spline retain more values with slightly lower mean
+Brier scores. This comparison does not identify the value of any particular
+extra distinction.
 
 Paired differences against the baseline
 ---------------------------------------
@@ -91,8 +93,9 @@ model fit and the split, leaving only the calibrator. The interval resamples
    :alt: Per-seed Brier improvement over sklearn_isotonic, with intervals
    :width: 100%
 
-An interval that spans zero is drawn spanning zero. Across the 70 non-baseline
-method-cells, 32 beat ``sklearn_isotonic`` with an interval clear of zero.
+An interval that spans zero is drawn spanning zero. These are descriptive
+intervals without adjustment for multiple comparisons. On the real dataset they
+summarize repeated-split variability, not uncertainty across independent datasets.
 
 Where calibre loses
 -------------------
@@ -104,7 +107,7 @@ benchmark.
   as above.
 - **``breast_cancer/logreg``** — *not calibrating at all* beats isotonic by 0.0013
   Brier, interval [0.0003, 0.0025], on 22 of 30 seeds. Logistic regression is
-  already close to calibrated there and the test half is only about 228 rows, so
+  already close to calibrated there and the test sample has about 228 rows, so
   pooling costs more than it buys.
 - **``NearlyIsotonicCalibrator``** at its defaults is close to plain isotonic on
   these designs — 52 distinct values against 49. Its resolution frontier is

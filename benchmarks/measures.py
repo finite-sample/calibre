@@ -100,8 +100,8 @@ def evaluate(
     n = y_true.size
     n_distinct = int(np.unique(np.round(y_pred, 6)).size)
 
-    # A calibrator is meant to be monotone, so AUC should be unchanged. Recording
-    # both makes any reordering visible instead of implicit.
+    # Strictly increasing maps preserve AUC; non-decreasing maps can introduce
+    # ties, and nearly-isotonic maps can reverse ranks. Record both AUCs.
     def safe_auc(scores: np.ndarray) -> float:
         if np.unique(y_true).size < 2:
             return float("nan")

@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-19
+
+### Added
+
+- Add decision evaluation alongside the existing calibrators and probability
+  diagnostics: explicit benefit/cost thresholds, integer or fractional-capacity
+  budgets, and exact expected payoffs for boundary tie lotteries.
+- Add validation-based selection of named policies and frozen test evaluation
+  with case-overlap checks and paired independent-case bootstrap intervals.
+  Capacity policies can retain the original score for tie-breaking.
+- Add an executable example separating model training, calibration, policy
+  selection, and testing. Existing fitting and proper-score selection APIs remain
+  unchanged; no new dependencies are required.
+
+### Changed
+
+- Clarify the assumptions and granularity limits of centered isotonic, spline,
+  nearly isotonic, and experimental CDI calibration without changing their fits.
+- Update the reproducible benchmark evidence and research manuscripts to
+  distinguish probability accuracy, retained distinctions, and decision payoff.
+
 ## [0.13.0] - 2026-08-27
 
 ### Changed
