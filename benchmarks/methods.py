@@ -5,10 +5,9 @@ against an untuned scikit-learn isotonic baseline would decide the comparison by
 construction rather than by measurement, so ``config.CALIBRATOR_DEFAULTS_ONLY``
 records the rule and this module keeps it.
 
-The one asymmetry worth naming: :class:`~calibre.SplineCalibrator` selects its
-penalty by internal cross-validation. That is a real advantage over a fixed-
-hyperparameter competitor, and it is paid for in the fit time this benchmark
-also records.
+Spline and nearly-isotonic calibrators select their hyperparameters by internal
+cross-validation. The benchmark records the time for that selection as part of
+fit-and-transform time; defaults do not imply equal tuning budgets.
 """
 
 from __future__ import annotations
@@ -127,9 +126,9 @@ def _sklearn_platt(
 ) -> np.ndarray:
     """Platt scaling: a logistic fit on the log-odds of the score.
 
-    Fitted on the logit rather than the raw probability, which is what
-    ``CalibratedClassifierCV(method="sigmoid")`` does internally and what makes
-    it a *scaling* rather than an arbitrary logistic regression.
+    This harness fits logistic regression to log-odds. It does not call
+    ``CalibratedClassifierCV(method="sigmoid")``, whose input is the base
+    estimator's decision function or predicted probability.
 
     Args:
         fit_scores: Out-of-fold model scores.

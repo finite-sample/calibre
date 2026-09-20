@@ -31,13 +31,11 @@ inspected on it. Calibrators fit on out-of-fold scores from `cross_val_predict`,
 because a model's scores on its own training rows are already too good and a
 calibrator fitted there learns the wrong correction.
 
-**Library defaults only.** Tuning calibre's methods against an untuned isotonic
-baseline would settle the comparison by construction. One asymmetry is worth
-naming rather than hiding: `SplineCalibrator` chooses its penalty by internal
-cross-validation. That is a real advantage over a fixed competitor, and it is
-paid for in the fit time the benchmark also records. `RelaxedPAVACalibrator` is
-excluded because its increment bound is deliberately required; pinning one here
-would violate the defaults-only rule.
+**Library defaults only.** Both spline and nearly-isotonic defaults include
+internal cross-validation. That tuning cost is included in fit-and-transform
+time. Relaxed PAVA and CDI-ISO require application-specific inputs and are
+excluded. The logistic and temperature comparators are the harness's log-odds
+regression and scalar optimization, not calls to `CalibratedClassifierCV`.
 
 **Paired differences, not means of levels.** Seed variance dwarfs the effect being
 measured, so `paired.csv` differences each method against the baseline *within*
@@ -78,7 +76,7 @@ Thirty seeds, held out, `overconfident` (logit inflated by 1.8):
 
 Two things to read off it. Centered isotonic and the spline match or beat isotonic's
 score while keeping around thirty times the distinct values. And **on this design
-scikit-learn's temperature scaling is four times more accurate against the known
+the harness's temperature scaling is four times more accurate against the known
 truth than calibre's best method** — because the distortion here *is* a pure
 temperature change, so a one-parameter model is exactly specified. That is a regime
 where calibre loses, and it is a real one.
@@ -92,11 +90,11 @@ bootstrap interval clear of zero. The honest details: `sklearn_platt` and
 `sklearn_temperature` are among the winners, and **`uncalibrated` beats the
 baseline in one cell**: `breast_cancer/logreg`, by 0.00129 Brier with an interval
 of [0.0003, 0.0025] and 22 of 30 seeds. Logistic regression is already close to
-calibrated there and the test half is only ~228 rows, so isotonic's pooling costs
+calibrated there and the test sample has ~228 rows, so isotonic's pooling costs
 more than it buys. Calibrating is not free, and the benchmark says so.
 
 Also visible: `NearlyIsotonicCalibrator` at its defaults is close to plain
-isotonic on these designs — 54 distinct values against 49 — so its defaults are
+isotonic on these designs — roughly as many distinct values as isotonic — so its defaults are
 not exercising what it exists for. That is documented on the class rather than
 papered over with a new default: its resolution frontier is dominated by CIR,
 which reaches more distinct values at a better score.
@@ -115,3 +113,15 @@ dependency: the moment it lags a Python release, a required import would make th
 whole harness un-runnable — which silently stops the benchmark being re-run, the
 failure this design exists to prevent. `aggregate.py` will not place a
 partially-present method in the headline table.
+
+## Manuscript
+
+`make paper` generates the manuscript's tables, inline numbers, and PDF figures
+from `results/raw.csv`, then compiles with `latexmk`. It does not rerun the grid.
+The manuscript exporter rejects duplicate rows and incomplete offline grids.
+`make paper-check` executes the paper example and numerical artifact tests.
+See [the manuscript instructions](../ms/README.md).
+
+Each run records versions, the source revision, and SHA-256 hashes of the source
+files and lockfile. Custom outputs place their environment record next to the CSV;
+a quick run does not overwrite the full grid's `environment.json`.

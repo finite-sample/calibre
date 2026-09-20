@@ -1,8 +1,8 @@
 """Monotone spline calibration.
 
-A smooth, strictly monotone calibration map is the shape post-hoc calibration
-benchmarks consistently favor: it corrects miscalibration without collapsing the
-base model's score ordering into a staircase the way isotonic regression does.
+The fitted map is non-decreasing and smooth within its score support. Flat
+regions remain possible when coefficients are zero; monotonicity alone does
+not guarantee strictly increasing predictions or improved held-out scores.
 
 Monotonicity here is structural rather than enforced afterwards. The design matrix
 is an I-spline basis, on which non-negative coefficients give a non-decreasing

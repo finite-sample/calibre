@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import platform
 import subprocess
@@ -84,6 +85,27 @@ def _environment() -> dict[str, Any]:
 
     import calibre
 
+    root = Path(__file__).resolve().parents[1]
+    sources = sorted(
+        [
+            *root.glob("calibre/**/*.py"),
+            *(
+                root / "benchmarks" / name
+                for name in (
+                    "__init__.py",
+                    "config.py",
+                    "datasets.py",
+                    "measures.py",
+                    "methods.py",
+                    "models.py",
+                    "protocol.py",
+                    "run.py",
+                )
+            ),
+            root / "pyproject.toml",
+            root / "uv.lock",
+        ]
+    )
     return {
         "calibre": calibre.__version__,
         "numpy": np.__version__,
@@ -92,6 +114,12 @@ def _environment() -> dict[str, Any]:
         "python": platform.python_version(),
         "platform": platform.platform(),
         "git_sha": _git_sha(),
+        "source_sha256": {
+            path.relative_to(root).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in sources
+        },
         "netcal_available": methods.netcal_available(),
     }
 
@@ -149,6 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--n-jobs", type=int, default=1, help="parallel workers")
     parser.add_argument("--out", type=Path, default=None, help="output CSV")
     args = parser.parse_args(argv)
+    environment = _environment()
 
     method_names = methods.available(
         include_netcal=args.include_netcal, include_slow=args.include_slow
@@ -182,7 +211,6 @@ def main(argv: list[str] | None = None) -> int:
     # reshuffled file.
     rows.sort(key=lambda r: (r["dataset"], r["model"], r["seed"], r["method"]))
 
-    environment = _environment()
     RESULTS.mkdir(exist_ok=True)
     out = args.out or (RESULTS / ("quick.csv" if args.quick else "raw.csv"))
     with out.open("w", newline="") as handle:
@@ -190,7 +218,10 @@ def main(argv: list[str] | None = None) -> int:
         writer.writeheader()
         writer.writerows(rows)
 
-    (RESULTS / "environment.json").write_text(f"{json.dumps(environment, indent=1)}\n")
+    environment_path = out.parent / (
+        "environment.json" if out.name == "raw.csv" else f"{out.stem}.environment.json"
+    )
+    environment_path.write_text(f"{json.dumps(environment, indent=1)}\n")
     print(f"wrote {out} ({len(rows)} rows)")
     return 0
 

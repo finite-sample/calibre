@@ -54,7 +54,7 @@ class CDIIsotonicCalibrator(BaseCalibrator):
     uncertainty. Away from those thresholds, :math:`\epsilon_i` permits a bounded
     decrease. A cumulative shift reduces the problem exactly to weighted PAVA.
 
-    This is the estimator defined in Sood (2025). It is research-grade: there is
+    The repository manuscript documents this experimental construction. There is
     no independent reference implementation or evidence for universal defaults.
     Choose ``bandwidth``, ``alpha``, and ``gamma`` using validation data that was
     not used to fit the final calibration map, and compare proper scores as well
@@ -112,8 +112,9 @@ class CDIIsotonicCalibrator(BaseCalibrator):
         True
 
     References:
-        Sood, G. (2025). *Calibration Where It Counts: Cost- and Data-Informed
-        Isotonic Regression*. https://gsood.com/research/papers/calibre.pdf
+        Sood, G. *Calibre: Probability Calibration and Evaluation in Python*.
+        Repository manuscript, appendix on experimental CDI-ISO.
+        https://github.com/finite-sample/calibre/blob/main/ms/calibre.tex
 
         Kish, L. (1965). *Survey Sampling*. John Wiley & Sons.
 

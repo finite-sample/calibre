@@ -99,6 +99,13 @@ def test_public_namespace_is_fully_accounted_for():
         "CDIIsotonicCalibrator",
         "CalibrationReport",
         "CenteredIsotonicCalibrator",
+        "DecisionPolicy",
+        "DecisionReport",
+        "DecisionSelection",
+        "DecisionTask",
+        "decision_report",
+        "select_decision_policy",
+        "evaluate_decision_policy",
         "IsotonicCalibrator",
         "MonotonicMixin",
         "NearlyIsotonicCalibrator",
@@ -645,3 +652,41 @@ def test_multiclass_apis_agree_and_temperature_scaling_recovers_global_distortio
     assert classwise_ece(outcomes, truth, n_bins=10) < classwise_ece(
         outcomes, reported, n_bins=10
     )
+
+
+def test_decision_workflow_values_calibrated_distinctions(exact_binary_calibration):
+    probabilities, outcomes = exact_binary_calibration
+    predictions = {"granular": probabilities, "pooled": np.full(500, 0.5)}
+    policies = {name: calibre.DecisionPolicy(prediction=name) for name in predictions}
+    task = calibre.DecisionTask(cost=0.6)
+    fixed = calibre.decision_report(
+        outcomes,
+        predictions,
+        task=task,
+        policies=policies,
+        reference="pooled",
+        n_resamples=0,
+    )
+    assert isinstance(fixed, calibre.DecisionReport)
+    assert fixed.values["granular"] == pytest.approx(0.08)
+    assert fixed.values["pooled"] == 0
+    assert fixed.action_rates["granular"] == 0.4
+    selected = calibre.select_decision_policy(
+        outcomes,
+        predictions,
+        task=task,
+        policies=policies,
+        reference="pooled",
+        case_ids=range(500),
+    )
+    assert isinstance(selected, calibre.DecisionSelection)
+    assert selected.selected == "granular"
+    # A separate cohort with the same known event frequencies.
+    evaluated = calibre.evaluate_decision_policy(
+        selected,
+        outcomes[::-1],
+        {name: values[::-1] for name, values in predictions.items()},
+        case_ids=range(500, 1000),
+        n_resamples=0,
+    )
+    assert evaluated.differences[selected.selected] == pytest.approx(0.08)

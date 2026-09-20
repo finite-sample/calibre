@@ -1,0 +1,91 @@
+\section{When replacement preserves a decision}
+\label{sec:replacement}
+Hold the calibration data and fitted map fixed. A fresh case has score $S$, binary state $Y$, and risk $p=P(Y=1\mid S)$. The probability-valued report is $Q=g(S)\in[0,1]$ and $r=E[p\mid Q]$. All statements below concern this conditional evaluation population. They compare signals under a known population law; they do not presume that a deployed user knows that law. Actions do not change $Y$.
+
+A decision maker chooses $a\in\{0,1\}$ with payoff $a(Y-t)$ for a known cost ratio $t\in[0,1]$. Let $V_t(S)=E[(p-t)_+]$ and $V_t(Q)=E[(r-t)_+]$ be optimal expected payoffs using each signal. The rule that treats the reported probability literally has payoff $U_t(Q)=E[(p-t)\mathbf1\{Q>t\}]$. Thus
+\[
+V_t(S)-U_t(Q)
+=\underbrace{V_t(S)-V_t(Q)}_{D(t):\ \text{replacement loss}}
++\underbrace{V_t(Q)-U_t(Q)}_{\text{loss from using the reported level}}.
+\]
+Both terms are nonnegative. This is a specialization of the value-of-information comparison, not a new decomposition principle \citep{blackwell1953,tasche,guo2026information}. The distinction between available information and its use also determines what a normative benchmark can establish \citep{hullman2025experiments}.
+
+\subsection{A single threshold}
+\textbf{Proposition 1 (crossing the decision boundary).} Define
+\[
+A_t(Q)=E[(p-t)_+\mid Q],\qquad B_t(Q)=E[(t-p)_+\mid Q].
+\]
+Then $D(t)=E[\min\{A_t(Q),B_t(Q)\}]$. In particular, $D(t)=0$ if and only if, for almost every report, its conditional risks do not put positive probability strictly on both sides of $t$.
+
+\emph{Proof.} Since $r-t=A_t-B_t$, the conditional payoff difference is
+$A_t-(A_t-B_t)_+=\min(A_t,B_t)$. Its expectation vanishes precisely when the nonnegative minimum vanishes almost surely. The two conditional expectations are positive precisely when $P(p>t\mid Q)>0$ and $P(p<t\mid Q)>0$, respectively. Risks exactly at $t$ are indifferent and do not create loss. \hfill$\square$
+
+This condition concerns actions, not the number of distinct probabilities. In the opening two-group example, pooling costs nothing when the cost is below both risks or above both risks. It costs value between them. A constant-risk population loses nothing under any pooling. Under arbitrary finite action sets, the same reasoning becomes a common-action condition: in a finite population, each positive-mass report group must admit an action optimal for every score type in that group. This follows because the expected nonnegative regret of a common action is zero exactly when its regret is zero at each positive-mass type.
+
+\clearpage
+\subsection{A range of decisions and direct use of probabilities}
+\textbf{Proposition 2 (replacement over a threshold range).} On a finite score population with positive type weights, let $m_q$ and $M_q$ be the smallest and largest risks assigned report $q$. For any specified threshold set $T\subseteq[0,1]$, replacement preserves optimal payoff at every $t\in T$ if and only if
+\[
+(m_q,M_q)\cap T=\varnothing\qquad\text{for every report group }q.
+\]
+For all thresholds in $[0,1]$, replacement is lossless if and only if $p=r$ almost surely. This last equivalence also holds for general score distributions.
+
+\emph{Proof.} In a finite group, both strict sides of $t$ carry positive mass exactly when $m_q<t<M_q$. Apply Proposition 1. For the general all-threshold statement, the identity $2\int_0^1D(t)dt=E[(p-r)^2]$ proves necessity, and $p=r$ proves sufficiency. \hfill$\square$
+
+An average requires a declared distribution of decisions. For a probability measure $W$ on thresholds, define $\int D(t)\,dW(t)$. This is zero exactly when replacement is lossless for $W$-almost every threshold. Since $D(t)$ is continuous, zero average also implies zero loss throughout the support of $W$, including its non-atomic thresholds. It need not establish safety outside that support. Uniform weighting recovers half the squared grouping loss; a different weighting describes a different economic comparison. Threshold mixtures and decision curves are established tools \citep{ehm,vickers2006}.
+
+\textbf{Proposition 3 (using $Q$ as a probability).} Relative to the original-score oracle, the rule $\mathbf1\{Q>t\}$ has regret
+\[
+R(t)=E\left[|p-t|\,\mathbf1\{\mathbf1\{Q>t\}\ne\mathbf1\{p>t\}\}\right].
+\]
+It is optimal at $t$ precisely when $P(p>t,Q\leq t)=P(p<t,Q>t)=0$. In particular, a report equal to $t$ declines the action and can be costly when $p>t$. It is optimal at every threshold if and only if $Q=p$ almost surely. By contrast, it is optimal among rules using only $Q$ at every threshold if and only if $Q=r$ almost surely.
+
+\emph{Proof.} Subtract the chosen payoff from $(p-t)_+$ separately for $p>t$ and $p\leq t$. Differences at $p=t$ have zero cost. Integrating gives $2\int R(t)dt=E[(p-Q)^2]$. Conditioning on $Q$ gives the same argument with $r$ in place of $p$, and integrated loss $E[(r-Q)^2]/2$. \hfill$\square$
+
+Calibration ($Q=r$) therefore makes the report directly usable relative to its own information. Replacing the score without loss requires $p=r$; combining both requirements gives $Q=p$. Hullman's discussion of calibration and additional information motivates making these benchmarks explicit \citep{hullman2024enough,hullman2025conformal}. Calibration decision loss measures improvement obtainable by recalibrating predictions over bounded decision problems \citep{hu2024decision}. Replacement loss instead asks what was discarded before that correction is possible. A constant calibrated report can have zero calibration decision loss and positive replacement loss.
+
+\clearpage
+\section{Retaining a score and being able to use it}
+\label{sec:recoverability}
+\subsection{Capacity allocation}
+\textbf{Proposition 4 (recovering the original allocation).} For a fixed batch of cases and a nondecreasing map $g$, sorting first by descending $Q=g(S)$ and then by descending $S$ produces the same order as sorting by descending $S$. Resolve any original-score ties by the same fixed rule in both procedures. The selected cases then agree at every capacity, including fractional selection at a boundary.
+
+\emph{Proof.} If $S_i>S_j$, monotonicity gives $Q_i\geq Q_j$. A strict report inequality orders the pair correctly; a report equality is resolved by $S_i>S_j$. If the original scores tie, the common tie rule applies. \hfill$\square$
+
+This is an allocation consequence of an established tie-handling strategy \citep{menon2012}. It establishes equality with the original ranking, not superiority to a risk oracle or even to random selection. For equal-value, equal-capacity cases, ranking by $S$ is optimal for every capacity when $p(S)$ is nondecreasing. A nonmonotone risk function can make restoring that order harmful. Variable benefits or resource requirements require a different allocation rule.
+
+\subsection{Available information versus recoverable payoff}
+Because $Q$ is a fixed function of $S$, the pair $(Q,S)$ has the same information about $Y$ as $S$. Hence $V_t(Q,S)=V_t(S)$. Publishing both preserves information relative to the score, but does not teach a user the unknown function $p(S)$. The fitted calibrator can help a user choose actions even though, conditional on the map, it adds no information to an oracle who already knows the population law.
+
+If $g$ is invertible and its inverse is available, any rule learned from scored examples can be transported to $Q$: decode the examples and the new report, then run the original procedure. It has exactly the same finite-sample payoff. This is a correspondence between procedures, not a claim that every fixed learner is invariant to a change of coordinates. An advantage found by giving the two encodings different hypothesis classes, training budgets, or access to the map must be attributed to those restrictions.
+
+For pooled reports, decoding is impossible without additional information. For rounded reports the relevant map is $S\mapsto\operatorname{round}(g(S))$, even if $g$ itself is invertible. For someone with extra context $Z$, the appropriate comparison is $V_t(S,Z)-V_t(Q,Z)$, using $P(Y=1\mid S,Z)$ and $P(Y=1\mid Q,Z)$. The present simulation has no $Z$ and cannot establish effects on expert decisions. The dependence of information value on available signals is explicit in \citet{guo2026information}; the difference between idealized and actual uses of prediction information is central to \citet{hullman2025conformal}.
+
+A subsequent recoverability study would have to fix the permitted learner, labeled data available to each report recipient, access to the calibration map, and reporting precision before comparing payoffs. Its baseline must include probability plus score. The current experiments evaluate literal threshold rules and specified ranking rules; they do not estimate how much additional data a user needs to learn to exploit a retained score.
+
+\clearpage
+\section{Contribution assessment}
+The established results above supply a precise test of the package's motivation: retained distinctions matter when they permit different useful actions. They do not establish a new theorem about calibration or information. Table~\ref{tab:precedent} records the status of the claims instead of treating their appearance in this note as evidence of novelty.
+
+\begin{table}[ht]
+\caption{Claims, precedents, and what this note establishes. ``Specialization'' means a derivation for the stated score-replacement problem, with no novelty claim.}
+\label{tab:precedent}
+\small\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{p{.23\linewidth}p{.34\linewidth}p{.34\linewidth}}
+\toprule Claim & Closest foundation & Status here\\\midrule
+Pooling reduces available decision value & Blackwell (1953); Tasche (2021) & Established; explicit signal comparison.\\
+Pooling matters at crossed thresholds & Jensen equality and grouping loss & Specialization: Propositions 1--2.\\
+Calibration supports literal use within its signal & Hu and Wu (2024); Hullman (2024) & Established; Proposition 3 separates two benchmarks.\\
+Original-score ties restore original ranks & Menon et al. (2012) & Established strategy; capacity consequence in Proposition 4.\\
+Value depends on information and its use & Hullman et al. (2025); Guo et al. (2026) & Established framing; no human behavior measured.\\
+Threshold curves compare useful decisions & Ehm et al. (2016); Vickers and Elkin (2006) & Established evaluation tools.\\
+Payoff recoverable from finite labeled data & Known-inverse equivalence; specified learner needed & Candidate research question; no new bound or estimator established.\\\bottomrule
+\end{tabular}
+\end{table}
+
+The theory-first assessment supports retaining this as a methods note. The controlled comparison is useful evidence about the package, but the propositions are consequences of existing theory and the original-score comparator is prior art. This literature review does not establish priority for a new result.
+
+A possible stronger contribution is a finite-sample characterization of when retaining the original score yields an exploitable payoff gain over a pooled report, after accounting for estimation error and reporting precision. That question remains unresolved here. A further study would need an explicit class of population risk functions and feasible learning procedures, plus a result not supplied by the precedents above. More method-by-design simulations alone would not meet that requirement.
+
+The simulations below were completed before this positioning review. They retain every design and method and illustrate where the established mechanisms appear. No new simulation grid, human experiment, or economic application has been run to support the revised framing.
+\clearpage

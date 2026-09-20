@@ -7,6 +7,7 @@ The documentation build executes every notebook and fails if a cell errors.
    :maxdepth: 1
 
    benchmarks
+   decisions
    ../notebooks/01_getting_started
    ../notebooks/02_validation_and_evaluation
    ../notebooks/03_diagnostics_and_troubleshooting

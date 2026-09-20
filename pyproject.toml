@@ -27,7 +27,7 @@ dependencies = [
     "scipy>=1.15.0",
     "scikit-learn>=1.6.0",
 ]
-version = "0.13.0"
+version = "0.14.0"
 
 [project.optional-dependencies]
 # Drawing only. calibre.plots imports matplotlib lazily, so the core package
@@ -143,6 +143,7 @@ convention = "google"
 # S101: the isotonic self-check is an assert on purpose -- it must abort the run.
 # S607: `git rev-parse` records provenance; resolving git's absolute path would
 # make the harness less portable, not more secure.
+"ms/example.py" = ["T201"]
 "benchmarks/**" = ["T201", "N803", "N806", "D401", "D400", "D403", "S101", "S607"]
 
 [tool.pytest.ini_options]

@@ -114,17 +114,17 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
         as permission for non-monotone structure: ``lam = 0`` returns the data
         untouched, ``lam -> inf`` returns the isotonic fit, and intermediate values
         give shorter plateaus than isotonic regression -- finer granularity -- in
-        exchange for bounded violations.
+        exchange for penalized violations.
 
         **This is not the calibrator to reach for if you only want granularity.**
         Because the objective fits one value per observation to the labels, a small
         ``lam`` approaches the raw outcomes and overfits. Increasing ``lam`` buys
-        proper-score performance back by pooling more values. In the committed
-        ``overconfident`` benchmark, the automatically selected fit retains 52
-        distinct values with a held-out Brier score of 0.1531; centered isotonic
-        regression retains 1,514 at 0.1527. Use nearly-isotonic regression when
-        bounded monotonicity violations are the feature you need. Use centered
-        isotonic regression or the spline calibrator when you need resolution.
+        proper-score performance back by pooling more values. The committed
+        benchmark reports this tradeoff against centered isotonic regression
+        using held-out proper scores and distinct-value counts. Use nearly-isotonic
+        regression when penalized monotonicity violations are the feature you need.
+        Use centered isotonic regression or the spline calibrator when you need
+        granularity.
 
         The objective, lambda scale, and modified PAVA path algorithm follow
         Tibshirani, Hoefling & Tibshirani (2011, *Technometrics* 53(1), 54-61).

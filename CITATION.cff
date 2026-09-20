@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 type: software
 title: "calibre: Probability Calibration that Preserves Granularity"
-version: 0.13.0
-date-released: 2026-08-27
+version: 0.14.0
+date-released: 2026-09-19
 url: "https://github.com/finite-sample/calibre"
 repository-code: "https://github.com/finite-sample/calibre"
 authors:

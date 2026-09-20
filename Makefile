@@ -1,4 +1,4 @@
-.PHONY: help install dev test lint format clean docs build ci-docker
+.PHONY: help install dev test lint format clean docs build ci-docker paper paper-check
 
 help:
 	@echo "Available commands:"
@@ -10,6 +10,11 @@ help:
 	@echo "  clean      Remove build artifacts and cache files"
 	@echo "  docs       Build documentation (warnings are errors, as in CI)"
 	@echo "  build      Build distribution packages"
+	@echo "  paper      Generate manuscript exhibits and compile the PDF"
+	@echo "  paper-check  Execute the manuscript example and artifact tests"
+	@echo "  granularity-run  Fit and evaluate the granularity simulation"
+	@echo "  granularity  Build its notebook, figures, and PDF note"
+	@echo "  granularity-check  Test decision identities and artifacts"
 	@echo "  ci-docker  Run the release checks in Python 3.12 on Linux"
 
 install:
@@ -55,6 +60,14 @@ docs:
 build: clean
 	uv build
 
+paper:
+	uv run python -m benchmarks.paper
+	latexmk -cd -pdf -interaction=nonstopmode -halt-on-error -Werror -outdir=build ms/calibre.tex
+
+paper-check:
+	uv run python ms/example.py
+	uv run pytest tests/test_paper.py tests/test_benchmarks.py
+
 ci-docker:
 	docker run --rm --pull=always \
 		--mount type=bind,source="$(CURDIR)",target=/workspace,readonly \
@@ -73,3 +86,16 @@ ci-docker:
 			uv run sphinx-build -W -b html docs /tmp/calibre-docs && \
 			uv build --out-dir /tmp/dist && \
 			uvx twine check /tmp/dist/*'
+
+.PHONY: granularity-run granularity granularity-check
+
+granularity-run:
+	OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 uv run python -m experiments.granularity.study --jobs 4
+
+granularity:
+	uv run python -m experiments.granularity.report
+	uv run jupyter execute experiments/granularity/granularity.ipynb --timeout=600 --output=build/granularity.ipynb
+	latexmk -cd -pdf -interaction=nonstopmode -halt-on-error -Werror -outdir=build experiments/granularity/note.tex
+
+granularity-check:
+	uv run pytest tests/test_granularity.py

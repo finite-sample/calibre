@@ -1,0 +1,253 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.85in]{geometry}
+\usepackage{amsmath,amssymb,graphicx,booktabs,longtable,array}
+\usepackage[round,authoryear]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{doi}
+\usepackage{microtype}
+\graphicspath{{build/}}
+\input{build/numbers.tex}
+\makeatletter\let\tableinput\@@input\makeatother
+\hypersetup{pdftitle={Choosing calibration for decisions},pdfauthor={Calibre research note}}
+\title{Choosing calibration for decisions}
+\author{Calibre research note}
+\date{}
+\begin{document}
+\maketitle
+\begin{abstract}
+Calibration is useful when a prediction must support an action whose value depends on the probability of an outcome. A calibration method can improve estimated probability levels while pooling distinctions useful for targeting, or preserve distinctions whose levels are poorly estimated. We evaluate these choices through two decision problems: taking actions at a known cost and allocating a fixed capacity. The relevant comparison includes the fitted calibrator, the information reported, and the rule used to act on it. Existing theory separates information lost through pooling from the loss incurred by treating estimated probabilities literally. Calibre's methods and a controlled simulation make these consequences comparable, including the option of retaining the original score. The contribution is an applied synthesis and reproducible evaluation, accompanied by a package workflow for payoff-based validation selection and independent test evaluation.
+\end{abstract}
+
+\section{The problem calibration is meant to solve}
+A model can rank cases usefully without telling a user whether acting on a case is worth its cost. Suppose an inspection costs $c$ and finding a defect yields benefit $b>0$. Let $Y$ indicate a defect that exists independently of inspection. Inspecting has payoff $bY-c$; not inspecting has payoff zero. A decision maker who knows the defect probability $p$ inspects when $bp>c$. Ordering cases by risk does not identify that boundary. The numerical probability matters.
+
+Calibration estimates the relationship between a model's score $S$ and the probability of the outcome. A user can then compare the reported probability $Q=g(S)$ with the cost ratio $t=c/b$. In benefit-normalized units the payoff is $a(Y-t)$, where $a$ indicates action. This normalization applies to the nontrivial range $0\leq c/b\leq1$; above it no inspection has positive expected payoff. We use this simple decision throughout, with costs and benefits known and common across cases. It is an illustration of a decision problem, not an empirical claim about inspection economics.
+
+A capacity constraint changes what the user needs. If exactly $k$ equal-sized inspections are available and each discovery has the same benefit, the user selects the $k$ largest risks. A correctly ordered score is enough for this allocation even if its levels are wrong. Monotone calibration cannot improve that ordering and may introduce ties. Retaining the original score for tie-breaking can recover the original allocation. Variable benefits, inspection requirements, or effects of action on the outcome would require a different model.
+
+The practical question is therefore which calibration and reporting procedure supports the decisions the user actually faces. Calibration error alone cannot answer it: reporting the population event rate for every case is calibrated but cannot target inspections. A ranking statistic alone cannot answer it either: any strictly increasing rescaling preserves the ranks but can move the cost-based action boundary. Decision theory requires specifying the payoff, information, and action rule together \citep{hullman2025experiments,hullman2024enough}.
+
+\clearpage
+\section{What the estimators assume and what they optimize}
+For a fixed underlying score, the probability of interest is $p(S)=P(Y=1\mid S)$. Post-hoc calibration estimates this function from labeled examples not used to fit the underlying predictor. There is no general guarantee that a finite-sample estimate is calibrated in a new population. Its usefulness depends on the relation being estimated, the data available, and how users act on the result.
+
+Isotonic regression restricts fitted probabilities to be nondecreasing in the score. At the observed scores it minimizes the weighted sum of squared residuals under this restriction. Pool-adjacent-violators merges neighboring groups when their empirical event rates violate the required order. The resulting plateaus are features of the constrained fit; they do not establish that the corresponding population risks are identical. Predictions between fitted knots additionally require an interpolation convention. Calibre's isotonic wrapper follows scikit-learn's linear interpolation and retains flat intervals.
+
+It would be misleading to assign isotonic regression a unique economic objective merely because it is implemented through squared error. For binary labels, its PAV fitted values simultaneously optimize regular binary proper scoring rules under the monotonicity restriction \citep{brummer2013}. That result concerns the fitting sample and constrained fitted values. It does not guarantee optimal out-of-sample decisions, nor does it choose the application's costs, capacity, or interpolation rule.
+
+Other estimators change the assumptions used to estimate $p(S)$. Centered isotonic places pooled estimates at their score centroids and interpolates between them \citep{oron2017centered}. It retains distinctions by assuming variation between anchors, and does not minimize the original isotonic squared-error criterion. Monotone splines impose a smooth functional form with a tuning penalty \citep{ramsay1988monotone}. Nearly isotonic penalizes decreases instead of forbidding them \citep{tibshirani2011nearly}. Logistic and temperature corrections impose lower-dimensional functional forms; temperature can perform well when its distortion model is appropriate \citep{guo2017}.
+
+These are estimation commitments, not preferences over economic outcomes. More flexible fits can follow genuine local risk variation but also sample noise. Pooling can stabilize estimates while suppressing useful variation. A fitted method that preserves many different numbers has not necessarily preserved useful risk differences. The package's proper-score tuning evaluates probability prediction; it does not currently select a procedure for a supplied economic payoff.
+
+Proper scores remain useful because they assess probability forecasts rather than calibration alone. For the normalized binary-action problem, expected Brier excess over the true-risk forecast is twice the average decision regret under uniform threshold weighting. Another distribution of costs gives another weighting of decisions \citep{ehm}. That interpretation makes the weighting explicit; it does not turn a generic proper-score default into the user's objective.
+
+\clearpage
+\section{Separate information lost from errors in its use}
+Hold the fitted map fixed and define $r=E[p(S)\mid Q]$. An oracle who knows the population law obtains expected payoff $V_t(S)=E[(p-t)_+]$ from the score and $V_t(Q)=E[(r-t)_+]$ from the report. A user who applies the reported probability literally obtains $U_t(Q)=E[(p-t)\mathbf1\{Q>t\}]$. The gap decomposes as
+\[
+V_t(S)-U_t(Q)
+=\underbrace{V_t(S)-V_t(Q)}_{\text{information lost through pooling}}
++\underbrace{V_t(Q)-U_t(Q)}_{\text{error from the reported probability level}}.
+\]
+Both terms are nonnegative. The first compares information sets; the second compares uses of the same information. These are applications of established information-value and grouping-loss ideas \citep{blackwell1953,tasche,guo2026information}.
+
+Pooling loses value at cost $t$ precisely when a report group assigns positive probability to risks strictly below and strictly above $t$. Variation entirely on one side does not change the optimal action. Calibration makes $Q$ usable relative to its own information when $Q=r$; preserving all score-based threshold decisions requires $p=r$. These are distinct conditions. The appendix gives proofs, including equality cases and restricted threshold ranges.
+
+\begin{figure}[ht]
+\centering\includegraphics[width=.94\linewidth]{mechanism.pdf}
+\caption{Distinctness is valuable only through decisions. Left: two equally common groups have risks $0.3\pm d$; squares mark their pooled forecast. Middle: exact optimal payoff lost through pooling, per 1,000 cases, as the cost varies. Right: a constant-risk population has 1,000 forecasts evenly spaced from 0.2 to 0.4; the artificial distinctions introduce probability error without useful risk information. There is no sampling uncertainty in these constructed examples.}
+\end{figure}
+
+Keeping $(Q,S)$ retains the information in $S$, but does not teach a user its unknown relationship to risk. Likewise, an invertible report is informationally equivalent to the score if decoding is available, even when literal thresholding performs poorly. An oracle benchmark measures the value potentially available; it is not evidence that a user can recover it from finite data. Additional context would require conditioning on that context in both benchmarks \citep{hullman2025conformal}.
+
+\clearpage
+\section{What the existing comparisons establish}
+The simulation uses five known risk functions, three calibration sample sizes, and 30 paired seeds. Each fitted map is evaluated over the full finite population of 1,000 equally weighted score types. This permits exact separation of grouping loss and miscalibration, which is not generally available from held-out binary labels alone. The design, pointwise uncertainty calculations, every method, and rounding sensitivity are documented in the appendix.
+
+In smooth linear risk, centered isotonic and the spline have lower mean total probability error than isotonic. At calibration size 1,000, their paired differences are \CenteredDifference{} (95\% interval \CenteredInterval{}) and \SplineDifference{} (\SplineInterval{}), respectively, on the squared-probability scale multiplied by 1,000. Temperature's difference is \TemperatureDifference{} (\TemperatureInterval{}); the design lies in its model family. Thus these results support comparing simple parametric alternatives as well as granular nonparametric fits.
+
+\begin{figure}[ht]
+\centering\includegraphics[width=.76\linewidth]{decomposition_linear_0.pdf}
+\includegraphics[width=.76\linewidth]{decomposition_steps_0.pdf}
+\caption{Preserving distinctions can help or hurt probability-based decisions. Top: smooth linear risk. Bottom: genuinely flat risk regions. Bars average 30 calibration samples per size over the complete evaluation population. Blue is squared grouping loss; gray is miscalibration; their sum is total probability error, all multiplied by 1,000. Total error equals twice uniformly integrated threshold regret. Axes are shared within each design, not across designs. Paired intervals and threshold-specific curves appear in the appendix.}
+\end{figure}
+
+In the step-risk design, centered isotonic retains more risk information but has greater total error than isotonic at the middle sample size. Its probability estimation error outweighs the information advantage. With constant risk, every map has zero grouping loss and additional probability variation can only add error. With nonmonotone risk, preserving the original ordering can itself be costly. These designs identify different failure modes rather than a universal winning method.
+
+\clearpage
+\subsection{The original score is an important comparator}
+\noindent\includegraphics[width=\linewidth,height=.74\textheight,keepaspectratio]{capacity_0.pdf}\par\smallskip
+\noindent\textit{Capacity allocation with exact forecasts.} At calibration size 1,000, curves show extra expected successes per 1,000 eligible cases relative to original-score ranking. Left: exact expectations over random boundary ties. Right: original-score tie-breaking. The oracle ranks by true risk. Shading gives paired 95\% pointwise bootstrap intervals for mean performance across calibration samples. Each row shares an axis. The constant-risk axis avoids magnifying numerical noise.\par\medskip
+For nondecreasing maps, original-score tie-breaking restores the original allocation at every capacity. This known strategy \citep{menon2012} can remove the allocation cost of pooling without changing probability estimates. It does not recover the true-risk ordering when the original score is misordered, as the nonmonotone design shows. Comparisons that omit this reporting choice can overstate the need for a different calibrator.
+
+\clearpage
+\section{How to judge a calibration procedure}
+A defensible comparison starts by fixing the population, outcome, available information, and economic objective. For cost-based action, specify benefits and costs or a justified range of cost ratios. For capacity allocation, specify slots, values, and boundary ties. If several decisions matter, declare their weights; do not average unrelated payoffs merely because they share a plot. Decision curves support threshold-specific comparisons, with a long precedent in model evaluation \citep{vickers2006}.
+
+The candidates are complete procedures: fitted map, reported information, and action rule. Compare calibrated probabilities with the original probability forecast where meaningful, act-all and act-none for cost-based action, and original-score ranking for capacity allocation. Include the option of publishing the calibrated probability alongside the original score. A claim about human use would additionally require evidence on human decision rules; the present calculations do not supply it.
+
+With independent labeled evaluation cases, the mean realized payoff estimates a fixed rule's population payoff under representative sampling. Paired differences evaluate alternatives on the same cases. This does not require observing each case's true risk. In contrast, the oracle grouping-loss decomposition requires conditional risk information: treating each unique forecast's observed label as its true risk would give a misleading estimate. Report calibration and proper-score diagnostics to explain performance, without substituting them for the declared payoff.
+
+Selecting the highest observed payoff and reporting it on the same cases rewards sampling noise. The package workflow uses calibrators fitted on calibration data, selects a declared procedure on separate validation data, and evaluates the frozen choice on untouched test data. All tuning must respect this separation, including threshold or scenario choices. Paired independent-case bootstrap intervals condition on the fitted and selected procedure; they do not include training or selection uncertainty. Such intervals do not establish uniform superiority across costs or environments.
+
+Calibre already supplies common estimator interfaces, proper-score tuning, reliability diagnostics, and score decompositions. The accompanying experiment adds known-risk threshold and capacity comparisons. The additive decision module accepts supplied predictions and a declared cost or capacity objective. It evaluates fixed policies, selects by validation payoff, and evaluates the frozen candidates on test cases with disjoint identifiers. Capacity means an integer number of slots, with fractions rounded down; boundary lotteries are integrated exactly, with optional original-score tie-breaking. Bootstrap draws recompute allocations within each resampled cohort. Identifier checks detect declared overlap but cannot certify the absence of upstream leakage. The existing fitting and probability diagnostics remain available independently.
+
+\subsection{Contribution and limits}
+This note puts Calibre's calibration choices on a common decision-theoretic footing and uses reproducible comparisons to show when their estimation assumptions help or harm the specified decisions. It makes the original-score reporting alternative explicit and separates observable policy payoff from oracle information loss. The contribution is applied synthesis and evaluation, using established theory and estimators; the paper does not establish a new optimality guarantee.
+
+The package extends these experiment-specific calculations to observed binary outcomes with explicit data roles and paired comparisons. Its software contribution is this integration; the illustrative workflow does not establish how useful it will be in a particular application. The present results establish neither deployed economic gains nor the amount of data a user needs to exploit a retained score. The detailed claim-to-literature assessment remains in the appendix. Existing simulation outcomes were inspected before this economic reframing; no new analysis was selected to make the argument appear stronger.
+
+\clearpage
+\appendix
+\input{theory}
+\section{Integrated decision losses and probability scores}
+Recall that $S$ is the original score and $p=P(Y=1\mid S)$ its true conditional risk. Hold the fitted calibration map fixed and write $Q=g(S)$. Define $r=E[p\mid Q]$, the risk recoverable from that output. Expectations refer to the independent evaluation population conditional on the fitted map. The population identity is
+\[
+\underbrace{E[(p-Q)^2]}_{\text{total probability error}}
+=\underbrace{E[(p-r)^2]}_{\text{information lost through pooling}}
++\underbrace{E[(r-Q)^2]}_{\text{miscalibration}}.
+\]
+The cross term is zero because $E[p-r\mid Q]=0$. Adding $E[p(1-p)]$ gives expected Brier score, relating the decomposition to reliability and resolution \citep{murphy1973,degroot1983comparison}. The pooling term is also the reduction in population resolution, $\operatorname{Var}(p)-\operatorname{Var}(r)$. This is the grouping loss relative to the original score \citep{tasche}.
+
+For action payoff $Y-t$, the optimal values using the original score and calibrated output are $E[(p-t)_+]$ and $E[(r-t)_+]$. Their difference is
+\[
+D(t)=E[(p-t)_+]-E[(r-t)_+]\geq0.
+\]
+Conditional Jensen's inequality gives the nonnegativity. Since $\int_0^1(x-t)_+dt=x^2/2$ and $E[pr]=E[r^2]$,
+\[
+2\int_0^1D(t)dt=E[p^2]-E[r^2]=E[(p-r)^2].
+\]
+Thus pooling loss is twice the average optimal payoff lost over uniformly weighted thresholds. In the two-group example it equals $d^2$. The cost distribution is explicit: uniform weighting is a comparison convention, not an empirical claim about users.
+
+A user who applies the reported probability directly instead acts when $Q>t$. Regret relative to the original-score oracle is
+\[
+R(t)=E[(p-t)_+]-E[(p-t)\mathbf1\{Q>t\}]\geq D(t).
+\]
+Integrating $\int_0^Q(p-t)dt=pQ-Q^2/2$ yields
+\[
+2\int_0^1R(t)dt=E[(p-Q)^2].
+\]
+Twice the integral of $R(t)-D(t)$ is the miscalibration component. A nonlinear one-to-one map has zero pooling loss even if it reverses rankings: an oracle can invert it, whereas the implemented threshold rule can fail. Threshold-specific losses and their mixtures have a long decision-theoretic history \citep{ehm}.
+
+The existing simulation summarizes information loss by $E[(p-r)^2]$, accompanied by the other two components and threshold curves. Structural diagnostics report pair pooling, pair reversals, distinct counts, and Spearman correlation. Spearman is undefined for constant outputs. None of these diagnostics replaces the decision comparison.
+
+\clearpage
+\section{Complete simulation design}
+The evaluation population consists of 1,000 equally weighted types $s_j=(j+0.5)/1000$. Reported scores are $\operatorname{logistic}(1.8\operatorname{logit}(s_j))$. True risks follow five fixed designs: $s$, $0.05+0.9s^2$, levels 0.2/0.5/0.8 across equal thirds, constant 0.3, and $0.5+0.35\sin(2\pi s)$. The first admits an exact temperature correction; the last violates monotone ordering.
+
+Each calibration sample draws types with replacement and independent Bernoulli outcomes. Sample sizes are 200, 1,000, and 5,000, with 30 seeds per design and size. All seven methods see the same sample. Splines and nearly isotonic use their default internal cross-validation. Logistic recalibration fits a logistic regression on log-odds; temperature fits one positive scalar. The spline construction uses monotone regression splines \citep{ramsay1988monotone}; nearly isotonic penalizes ordering violations \citep{tibshirani2011nearly}; temperature scaling follows the single-parameter approach evaluated by \citet{guo2017}. Centered isotonic follows \citet{oron2017centered}. These are the existing benchmark implementations, not new tuned competitors.
+
+Evaluation integrates over the complete finite population and known risks. The conditional mean $r$ is computed over exact output groups. It is not estimated from a finite test sample of mostly unique predictions. Six-decimal rounding is a separate sensitivity applied before recomputing all quantities. Because that sensitivity coarsens the exact output, its pooling loss cannot decrease.
+
+Uncertainty intervals use 2,000 bootstrap resamples of the 30 calibration seeds, paired across methods. They are 95\% pointwise intervals for mean performance across calibration samples, not a range containing 95\% of individual model outcomes. There is no evaluation-label sampling uncertainty. Intervals are descriptive and do not establish simultaneous dominance across thresholds or designs.
+
+\subsection{What the fitted methods show}
+In the smooth linear design with 1,000 calibration observations, the centered-isotonic difference in total probability error versus isotonic is \CenteredDifference{}, with interval \CenteredInterval{}; the spline difference is \SplineDifference{}, with interval \SplineInterval{}. These differences are on the squared-probability scale multiplied by 1,000; negative values favor the alternative. Temperature's difference is \TemperatureDifference{}, with interval \TemperatureInterval{}. This design gives the parametric family its correct specification.
+
+The step-risk and constant-risk designs expose the cost of retaining distinctions that do not track risk. In the step-risk design, centered isotonic discards less information but has larger total probability error than isotonic at the middle sample size. In the constant-risk design, no map loses risk information; centered isotonic's additional error is miscalibration. Interpolation across a fitted block is an assumption about how risk varies, not a free recovery of information.
+
+The nonmonotone design separates recoverable information from usable ordering. The original score is injective and therefore loses no information, but thresholding it gives poor decisions. Nearly isotonic can change the ordering and performs much better here. The exact results for all designs, sizes, methods, and precision settings follow; no universal winner is selected.
+
+\subsection{Capacity is a different decision}
+For each capacity from 1\% to 99\%, we select the largest outputs and calculate expected successes per 1,000 population members. Random boundary ties are averaged exactly. Original-score tie-breaking instead selects the largest original scores within the tied group. For nondecreasing maps this restores the original-score allocation. If the original ranking itself is wrong, as in the nonmonotone design, restoring it need not help. These are allocation payoffs with outcomes unaffected by selection, not treatment effects.
+
+\clearpage
+\section*{Smooth linear risk: Exact forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_linear_0.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_linear_0.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Smooth curved risk: Exact forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_curved_0.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_curved_0.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Genuinely flat regions: Exact forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_steps_0.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_steps_0.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Constant risk: Exact forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_constant_0.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_constant_0.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Nonmonotone risk: Exact forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_nonmonotone_0.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_nonmonotone_0.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Capacity allocation: exact}
+\noindent\includegraphics[width=\linewidth,height=.80\textheight,keepaspectratio]{capacity_0.pdf}\par\smallskip
+All designs at calibration size 1,000. Curves show extra expected successes per 1,000 population members relative to original-score ranking; positive values favor the named rule. Left: exact expectation over random boundary ties. Right: original-score tie-breaking. The oracle orders by true risk. Shading is a paired 95\% pointwise interval for the mean across calibration samples. Each row shares an axis. Constant-risk differences are zero up to floating-point precision; its axis spans $[-0.5,0.5]$ to avoid magnifying numerical noise.\clearpage
+\section*{Smooth linear risk: Six-decimal forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_linear_1.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_linear_1.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Smooth curved risk: Six-decimal forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_curved_1.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_curved_1.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Genuinely flat regions: Six-decimal forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_steps_1.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_steps_1.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Constant risk: Six-decimal forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_constant_1.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_constant_1.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Nonmonotone risk: Six-decimal forecasts}
+\noindent\includegraphics[width=\linewidth]{decomposition_nonmonotone_1.pdf}\par\smallskip
+Bars average 30 calibration samples at each size. Blue shows information lost; gray shows miscalibration. The sum is total probability error. All size panels share an axis.\par\medskip
+\noindent\includegraphics[width=\linewidth]{threshold_nonmonotone_1.pdf}\par\smallskip
+Curves compare each method with isotonic at calibration size 1,000. Left: differences in optimal payoff lost because of the output grouping. Right: differences in regret from acting when the reported probability exceeds the cost. Negative values favor the named method. Shading gives paired 95\% pointwise percentile intervals from 2,000 seed resamples. Panels share axes.\par\medskip
+These are exact expectations over 1,000 equally weighted score types, conditional on each fitted map. Threshold curves for every sample size are retained in the evaluation archive.\clearpage
+\section*{Capacity allocation: six decimals}
+\noindent\includegraphics[width=\linewidth,height=.80\textheight,keepaspectratio]{capacity_1.pdf}\par\smallskip
+All designs at calibration size 1,000. Curves show extra expected successes per 1,000 population members relative to original-score ranking; positive values favor the named rule. Left: exact expectation over random boundary ties. Right: original-score tie-breaking. The oracle orders by true risk. Shading is a paired 95\% pointwise interval for the mean across calibration samples. Each row shares an axis. Constant-risk differences are zero up to floating-point precision; its axis spans $[-0.5,0.5]$ to avoid magnifying numerical noise.\clearpage
+\section{Limits, interpretation, and reproduction}
+The study illustrates a class of decisions and known finite populations. It does not estimate economic value for an actual organization. Its payoff assumes one unit of benefit and a cost ratio $t$, no effect of the action on the outcome, and no extra information available to the user. Other payoffs require different weights or decisions. Capacity selection assumes equal-sized slots and values only expected event counts.
+
+The information metric is an oracle quantity. Tiny differences can make a finite map invertible, but a real user may lack the data, numerical precision, or model needed to exploit them. The rounding sensitivity addresses one reporting convention, not every practical information constraint. We should not expose this metric as though it could be estimated merely by grouping unique predictions and observed labels.
+
+The practical lesson has two parts. Where fitted plateaus conceal risk differences, pooling can cost decision value. But retaining distinctions also requires estimating their probability levels, and the resulting error can exceed the information benefit. For ranking-only allocation, keeping the original score for tie-breaking can supply the same benefit without changing the calibrator. The economic argument therefore depends on the user's information and decision rule, not the count of forecast values.
+
+The design was written before this simulation, after earlier package benchmarks had been inspected. Numerical identities and tie policies were independently reviewed before the full run. The implementation uses the package's existing methods and changes no public API or established benchmark results. A reproducible notebook accompanies this note.
+
+From the repository root, install the locked environment with \texttt{uv sync --locked --all-groups}. Run \texttt{make granularity-run} to fit and evaluate; run \texttt{make granularity} to rebuild figures, summaries, the executed notebook, and this PDF from retained predictions. Raw predictions and evaluations are in \texttt{experiments/granularity/results}; generated exhibits and complete CSV tables are in its \texttt{build} directory. Manifests record source hashes, configuration, software versions, and result hashes. The test target is \texttt{make granularity-check}.
+
+\clearpage
+
+\clearpage
+\section*{Complete mean results and paired differences}
+Every error and difference below is multiplied by 1,000. Pool is information lost, Cal is miscalibration, and Total is their sum. Delta subtracts isotonic's total error within each seed. Brackets give its paired 95\% percentile interval for the mean. Distinct is the mean number of output values. Displayed zeros can be positive below rounding precision. Full-precision metrics, structural pair counts, expected Brier, and Spearman are in the generated CSV files.
+\small\setlength{\tabcolsep}{4pt}
+\begin{longtable}{lrrrrrr}
+\toprule Method & Pool & Cal & Total & Delta & 95\% interval & Distinct\\\midrule
+\endfirsthead
+\toprule Method & Pool & Cal & Total & Delta & 95\% interval & Distinct\\\midrule
+\endhead
+\bottomrule\endfoot
+\tableinput build/complete.tex
+\end{longtable}
+\normalsize
+\clearpage
+{\small
+\bibliographystyle{plainnat}
+\bibliography{references}
+}
+
+\end{document}

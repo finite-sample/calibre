@@ -31,6 +31,15 @@ from .calibrators import (
     RelaxedPAVACalibrator,
     SplineCalibrator,
 )
+from .decisions import (
+    DecisionPolicy,
+    DecisionReport,
+    DecisionSelection,
+    DecisionTask,
+    decision_report,
+    evaluate_decision_policy,
+    select_decision_policy,
+)
 
 # Import diagnostic functions
 from .diagnostics import detect_plateaus, run_plateau_diagnostics
@@ -86,6 +95,10 @@ __all__ = [
     "CDIIsotonicCalibrator",
     "CalibrationReport",
     "CenteredIsotonicCalibrator",
+    "DecisionPolicy",
+    "DecisionReport",
+    "DecisionSelection",
+    "DecisionTask",
     "IsotonicCalibrator",
     "MonotonicMixin",
     "NearlyIsotonicCalibrator",
@@ -108,7 +121,9 @@ __all__ = [
     # Cross-validation
     "cross_val_calibrate",
     "debiased_calibration_error",
+    "decision_report",
     "detect_plateaus",
+    "evaluate_decision_policy",
     "expected_calibration_error",
     "make_folds",
     "maximum_calibration_error",
@@ -124,6 +139,7 @@ __all__ = [
     "run_plateau_diagnostics",
     "score_decomposition",
     "select_by_cv",
+    "select_decision_policy",
     "smooth_calibration_error",
     "sweep_calibration_error",
     "tie_preservation_score",

@@ -11,8 +11,8 @@
 
 Your classifier's probabilities are usually wrong — a model that says "80%" may be
 right 60% of the time. Isotonic regression is the standard fix, and it works, but it
-pays for accuracy with resolution: it is a step function, so it collapses many
-distinct scores into a handful of values.
+can pool distinct scores into the same fitted probability. Its prediction map
+interpolates between fitted knots but retains flat regions.
 
 On the 2,000-point held-out set in the example below, isotonic regression turns
 2,000 distinct scores into **82**. Everything inside a step becomes
@@ -60,9 +60,9 @@ print("distinct values, calibre: ", len(np.unique(centered.transform(s_test))))
 # > distinct values, calibre:  1863
 ```
 
-This example measures resolution, not calibration quality. Only the centered fit
-still tells you which of two customers is the riskier bet; compare calibration on
-labels that neither fit has seen.
+This example measures prediction granularity, not calibration quality or risk
+discrimination. More distinct values need not be more informative; compare proper
+scores and ranking on labels that neither fit has seen.
 
 ## Which calibrator should I use?
 
@@ -72,13 +72,13 @@ isotonic blocks.
 
 | You want | Use | Notes |
 |---|---|---|
-| A drop-in isotonic replacement, no tuning | `CenteredIsotonicCalibrator` | Collapses isotonic's flat steps to points and interpolates. O(n). |
+| A drop-in isotonic replacement, no tuning | `CenteredIsotonicCalibrator` | Collapses isotonic's flat steps to points and interpolates. Linear-time after sorting. |
 | A smooth curve, and you can afford cross-validation | `SplineCalibrator` | Monotone spline; picks its own smoothing using the loss appropriate for its link. |
 | A smooth curve with smoothing you control | `SplineCalibrator` | Set `alpha`; also set `n_knots` to skip cross-validation. |
 | Exactly scikit-learn's isotonic behavior | `IsotonicCalibrator` | Thin wrapper, plus optional plateau diagnostics. |
 | A fitted-value change bound you control | `RelaxedPAVACalibrator` | Negative permits bounded drops; positive forces a step before clipping. |
 | To allow small ranking violations if they fit better | `NearlyIsotonicCalibrator` | `lam` trades monotonicity against fit. Not the one to reach for if you want resolution — see its docstring. |
-| Accuracy near specific decision thresholds | `CDIIsotonicCalibrator` | Research-grade; requires thresholds on the same probability-score scale and can permit bounded drops away from them. Validate proper scores and decision utility. |
+| Experimental constraints near decision thresholds | `CDIIsotonicCalibrator` | Research-grade; requires thresholds on the same probability-score scale and can permit bounded drops away from them. Validate proper scores and decision utility. |
 
 Every calibrator follows the scikit-learn transformer API: `.fit(scores, labels)` and
 `.transform(scores)`, plus `sample_weight` where it is meaningful.
@@ -90,7 +90,7 @@ Every number below comes from the
 directory, whose results are
 committed — `python -m benchmarks.run` reproduces them. This is the
 `overconfident` design (a model reporting `1.8 * z` for true log-odds `z`), thirty
-seeds, scored on a held-out half that nothing was tuned on. Lower Brier is better;
+seeds, scored on a held-out 40% that nothing was tuned on. Lower Brier is better;
 ΔBrier is the improvement over leaving the model uncalibrated.
 
 | Method | Brier | ΔBrier | smECE | Distinct values | Beats isotonic |
@@ -100,8 +100,8 @@ seeds, scored on a held-out half that nothing was tuned on. Lower Brier is bette
 | `NearlyIsotonicCalibrator` | 0.1531 | +0.0073 | 0.0270 | 52 | 7/30 |
 | `CenteredIsotonicCalibrator` | 0.1527 | +0.0076 | 0.0284 | 1514 | 25/30 |
 | `SplineCalibrator` | 0.1524 | +0.0080 | 0.0263 | 1595 | 28/30 |
-| Platt scaling (sklearn `method="sigmoid"`) | **0.1521** | **+0.0082** | 0.0251 | 1599 | 26/30 |
-| Temperature scaling (sklearn `method="temperature"`) | 0.1522 | +0.0082 | 0.0251 | 1599 | 26/30 |
+| Logistic recalibration of log-odds | **0.1521** | **+0.0082** | 0.0251 | 1599 | 26/30 |
+| Temperature scaling (scalar optimization) | 0.1522 | +0.0082 | 0.0251 | 1599 | 26/30 |
 
 Read three things off it honestly.
 
@@ -110,21 +110,19 @@ around 1,500 distinct values instead of 49, at a Brier difference in the fourth
 decimal. Relaxed PAVA is not in this defaults-only table because its increment
 bound is deliberately required.
 
-**scikit-learn's parametric methods win this design outright.** Both are
-`CalibratedClassifierCV` options — `method="sigmoid"`, and `method="temperature"`
-since 1.8. Both score better than anything in calibre, and against the *known*
-truth they are four times more accurate (0.0064 and 0.0040, against 0.0175 for the
-best calibre method). That is not an artifact: the distortion here is a pure
-temperature change, so a one-parameter model is exactly specified and a
-non-parametric one is paying for flexibility it does not need. If you know your
-miscalibration has that shape, use them. calibre is for when you don't.
+**The parametric comparators have the lowest mean Brier scores in this design.**
+The harness fits logistic regression to log-odds and optimizes a scalar
+log-temperature directly; it does not call `CalibratedClassifierCV`. Temperature
+scaling also has the smallest error against the known probabilities. Here the
+distortion is a pure temperature change, so the parametric family contains its
+inverse. Include simple parametric alternatives when evaluating flexible methods.
 
 **smECE barely separates the methods**, because it is a calibration measure and
 resolution is not miscalibration. That is a reason to look at more than one number,
 which is what `calibration_report` below is for.
 
-The cost is computation: isotonic fits one model, while `SplineCalibrator`
-cross-validates multiple candidates. Runtime depends on calibration-set size, fold
+The cost is computation: isotonic fits one model, while `SplineCalibrator` and
+`NearlyIsotonicCalibrator` cross-validate multiple candidates. Runtime depends on calibration-set size, fold
 count, and hardware; the benchmark records timings for its own runs.
 
 `nonmonotone` is in the grid because monotone methods should lose there. They
@@ -132,7 +130,7 @@ don't: `SplineCalibrator` scores 0.2156 against Platt's 0.2224,
 because the parametric methods cannot follow the dip either and give up more. And
 on `breast_cancer/logreg`, *not calibrating at all* beats isotonic by 0.0013 with a
 bootstrap interval clear of zero — the model was already close to calibrated and
-the test half is small, so pooling costs more than it buys.
+the test sample is small, so pooling costs more than it buys.
 
 ## Recipes
 
@@ -339,6 +337,46 @@ Every field is also available under its full name
 (`report.brier_score`, `report.smooth_calibration_error`, …) rather than only
 as text. Sweep ECE relies on a monotone population calibration curve; the report
 labels that assumption because a strongly nonmonotone model can violate it.
+
+### Evaluate a decision
+
+Keep the existing fitting and probability diagnostics, then compare what acting
+on the predictions earns. Declare costs or capacity and evaluate aligned,
+held-out outcomes. This four-case illustration shows the payoff from retaining
+a score that separates cases tied by calibration:
+
+```python
+from calibre import DecisionPolicy, DecisionTask, decision_report
+
+result = decision_report(
+    [0, 1, 0, 1],
+    {"calibrated": [0.2, 0.8, 0.8, 0.8], "original": [0.1, 0.9, 0.5, 0.9]},
+    task=DecisionTask(capacity=1),
+    policies={
+        "pooled": DecisionPolicy(prediction="calibrated", rule="rank"),
+        "retained": DecisionPolicy(
+            prediction="calibrated", rule="rank", tie_breaker="original"
+        ),
+    },
+    reference="pooled",
+    n_resamples=0,
+)
+print(round(result.differences["retained"], 4))
+# > 0.0833
+```
+
+The difference is payoff per eligible case, averaged over boundary tie lotteries.
+It is positive in this illustration; retaining an original score need not help
+on new data. For known costs, use `DecisionTask(benefit=1, cost=0.3)` with
+threshold policies and explicit act-all/none comparators.
+
+`select_decision_policy` chooses on validation predictions;
+`evaluate_decision_policy` evaluates that frozen choice on disjoint test cases.
+The default paired bootstrap conditions on fitting and selection and assumes
+independent cases. These additions do not change `select_by_cv` or
+`calibration_report`. See the decision evaluation guide and its complete four-sample example in the
+[documentation](https://finite-sample.github.io/calibre/examples/index.html) for the data split,
+tie rules, capacity convention, and uncertainty assumptions.
 
 ### Put an interval on it
 
@@ -611,11 +649,15 @@ anything large.
 
 MIT — see [LICENSE](https://github.com/finite-sample/calibre/blob/main/LICENSE).
 
+The [manuscript](https://github.com/finite-sample/calibre/blob/main/ms/calibre.tex)
+describes the implemented methods, benchmark, and limitations. Run `make paper`
+to build it; reproduction instructions are in `ms/README.md`.
+
 ## Citation
 
 ```bibtex
 @software{calibre,
-  title  = {calibre: Probability Calibration that Preserves Granularity},
+  title  = {Calibre: Probability Calibration and Evaluation in Python},
   author = {Sood, Gaurav},
   url    = {https://github.com/finite-sample/calibre}
 }

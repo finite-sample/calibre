@@ -11,6 +11,7 @@ functions.
    evaluation
    metrics
    report
+   decisions
    multiclass
    selection
    diagnostics
@@ -38,6 +39,8 @@ Overview
   which multiclass method you need.
 - :doc:`diagnostics` — where a fitted curve went flat, and how much data each
   plateau rests on.
+
+- :doc:`decisions` — costs, capacity, policy selection, and paired test payoffs.
 
 **Drawing.**
 

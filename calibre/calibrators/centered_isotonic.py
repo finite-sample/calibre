@@ -1,14 +1,14 @@
 """Centered isotonic regression (CIR).
 
-Isotonic regression's fitted curve is piecewise constant, so a flat block spreads
+Isotonic regression's fitted values contain flat blocks. A flat block spreads
 one pooled rate across a whole interval of scores. Every score inside the block
 is mapped to the same probability, which discards the ranking information the
 base model provided there.
 
 CIR keeps the pooled estimate but stops pretending it applies uniformly across
 the block: it places the estimate at the block's weighted-centroid score and
-interpolates linearly between consecutive centroids. The result is strictly
-increasing except possibly at the boundaries.
+interpolates linearly between consecutive centroids. Interpolation increases
+between distinct pooled rates; boundary plateaus and constant fits remain possible.
 
 Reference
 ---------
@@ -56,10 +56,10 @@ class CenteredIsotonicCalibrator(BaseCalibrator):
     Notes:
         Standard isotonic regression is the L2 projection onto the monotone cone and
         is optimal for that objective; CIR is not a minimizer of the same criterion.
-        The justification is inferential rather than variational: within a flat block
-        the data support a single pooled rate, and linear interpolation between
-        consecutive pooled estimates is the minimal assumption that neither invents
-        structure nor throws away the ordering. Oron & Flournoy report substantially
+        Interpolation replaces each pooled block by an anchor and assumes a linear
+        change between successive anchors. This retains more score distinctions
+        but does not establish that the population calibration curve slopes
+        within a pooled block. Oron & Flournoy report substantially
         lower estimation error than isotonic regression when monotonicity violations
         are present at sample sizes typical of dose-response studies.
 
