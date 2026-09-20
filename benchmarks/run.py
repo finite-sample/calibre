@@ -115,7 +115,9 @@ def _environment() -> dict[str, Any]:
         "platform": platform.platform(),
         "git_sha": _git_sha(),
         "source_sha256": {
-            str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+            path.relative_to(root).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
             for path in sources
         },
         "netcal_available": methods.netcal_available(),

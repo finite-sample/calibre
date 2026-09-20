@@ -245,7 +245,7 @@ def main() -> None:
         environment = _environment()
         sources = [ROOT / "study.py", ROOT / "DESIGN.md"]
         environment["experiment_sources"] = {
-            str(path.relative_to(ROOT.parent.parent)): hashlib.sha256(
+            path.relative_to(ROOT.parent.parent).as_posix(): hashlib.sha256(
                 path.read_bytes()
             ).hexdigest()
             for path in sources
