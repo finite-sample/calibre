@@ -677,12 +677,14 @@ to build it; reproduction instructions are in `ms/README.md`.
   *Statistical Science* 11(2), 89–121.
 - [Probability calibration in scikit-learn](https://scikit-learn.org/stable/modules/calibration.html)
 
+<!-- adjacent:start -->
+
 ## 🔗 Adjacent Repositories
 
-- [finite-sample/streamcal](https://github.com/finite-sample/streamcal) — Always‑On Probability Calibration via Multiplicative‑Weights. Comparison to Batch Platt & Isotonic
-- [finite-sample/rank-preserving-calibration](https://github.com/finite-sample/rank-preserving-calibration) — Rank preserving calibration of multiclass prob.
+- [finite-sample/streamcal](https://github.com/finite-sample/streamcal) — Always‑On Probability Calibration via Multiplicative‑Weights. Comparison to Batch Platt &amp; Isotonic
 - [finite-sample/optimal-classification-cutoffs](https://github.com/finite-sample/optimal-classification-cutoffs) — Cutoffs for max. multiclass F1-score, etc.
-- [finite-sample/winference](https://github.com/finite-sample/winference) — Calibrating pairwise rankings with accommodations for non-transitivity
-- [finite-sample/tworeg](https://github.com/finite-sample/tworeg) — Two Regressions
+- [finite-sample/rank-preserving-calibration](https://github.com/finite-sample/rank-preserving-calibration) — Rank preserving calibration of multiclass prob.
 
-✨ _Powered by [Adjacent](https://github.com/gojiplus/adjacent)_ 🚀
+_Powered by [Adjacent](https://github.com/gojiplus/adjacent)_
+
+<!-- adjacent:end -->
