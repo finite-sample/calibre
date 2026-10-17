@@ -93,7 +93,7 @@ class RelaxedPAVACalibrator(BaseCalibrator):
     See Also:
         IsotonicCalibrator : The ``min_increment=0`` special case.
         CenteredIsotonicCalibrator : Monotone interpolation between pooled blocks.
-        NearlyIsotonicCalibrator : Penalises rather than bounds violations.
+        NearlyIsotonicCalibrator : Penalizes rather than bounds violations.
 
     References:
         Gunasekar, S., Koyejo, O., & Ghosh, J. (2016). Preference completion from

@@ -110,7 +110,7 @@ def check_completeness(rows: list[dict[str, str]], expected_seeds: int) -> None:
         listing = "; ".join(f"{'/'.join(k)} has {v}" for k, v in worst)
         raise ValueError(
             f"{len(short)} cells do not have {expected_seeds} seeds ({listing}). "
-            "Summarising an incomplete grid would hide whichever configuration "
+            "Summarizing an incomplete grid would hide whichever configuration "
             "failed; re-run those cells or narrow the grid deliberately."
         )
 

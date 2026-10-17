@@ -437,7 +437,7 @@ def brier_score(
         \operatorname{BS} = \frac{\sum_i w_i (p_i-y_i)^2}{\sum_i w_i}
 
     The Brier score is a strictly proper scoring rule: in expectation, reporting
-    the true event probability uniquely minimises it. Lower is better, with zero
+    the true event probability uniquely minimizes it. Lower is better, with zero
     for perfect binary probability forecasts and one for forecasts that are wrong
     with certainty.
 
@@ -1226,7 +1226,7 @@ def _gaussian_kernel(sigma: float, n_points: int) -> np.ndarray:
 
 
 def _spread_to_grid(y_pred: np.ndarray, values: np.ndarray, m: int) -> np.ndarray:
-    """Bin ``values`` onto a regular grid, splitting each linearly between neighbours.
+    """Bin ``values`` onto a regular grid, splitting each linearly between neighbors.
 
     Args:
         y_pred: Positions in ``[0, 1]``.

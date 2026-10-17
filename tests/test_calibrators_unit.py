@@ -300,7 +300,7 @@ class TestNearlyIsotonicCalibrator:
 class TestNearlyIsotonicOverfitsAtLowLambda:
     """Small ``lam`` fits the labels, not the probabilities.
 
-    ``lam`` penalises monotonicity violations, so a small one leaves the fit
+    ``lam`` penalizes monotonicity violations, so a small one leaves the fit
     nearly unconstrained and it interpolates the sampled outcomes. Measured on
     ``miscalibrated_data``, fitted on one half and evaluated on the other,
     against an uncalibrated baseline of 0.1483 calibration error and 0.1980

@@ -140,7 +140,7 @@ def plot_resolution_loss(
     # One ink color for every row, deliberately. The message of this plot is
     # carried by ink density, and density is read as lightness: a black strip
     # looks denser than a sky-blue one holding exactly the same number of ticks.
-    # Colouring the rows by method would make two calibrators with identical
+    # Coloring the rows by method would make two calibrators with identical
     # granularity look different. Rows are identified by their axis label.
     ink = SEMANTIC["score"]
 
@@ -157,7 +157,7 @@ def plot_resolution_loss(
             # clipping to solid black. At full opacity a row holding 800 ticks
             # and one holding 4000 are both saturated black and the comparison
             # the plot exists to make disappears; at this alpha they are clearly
-            # different greys.
+            # different grays.
             alpha=0.5,
             label=f"_calibre:ticks:{name}",
         )

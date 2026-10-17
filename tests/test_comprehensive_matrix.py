@@ -341,7 +341,7 @@ class TestMatrix:
         drives them to zero. The previous fixed 40% bound only passed because the
         path solver was not solving the stated objective.
 
-        So assert the property that actually characterises the estimator. Note it
+        So assert the property that actually characterizes the estimator. Note it
         is the total violation *magnitude* that is controlled, not the violation
         count: the penalty is ``sum max(0, b_i - b_{i+1})``, so a larger ``lam``
         can shrink the total while spreading it over more, smaller, violations.

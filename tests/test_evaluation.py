@@ -82,7 +82,7 @@ def _make_band(maker, x, y, **kwargs):
 def test_cep_is_monotone(seed):
     """Conditional event probabilities must be non-decreasing.
 
-    This is the regularisation that distinguishes CORP from binning-and-counting:
+    This is the regularization that distinguishes CORP from binning-and-counting:
     a decreasing estimate is an artifact, and isotonicity rules it out.
     """
     x, y = _calibrated(seed, n=800)
@@ -286,7 +286,7 @@ def test_consistency_bands_bracket_the_diagonal():
     x, _ = _calibrated(12, n=800)
     band = consistency_bands(x, n_resamples=200, random_state=0)
     assert np.all(band["lower"] <= band["upper"] + 1e-12)
-    # The diagonal is the hypothesised truth, so it should mostly be inside.
+    # The diagonal is the hypothesized truth, so it should mostly be inside.
     grid = band["prediction_values"]
     inside = (band["lower"] <= grid) & (grid <= band["upper"])
     assert inside.mean() > 0.8

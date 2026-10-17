@@ -33,7 +33,7 @@ ALL_CALIBRATORS = [
     "RelaxedPAVACalibrator",
 ]
 
-# Nearly-isotonic penalises monotonicity violations, while CDI-ISO permits bounded
+# Nearly-isotonic penalizes monotonicity violations, while CDI-ISO permits bounded
 # decreases away from operating thresholds. A violation in either estimator can
 # therefore be the documented constraint working rather than a regression.
 MONOTONE_CALIBRATORS = [
@@ -282,7 +282,7 @@ def test_cross_validation_selects_alpha():
 
     assert hasattr(cal, "alpha_"), "the selected alpha must be recorded as alpha_"
     assert cal.alpha_ >= 0
-    # An explicitly supplied alpha must be honoured verbatim.
+    # An explicitly supplied alpha must be honored verbatim.
     fixed = SplineCalibrator(alpha=3.0, random_state=0).fit(x, y)
     assert fixed.alpha_ == 3.0
 
@@ -526,7 +526,7 @@ def test_clip_output_bounds_the_range(link):
 
 @pytest.mark.parametrize("cls_name", ["SplineCalibrator"])
 def test_scales_to_100k_without_degrading(cls_name):
-    """Large n must fit quickly and still honour alpha.
+    """Large n must fit quickly and still honor alpha.
 
     The previous pinned spline implementation put one parameter per unique score;
     above a few thousand its solve stopped converging and it silently fell back to

@@ -105,7 +105,7 @@ plt.show()
 A curve off the diagonal means nothing without knowing how far a *calibrated* forecaster
 would stray by chance. Consistency bands answer exactly that: outcomes are redrawn as
 `y* ~ Bernoulli(x)` — taking the forecasts at face value — and the diagram refit. The
-bands sit around the diagonal, and a curve leaving them is the analogue of a small
+bands sit around the diagonal, and a curve leaving them is the analog of a small
 p-value.
 
 Confidence bands answer the other question, clustering around the estimate instead.
@@ -191,7 +191,7 @@ That distinction is the practical payoff. A high `MCB` is a call to recalibrate.
 
 For an isotonic-family calibrator this is not a matter of degree. The calibrator and the
 CORP diagnostic are the *same* PAV projection, and PAV is idempotent — so in-sample
-`MCB` is exactly zero however badly the model generalises. It cannot detect
+`MCB` is exactly zero however badly the model generalizes. It cannot detect
 miscalibration even in principle.
 
 `cross_val_calibrate` returns out-of-fold probabilities: each one from a model that

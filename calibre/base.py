@@ -75,7 +75,7 @@ class BaseCalibrator(BaseEstimator, TransformerMixin):
             X: The values to be calibrated (e.g., predicted probabilities).
             y: The target values (e.g., true labels).
             sample_weight: Non-negative per-observation weights. Calibrators
-                that cannot honour weights raise rather than ignore them.
+                that cannot honor weights raise rather than ignore them.
 
         Returns:
             BaseCalibrator: Returns self for method chaining.

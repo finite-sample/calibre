@@ -139,7 +139,7 @@ class TestFullCalibrationWorkflow:
             # equal to plain PAVA and hence trivially monotone.
             # The bound is per adjacent pair of *fitted knots*, which is where the
             # increment constraint lives. Measuring between arbitrary test scores
-            # would be wrong: two neighbouring test scores can span many knot
+            # would be wrong: two neighboring test scores can span many knot
             # intervals, and the permitted decreases accumulate across them.
             min_increment = calibrator.get_params()["min_increment"]
             knots = calibrator.calibration_curve_.y

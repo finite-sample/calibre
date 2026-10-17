@@ -70,7 +70,7 @@ def plot_calibrator_comparison(
             distinct-value counts.
         ax: Axes to draw on. A new figure is created when omitted.
         reference: Optional CORP diagram of the raw scores, drawn behind in
-            grey as the empirical target the calibrators are trying to match.
+            gray as the empirical target the calibrators are trying to match.
         n_grid: Number of grid points.
         diagonal: Whether to draw the identity line, which is what "no
             recalibration" would look like.

@@ -445,7 +445,7 @@ def test_monotone_spline_agrees_with_scam(name):
     cross-validates log-loss, so the two legitimately land on differently smoothed
     curves -- and on two of these three cases *calibre* achieves the lower
     in-sample log-loss (``steep``: 0.4122 vs 0.4160; ``logistic``: 0.60334 vs
-    0.60335). Demanding pointwise agreement would penalise the better fit.
+    0.60335). Demanding pointwise agreement would penalize the better fit.
 
     Divergence concentrates where it should: at the boundaries, where the two
     packages' extrapolation conventions differ and the data is thinnest. On

@@ -83,7 +83,7 @@ def _overconfident(n: int, rng: np.random.Generator) -> Dataset:
 
 
 def _underconfident(n: int, rng: np.random.Generator) -> Dataset:
-    """Log-odds shrunk by 0.6, as heavy regularisation produces."""
+    """Log-odds shrunk by 0.6, as heavy regularization produces."""
     z = rng.normal(0, 2, n)
     return _from_scores("underconfident", _logistic(0.6 * z), _logistic(z), rng)
 

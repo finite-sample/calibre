@@ -1,4 +1,4 @@
-"""Tests for the drawing contracts every calibre plot must honour.
+"""Tests for the drawing contracts every calibre plot must honor.
 
 Artists are located by label rather than by index. Indices shift whenever
 drawing order changes, which makes index-based assertions fail for reasons that

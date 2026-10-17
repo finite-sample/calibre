@@ -111,7 +111,7 @@ class SplineCalibrator(BaseCalibrator):
         It is not a search for whichever fold's model scored best on its own validation
         split: that selects on noise and ships a model trained on only ``(cv-1)/cv`` of
         the sample. Logit-link fits are scored by log-loss; identity-link fits are
-        scored by squared error, the loss they actually minimise.
+        scored by squared error, the loss they actually minimize.
 
     Examples:
         >>> import numpy as np
@@ -270,7 +270,7 @@ class SplineCalibrator(BaseCalibrator):
         # The Bernoulli likelihood requires positive-mass targets in [0, 1].
         if self.link == "logit" and np.any((y_fit < 0) | (y_fit > 1)):
             raise ValueError(
-                'y must lie in [0, 1] for link="logit" (it parameterises a '
+                'y must lie in [0, 1] for link="logit" (it parameterizes a '
                 'Bernoulli likelihood); use link="identity" for unbounded targets'
             )
 

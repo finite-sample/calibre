@@ -130,7 +130,7 @@ The CI pipeline uses `uv sync --locked` to ensure:
 - `IsotonicCalibrator`: Standard isotonic regression (wraps sklearn)
 - `CenteredIsotonicCalibrator`: Centered isotonic regression — collapses PAVA's flat
   blocks to their centroid and interpolates. The recommended default.
-- `NearlyIsotonicCalibrator`: Penalises rather than forbids monotonicity violations.
+- `NearlyIsotonicCalibrator`: Penalizes rather than forbids monotonicity violations.
   Uses the exact modified-PAVA path and the source paper's lambda scale.
 - `SplineCalibrator`: Monotone I-spline fit; CV picks `(n_knots, alpha)` using
   log loss for the logit link and squared error for the identity link

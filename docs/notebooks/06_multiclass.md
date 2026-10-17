@@ -207,7 +207,7 @@ It preserves each row's class ordering — the predicted class never moves. But 
 **not** preserve the ordering of *people within a class*, because the softmax denominator
 makes every calibrated probability depend on the whole row.
 
-If you rank individuals by their probability of a given class — triage, prioritisation,
+If you rank individuals by their probability of a given class — triage, prioritization,
 any ranked list — that reordering is real, and no standard calibration metric shows it.
 
 ```{code-cell}

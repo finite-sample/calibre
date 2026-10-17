@@ -86,7 +86,7 @@ class NearlyIsotonicCalibrator(BaseCalibrator):
             ``"auto"`` (the default) uses log loss for probability targets and
             squared error otherwise.
             Deliberately not a calibration error: ECE and its relatives are
-            minimised by a constant forecast, so selecting on one would reward
+            minimized by a constant forecast, so selecting on one would reward
             throwing resolution away.
         random_state: Seed for the cross-validation split, so an ``"auto"``
             selection is reproducible.

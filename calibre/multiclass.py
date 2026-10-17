@@ -503,7 +503,7 @@ class TemperatureScaler:
         return p / p.sum(axis=1, keepdims=True)
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> TemperatureScaler:
-        """Fit the temperature by minimising negative log-likelihood.
+        """Fit the temperature by minimizing negative log-likelihood.
 
         Args:
             X: Predicted probabilities from a held-out calibration set.

@@ -632,7 +632,7 @@ optimum, and the test suite asserts the guarantees rather than restating them.
   documented: `lam` here is **twice** the lambda of Tibshirani, Höfling & Tibshirani
   (2011), because the squared-error term omits the factor of one half.
 - **`mean_calibration_error` returns `|E[p] - E[y]|`.** It previously returned
-  `mean(|p - y|)` — mean absolute error, which is minimised by hard 0/1 predictions and
+  `mean(|p - y|)` — mean absolute error, which is minimized by hard 0/1 predictions and
   is nonzero for a perfectly calibrated model. Use
   `sklearn.metrics.mean_absolute_error` for the old quantity. It now also accepts
   keyword-only `sample_weight` and strictly validates binary outcomes and forecast
@@ -652,7 +652,7 @@ optimum, and the test suite asserts the guarantees rather than restating them.
   nothing to tune, O(n). Over 30 held-out splits it beats plain isotonic on Brier in
   24, and returns ~1900 distinct values where isotonic returns 56.
 - **`sample_weight`** on `fit` for `IsotonicCalibrator` and
-  `CenteredIsotonicCalibrator`. Calibrators that cannot honour weights now raise
+  `CenteredIsotonicCalibrator`. Calibrators that cannot honor weights now raise
   rather than silently discarding them.
 - **`calibre/_core.py`** — the shared numerical primitives every calibrator is built
   from: `weighted_pava`, `aggregate_ties`, `shift_to_pava`, `nearly_isotonic_path`,
