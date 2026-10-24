@@ -26,7 +26,6 @@ jobs:
     uses: gojiplus/py-canon/.github/workflows/reusable-release.yml@v1
     permissions:
       contents: write  # Create the GitHub release for the tag.
-      id-token: write  # Generate artifact attestations in the reusable workflow.
     with:
       # `gh release create` fails when the release already exists, so create it
       # only on the original tag push — not on a manual re-run of a released tag.
