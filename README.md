@@ -1,4 +1,4 @@
-# calibre
+# calibre: probability calibration without flattening your scores
 
 [![PyPI version](https://img.shields.io/pypi/v/calibre.svg)](https://pypi.org/project/calibre/)
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
