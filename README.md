@@ -681,9 +681,9 @@ to build it; reproduction instructions are in `ms/README.md`.
 
 ## 🔗 Adjacent Repositories
 
-- [finite-sample/streamcal](https://github.com/finite-sample/streamcal) — Always‑On Probability Calibration via Multiplicative‑Weights. Comparison to Batch Platt &amp; Isotonic
-- [finite-sample/optimal-classification-cutoffs](https://github.com/finite-sample/optimal-classification-cutoffs) — Cutoffs for max. multiclass F1-score, etc.
+- [finite-sample/stagecoachml](https://github.com/finite-sample/stagecoachml) — Build two-stage models when your features arrive in two batches at different times.
 - [finite-sample/rank-preserving-calibration](https://github.com/finite-sample/rank-preserving-calibration) — Rank preserving calibration of multiclass prob.
+- [finite-sample/streamcal](https://github.com/finite-sample/streamcal) — Streaming isotonic probability calibration with compact per-bin state and forgetting
 
 _Powered by [Adjacent](https://github.com/gojiplus/adjacent)_
 
