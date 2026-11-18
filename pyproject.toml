@@ -45,7 +45,7 @@ dev = [
     { include-group = "test" },
 ]
 # matplotlib is in test (and therefore dev) so the plots tests always run.
-# CLAUDE.md requires tests to fail rather than skip, and a test that skips when
+# AGENTS.md requires tests to fail rather than skip, and a test that skips when
 # an optional dependency is absent tests nothing. The absence path is covered by
 # simulating absence (tests/test_plots_deps.py), not by leaving it uninstalled.
 test = [

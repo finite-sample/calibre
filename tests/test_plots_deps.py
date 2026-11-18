@@ -90,7 +90,7 @@ def test_require_matplotlib_returns_the_modules():
 def test_missing_matplotlib_names_the_install_command(monkeypatch):
     """The error must tell the user exactly what to install.
 
-    Simulating absence rather than skipping: CLAUDE.md requires tests to fail
+    Simulating absence rather than skipping: AGENTS.md requires tests to fail
     rather than skip, and a test that skips when matplotlib is absent would
     never run anywhere.
     """
