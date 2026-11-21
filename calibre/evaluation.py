@@ -7,8 +7,8 @@ choice. The conditional event probabilities are estimated by isotonic regression
 via the pool-adjacent-violators algorithm, which fixes the number and position of
 the bins optimally and automatically, with no tuning parameter.
 
-That estimator is :func:`calibre._core.weighted_pava`, which this package already
-owns and pins against R. Everything here is built from it.
+SciPy fits the pooled, positive-weight forecasts. The conditional event
+probabilities and score decomposition are checked against R's reliabilitydiag.
 
 The score decomposition splits the mean score of any proper scoring rule into
 
@@ -36,10 +36,11 @@ from numbers import Integral, Real
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from scipy.optimize import isotonic_regression
 from scipy.stats import DegenerateDataWarning
 from scipy.stats import bootstrap as scipy_bootstrap
 
-from ._core import PiecewiseLinear, StepFunction, aggregate_ties, weighted_pava
+from ._core import PiecewiseLinear, StepFunction, aggregate_ties
 from .utils.validation import (
     _validate_binary_probability_metric_inputs,
     _validate_probability_vector,
@@ -296,7 +297,7 @@ def corp_reliability(
 
     # Tied forecasts are one point, carrying their pooled weight.
     prediction_values, y_mean, weights = aggregate_ties(y_pred, y_true, weights)
-    event_probabilities = weighted_pava(y_mean, weights)
+    event_probabilities = isotonic_regression(y_mean, weights=weights).x
     return ReliabilityDiagram(prediction_values, event_probabilities, weights)
 
 
