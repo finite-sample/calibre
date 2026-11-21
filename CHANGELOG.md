@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Fit CORP reliability diagrams with SciPy's compiled isotonic regression after
+  pooling tied forecast scores. This speeds up the diagram and its score
+  decomposition when many forecast scores are distinct.
+
 ## [0.14.0] - 2026-09-19
 
 ### Added

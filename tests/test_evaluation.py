@@ -151,6 +151,18 @@ def test_diagram_rejects_negative_weights_even_when_ties_cancel_them():
         corp_reliability(y, x, sample_weight=w)
 
 
+def test_zero_mass_ties_drop_before_isotonic_fit():
+    """The weighted rates 1/3 and 0 pool to 1/4 after the empty tie drops."""
+    diagram = corp_reliability(
+        np.array([1, 0, 0, 1, 0]),
+        np.array([0.1, 0.1, 0.4, 0.4, 0.8]),
+        sample_weight=np.array([0, 0, 2, 1, 1]),
+    )
+    np.testing.assert_array_equal(diagram.prediction_values, [0.4, 0.8])
+    np.testing.assert_array_equal(diagram.prediction_weights, [3, 1])
+    np.testing.assert_allclose(diagram.event_probabilities, [0.25, 0.25])
+
+
 def test_diagram_rejects_unidentified_all_zero_weights():
     """A reliability diagram needs at least one weighted observation."""
     x, y = _calibrated(17, n=20)
