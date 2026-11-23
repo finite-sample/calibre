@@ -21,7 +21,7 @@ jobs:
     with:
       # The canon default matrix starts at the fleet's 3.11 floor, but this project
       # declares requires-python >=3.12, so uv refuses to resolve on 3.11.
-      python-versions: '["3.12", "3.13", "3.14"]'
+      python-versions: '["3.13", "3.14"]'
       os: '["ubuntu-latest", "macos-latest", "windows-latest"]'
       wheel-import: calibre
       # Full suite measures 87% (2026-08); the floor sits just under it so a
