@@ -9,7 +9,7 @@
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
-      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
      </cc:Agent>
     </dc:creator>
    </cc:Work>
@@ -1166,7 +1166,7 @@ z
      <use xlink:href="#m80cca3e2d0" x="305.978004" y="214.37472" style="fill: #0072b2; stroke: #0072b2"/>
      <use xlink:href="#m80cca3e2d0" x="113.572891" y="251.693113" style="fill: #0072b2; stroke: #0072b2"/>
      <use xlink:href="#m80cca3e2d0" x="115.670636" y="250.498469" style="fill: #0072b2; stroke: #0072b2"/>
-     <use xlink:href="#m80cca3e2d0" x="306.984921" y="219.85491" style="fill: #0072b2; stroke: #0072b2"/>
+     <use xlink:href="#m80cca3e2d0" x="306.984921" y="219.248107" style="fill: #0072b2; stroke: #0072b2"/>
      <use xlink:href="#m80cca3e2d0" x="113.572891" y="251.693113" style="fill: #0072b2; stroke: #0072b2"/>
      <use xlink:href="#m80cca3e2d0" x="306.984921" y="225.259251" style="fill: #0072b2; stroke: #0072b2"/>
      <use xlink:href="#m80cca3e2d0" x="306.984921" y="224.823111" style="fill: #0072b2; stroke: #0072b2"/>
@@ -1273,7 +1273,7 @@ z
    </g>
    <g id="text_21">
     <!-- calibre_spline -->
-    <g transform="translate(312.984921 215.85491) scale(0.0833 -0.0833)">
+    <g transform="translate(312.984921 215.248107) scale(0.0833 -0.0833)">
      <defs>
       <path id="DejaVuSans-53" d="M 1159 525
 L 1159 -1331

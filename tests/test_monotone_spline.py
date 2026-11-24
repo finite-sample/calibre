@@ -894,3 +894,48 @@ def test_ties_do_not_depend_on_input_order(cls_name):
     second = _make_calibrator(cls_name).fit(x[perm], y[perm]).transform(grid)
 
     np.testing.assert_allclose(first, second, atol=1e-9)
+
+
+def test_logit_auto_selection_is_well_posed_under_low_tail_separation():
+    """A separated low tail must not let selection pick an unbounded problem.
+
+    Under ``y ~ Bernoulli(x**3)`` the lowest scores are all zero. With
+    ``alpha=0`` the logit likelihood then has no maximizer: lowering the first
+    B-spline coefficient only moves the fit where every label is 0, so the loss
+    falls forever and the returned intercept is wherever L-BFGS-B stopped
+    (-31 for this basis at n=3000, -5e5 at n=20,000). Cross-validation used to
+    pick that candidate. The intercept is checked against CVXPY on the same
+    objective, so it is the optimum rather than a stopping point.
+    """
+    import cvxpy as cp
+
+    from calibre import SplineCalibrator
+    from calibre._core import monotone_spline_basis
+
+    rng = np.random.default_rng(0)
+    n = 3000
+    x = rng.random(n)
+    y = (rng.random(n) < x**3).astype(float)
+
+    # The premise: on a grid basis, the first B-spline (1 - I_1) touches only
+    # y=0 rows, so with alpha=0 the loss decreases without bound along it.
+    grid_basis = monotone_spline_basis(n_knots=10, degree=3, knots="quantile")
+    first_bspline = 1.0 - grid_basis.fit(x).design(x)[:, 0]
+    assert np.any(first_bspline > 1e-12)
+    assert np.all(y[first_bspline > 1e-12] == 0.0)
+
+    cal = SplineCalibrator().fit(x, y)
+    M = cal.basis_.design(x)
+
+    assert cal.alpha_ > 0.0
+    assert np.isfinite(cal.intercept_)
+
+    p = M.shape[1]
+    theta = cp.Variable()
+    d = cp.Variable(p)
+    eta = theta + M @ d
+    obj = cp.sum(cp.logistic(eta) - cp.multiply(y, eta)) / n
+    obj = obj + cal.alpha_ * cp.sum_squares(cp.diff(d))
+    cp.Problem(cp.Minimize(obj), [d >= 0]).solve(solver=cp.CLARABEL)
+
+    assert cal.intercept_ == pytest.approx(float(theta.value), abs=1e-2)

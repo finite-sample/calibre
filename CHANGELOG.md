@@ -13,6 +13,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pooling tied forecast scores. This speeds up the diagram and its score
   decomposition when many forecast scores are distinct.
 
+### Fixed
+
+- `SplineCalibrator(link="logit", alpha="auto")` now searches `alpha=1e-5`
+  where it used to search `alpha=0`. When the lowest scores are all `y=0`, the
+  unpenalized logit likelihood has no maximizer: lowering the first spline
+  coefficient keeps reducing log loss, so the fitted intercept was wherever
+  L-BFGS-B stopped (-5.2e5 in one 20,000-row fit), and cross-validation often
+  chose that candidate. Any positive penalty bounds the bend at the low end;
+  1e-5 is the smallest value at which the optimizer still matched CVXPY's
+  intercept (within 0.01) in every separated case tried. Results change: in the
+  committed benchmark 114 of 300 spline fits moved, mean held-out log loss fell
+  by 0.012, the worst fit went from 1.387 to 0.442, and 59 fits got slightly
+  worse (at most +0.088, on the 228-row and small-sample designs). The identity
+  link and an explicitly supplied `alpha` are unchanged.
+
 ## [0.14.0] - 2026-09-19
 
 ### Added
