@@ -9,7 +9,7 @@
     <dc:format>image/svg+xml</dc:format>
     <dc:creator>
      <cc:Agent>
-      <dc:title>Matplotlib v3.11.1, https://matplotlib.org/</dc:title>
+      <dc:title>Matplotlib v3.11.2, https://matplotlib.org/</dc:title>
      </cc:Agent>
     </dc:creator>
    </cc:Work>
@@ -991,7 +991,7 @@ z
 " style="stroke: #d55e00"/>
     </defs>
     <g clip-path="url(#pf3b69b8d55)">
-     <use xlink:href="#m8bdb2f26e0" x="379.654959" y="243.053199" style="fill: #d55e00; stroke: #d55e00"/>
+     <use xlink:href="#m8bdb2f26e0" x="379.399697" y="242.24533" style="fill: #d55e00; stroke: #d55e00"/>
     </g>
    </g>
    <g id="PathCollection_4">
@@ -1231,8 +1231,8 @@ z
     </g>
    </g>
    <g id="patch_6">
-    <path d="M 356.577706 234.256449
-Q 365.311962 237.585834 374.046218 240.915219
+    <path d="M 357.360905 234.227656
+Q 365.562231 237.211284 373.763556 240.194912
 " style="fill: none; stroke: #999999; stroke-width: 0.5; stroke-linecap: round"/>
    </g>
    <g id="text_13">

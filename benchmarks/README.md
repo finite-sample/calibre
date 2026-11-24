@@ -71,7 +71,7 @@ Thirty seeds, held out, `overconfident` (logit inflated by 1.8):
 | uncalibrated | 0.16037 | 1594 | 0.0808 |
 | `sklearn_isotonic` | 0.15305 | **49** | 0.0255 |
 | `calibre_centered` | 0.15272 | 1514 | 0.0205 |
-| `calibre_spline` | 0.15242 | 1595 | 0.0175 |
+| `calibre_spline` | 0.15245 | 1590 | 0.0175 |
 | `sklearn_temperature` | 0.15216 | 1599 | **0.0040** |
 
 Two things to read off it. Centered isotonic and the spline match or beat isotonic's
@@ -85,7 +85,7 @@ Meanwhile `nonmonotone`, built expecting calibre to lose, has calibre winning
 (0.21556 for the penalized spline against 0.22236 for Platt): the parametric
 methods cannot follow the dip either, and they give up more.
 
-Across the 70 non-baseline method-cells, 32 beat `sklearn_isotonic` with a
+Across the 70 non-baseline method-cells, 33 beat `sklearn_isotonic` with a
 bootstrap interval clear of zero. The honest details: `sklearn_platt` and
 `sklearn_temperature` are among the winners, and **`uncalibrated` beats the
 baseline in one cell**: `breast_cancer/logreg`, by 0.00129 Brier with an interval

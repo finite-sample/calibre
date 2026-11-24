@@ -99,7 +99,7 @@ seeds, scored on a held-out 40% that nothing was tuned on. Lower Brier is better
 | `IsotonicCalibrator` | 0.1530 | +0.0073 | 0.0270 | **49** | baseline |
 | `NearlyIsotonicCalibrator` | 0.1531 | +0.0073 | 0.0270 | 52 | 7/30 |
 | `CenteredIsotonicCalibrator` | 0.1527 | +0.0076 | 0.0284 | 1514 | 25/30 |
-| `SplineCalibrator` | 0.1524 | +0.0080 | 0.0263 | 1595 | 28/30 |
+| `SplineCalibrator` | 0.1525 | +0.0079 | 0.0262 | 1590 | 28/30 |
 | Logistic recalibration of log-odds | **0.1521** | **+0.0082** | 0.0251 | 1599 | 26/30 |
 | Temperature scaling (scalar optimization) | 0.1522 | +0.0082 | 0.0251 | 1599 | 26/30 |
 

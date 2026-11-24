@@ -57,7 +57,11 @@ class SplineCalibrator(BaseCalibrator):
             calibration, where scores pile up wherever the base model is
             confident and uniform knots spend resolution on empty regions.
         alpha: Roughness penalty on the coefficient increments, or ``"auto"``
-            to select it by cross-validation. A number pins it exactly. The loss
+            to select it by cross-validation from :attr:`ALPHA_GRID`. For
+            ``link="logit"`` the search replaces ``alpha=0`` with
+            :attr:`LOGIT_ALPHA_FLOOR`, because the unpenalized likelihood has no
+            maximizer once the lowest scores are all ``y=0``. A number pins it
+            exactly. The loss
             is weight-normalized, so alpha does not change meaning with sample
             size or a constant rescaling of observation weights.
         link: ``"logit"`` (default) fits a penalized Bernoulli likelihood:
@@ -134,6 +138,10 @@ class SplineCalibrator(BaseCalibrator):
     """
 
     ALPHA_GRID = (0.0, 1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0)
+    # The smallest penalty at which L-BFGS-B still reaches the penalized optimum
+    # on a separated low tail: against CVXPY, intercepts agreed to 0.01 for
+    # alpha >= 1e-5 in every case tried and missed by up to 52 logits at 1e-7.
+    LOGIT_ALPHA_FLOOR = 1e-5
     N_KNOTS_GRID = (5, 10, 20)
 
     def __init__(
@@ -325,9 +333,20 @@ class SplineCalibrator(BaseCalibrator):
             ]
         else:
             knot_grid = [int(self.n_knots)]
-        alpha_grid = (
-            list(self.ALPHA_GRID) if self.alpha == "auto" else [float(self.alpha)]
-        )
+        if self.alpha != "auto":
+            alpha_grid = [float(self.alpha)]
+        elif self.link == "logit":
+            # For the logit link alpha=0 is floored at LOGIT_ALPHA_FLOOR because
+            # its maximizer need not exist: if the lowest scores are all y=0,
+            # sending the first B-spline coefficient to -inf lowers the log loss
+            # forever, and the fit is wherever L-BFGS-B stopped. Any alpha > 0
+            # caps that bend. The flat base-rate start is feasible with zero
+            # penalty, so at the optimum alpha * ||D delta||^2 <= H(base rate)
+            # <= log 2, and every second difference of the coefficients is at
+            # most sqrt(log 2 / alpha). Only complete separation stays unbounded.
+            alpha_grid = [max(a, self.LOGIT_ALPHA_FLOOR) for a in self.ALPHA_GRID]
+        else:
+            alpha_grid = list(self.ALPHA_GRID)
         scoring = (
             ("log_loss" if self.link == "logit" else "brier")
             if self.scoring == "auto"
