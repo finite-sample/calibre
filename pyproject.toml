@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
-    "numpy>=1.20.0",
+    "numpy>=2.1.0",
     "scipy>=1.15.0",
     "scikit-learn>=1.6.0",
 ]
@@ -33,7 +33,7 @@ version = "0.14.0"
 # installs and runs without it. Keep the lower bound in step with the test and
 # docs groups below: PEP 735 groups cannot reference a project's own extras, so
 # the three bounds have to be bumped together.
-plots = ["matplotlib>=3.9"]
+plots = ["matplotlib>=3.9.2"]
 
 [dependency-groups]
 dev = [

@@ -130,8 +130,8 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "matplotlib", marker = "extra == 'plots'", specifier = ">=3.9" },
-    { name = "numpy", specifier = ">=1.20.0" },
+    { name = "matplotlib", marker = "extra == 'plots'", specifier = ">=3.9.2" },
+    { name = "numpy", specifier = ">=2.1.0" },
     { name = "scikit-learn", specifier = ">=1.6.0" },
     { name = "scipy", specifier = ">=1.15.0" },
 ]
