@@ -466,7 +466,7 @@ def brier_score(
         >>> import numpy as np
         >>> y_true = np.array([0, 1, 1, 0, 1])
         >>> y_pred = np.array([0.2, 0.7, 0.8, 0.4, 0.6])
-        >>> brier_score(y_true, y_pred)
+        >>> print(f"{brier_score(y_true, y_pred):.15g}")
         0.098
     """
     true, pred, weight = _validate_binary_probability_metric_inputs(
