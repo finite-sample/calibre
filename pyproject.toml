@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Information Analysis",
 ]
 dependencies = [
-    "numpy>=1.20.0",
+    "numpy>=2.4.6",
     "scipy>=1.15.0",
     "scikit-learn>=1.6.0",
 ]
@@ -33,7 +33,7 @@ version = "0.14.0"
 # installs and runs without it. Keep the lower bound in step with the test and
 # docs groups below: PEP 735 groups cannot reference a project's own extras, so
 # the three bounds have to be bumped together.
-plots = ["matplotlib>=3.9"]
+plots = ["matplotlib>=3.10.7"]
 
 [dependency-groups]
 dev = [
@@ -54,7 +54,7 @@ test = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-xdist>=3.0",
-    "matplotlib>=3.9",
+    "matplotlib>=3.10.7",
     "cvxpy>=1.2.0",
 ]
 docs = [
@@ -69,7 +69,7 @@ docs = [
     "ipykernel>=6.0",
     # Used by the executable tutorials only. Dropped as runtime dependencies in
     # 0.7.0, which left every notebook failing at its import cell until 0.7.1.
-    "matplotlib>=3.9",
+    "matplotlib>=3.10.7",
     "pandas>=2.0",
 ]
 

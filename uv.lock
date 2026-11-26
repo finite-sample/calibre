@@ -130,8 +130,8 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "matplotlib", marker = "extra == 'plots'", specifier = ">=3.9" },
-    { name = "numpy", specifier = ">=1.20.0" },
+    { name = "matplotlib", marker = "extra == 'plots'", specifier = ">=3.10.7" },
+    { name = "numpy", specifier = ">=2.4.6" },
     { name = "scikit-learn", specifier = ">=1.6.0" },
     { name = "scipy", specifier = ">=1.15.0" },
 ]
@@ -140,7 +140,7 @@ provides-extras = ["plots"]
 [package.metadata.requires-dev]
 dev = [
     { name = "cvxpy", specifier = ">=1.2.0" },
-    { name = "matplotlib", specifier = ">=3.9" },
+    { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "pre-commit", specifier = ">=4" },
     { name = "pydoclint", specifier = ">=0.8.3" },
     { name = "pyright", specifier = ">=1.1.390" },
@@ -153,7 +153,7 @@ dev = [
 docs = [
     { name = "furo" },
     { name = "ipykernel", specifier = ">=6.0" },
-    { name = "matplotlib", specifier = ">=3.9" },
+    { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "myst-nb", specifier = ">=1.1" },
     { name = "myst-parser" },
     { name = "pandas", specifier = ">=2.0" },
@@ -163,7 +163,7 @@ docs = [
 ]
 test = [
     { name = "cvxpy", specifier = ">=1.2.0" },
-    { name = "matplotlib", specifier = ">=3.9" },
+    { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "pytest", specifier = ">=7.0" },
     { name = "pytest-cov", specifier = ">=4.0" },
     { name = "pytest-xdist", specifier = ">=3.0" },
